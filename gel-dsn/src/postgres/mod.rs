@@ -1,4 +1,4 @@
-//! Parses DSNs for database connections.
+//! Parses DSNs for PostgreSQL database connections.
 //!
 //! There are some small differences with how `libpq` works:
 //!
