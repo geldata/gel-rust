@@ -6,7 +6,7 @@ use std::{
 };
 
 use gel_dsn::{
-    gel::{BuildContext, BuildContextImpl, ConnectionOptions, ParseError},
+    gel::{error::ParseError, ConnectionOptions},
     EnvVar, FileAccess,
 };
 use serde::{Deserialize, Serialize};
@@ -210,36 +210,34 @@ fn main() {
             None
         };
 
-        let mut context = BuildContextImpl::new_with(&testcase, &testcase);
-        context.trace = Some(vec![]);
-        context.trace(&testcase.name.to_string());
-
-        if let Some(fs) = &testcase.fs {
+        let config_dir = if let Some(fs) = &testcase.fs {
             if let Some(homedir) = &fs.homedir {
                 match testcase.platform {
                     Some(ref platform) => match platform.as_str() {
                         "windows" => {
-                            context.config_dir =
-                                Some(PathBuf::from(homedir).join("AppData\\Local\\EdgeDB\\config"))
+                            Some(PathBuf::from(homedir).join("AppData\\Local\\EdgeDB\\config"))
                         }
                         "macos" => {
-                            context.config_dir = Some(
-                                PathBuf::from(homedir).join("Library/Application Support/edgedb"),
-                            )
+                            Some(PathBuf::from(homedir).join("Library/Application Support/edgedb"))
                         }
                         _ => panic!("Unknown platform: {}", platform),
                     },
-                    None => {
-                        context.config_dir = Some(PathBuf::from(homedir).join(".config/edgedb"))
-                    }
+                    None => Some(PathBuf::from(homedir).join(".config/edgedb")),
                 }
+            } else {
+                None
             }
-        }
-
-        let result = match testcase.opts.clone().unwrap_or_default().try_into() {
-            Ok(explicit) => gel_dsn::gel::parse(explicit, &mut context, project.as_deref()),
-            Err(e) => Err(e),
+        } else {
+            None
         };
+
+        let (result, warnings, mut traces) = gel_dsn::gel::parse_from(
+            testcase.opts.clone().unwrap_or_default(),
+            project.as_deref(),
+            config_dir.as_deref(),
+            &testcase,
+            &testcase,
+        );
 
         let actual = match &result {
             Ok(a) => serde_json::to_string_pretty(&a.to_json()).unwrap(),
@@ -264,14 +262,17 @@ fn main() {
 
         if actual == expected || fuzzy_match {
             passed += 1;
-            context.trace(&format!("Passed: {}", testcase.name));
+            traces.trace(&format!("Passed: {}", testcase.name));
         } else {
             failed += 1;
-            context.trace(&format!("Failed: {}", testcase.name));
+            traces.trace(&format!("Failed: {}", testcase.name));
 
             println!("---------------------------------------------");
-            for trace in context.trace.unwrap() {
+            for trace in traces.into_vec() {
                 println!("{}", trace);
+            }
+            for warning in warnings.into_vec() {
+                println!("{}", warning);
             }
             println!(
                 "Failed: {}",

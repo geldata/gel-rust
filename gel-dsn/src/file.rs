@@ -2,6 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 pub struct SystemFileAccess;
 
+/// A trait for abstracting the reading of files.
 pub trait FileAccess {
     fn default() -> impl FileAccess {
         SystemFileAccess

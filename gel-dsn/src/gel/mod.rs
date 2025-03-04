@@ -1,5 +1,8 @@
-mod builder;
+//! Parses DSNs for Gel database connections.
+
+pub(crate) mod builder;
 mod env;
+pub mod error;
 mod instance_name;
 mod params;
 
@@ -11,16 +14,76 @@ use std::{
     str::FromStr,
 };
 
-pub use builder::{parse, Authentication, Config, DatabaseBranch, ParseError};
-use builder::{CompoundSource, TlsSecurityError};
+pub use builder::{Authentication, Config, DatabaseBranch};
 pub use instance_name::InstanceName;
 use params::{CloudCredentialsFile, CredentialsFile};
-pub use params::{Explicit, Param};
+pub use params::{Param, Params};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use error::*;
+
+/// Parse a set of parameters into a configuration.
+///
+/// No project directory is provided, so only the explicit parameters,
+/// environment and filesystem will be used.
+pub fn parse(
+    params: impl TryInto<Params, Error = ParseError>,
+) -> (Result<Config, ParseError>, Warnings) {
+    let params = match params.try_into() {
+        Ok(params) => params,
+        Err(e) => return (Err(e), Warnings::default()),
+    };
+    let mut context = BuildContextImpl::new();
+    let res = builder::parse(params, &mut context, None);
+    (res, context.warnings)
+}
+
+/// Parse a set of parameters and a project directory into a configuration.
+///
+/// A project directory is provided which will only be used if the explicit
+/// parameters, environment and filesystem are insufficient.
+pub fn parse_project(
+    params: impl TryInto<Params, Error = ParseError>,
+    project_dir: impl AsRef<Path>,
+    config_dir: Option<&Path>,
+) -> (Result<Config, ParseError>, Warnings) {
+    let params = match params.try_into() {
+        Ok(params) => params,
+        Err(e) => return (Err(e), Warnings::default()),
+    };
+    let mut context = BuildContextImpl::new();
+    context.config_dir = config_dir.map(|p| p.to_path_buf());
+    let res = builder::parse(params, &mut context, Some(project_dir.as_ref()));
+    (res, context.warnings)
+}
+
+/// Parse a set of parameters, an environment/filesystem implements and a
+/// project directory into a configuration.
+///
+/// A project directory is provided which will only be used if the explicit
+/// parameters, environment and filesystem are insufficient.
+pub fn parse_from(
+    params: impl TryInto<Params, Error = ParseError>,
+    project_dir: Option<&Path>,
+    config_dir: Option<&Path>,
+    env: impl EnvVar,
+    files: impl FileAccess,
+) -> (Result<Config, ParseError>, Warnings, Traces) {
+    let params = match params.try_into() {
+        Ok(params) => params,
+        Err(e) => return (Err(e), Warnings::default(), Traces::default()),
+    };
+    let mut context = BuildContextImpl::new_with(env, files);
+    context.traces = Some(Traces::default());
+    context.config_dir = config_dir.map(|p| p.to_path_buf());
+    let res = builder::parse(params, &mut context, project_dir);
+    (res, context.warnings, context.traces.unwrap())
+}
+
 use crate::{
-    env::SystemEnvVars, file::SystemFileAccess, host::HostType, EnvVar, FileAccess, Warnings,
+    env::SystemEnvVars, file::SystemFileAccess, host::HostType, EnvVar, FileAccess, Traces,
+    Warnings,
 };
 
 pub(crate) trait FromParamStr: Sized {
@@ -130,13 +193,12 @@ impl FromParamStr for Url {
     }
 }
 
-pub struct BuildContextImpl<E: EnvVar = SystemEnvVars, F: FileAccess = SystemFileAccess> {
+struct BuildContextImpl<E: EnvVar = SystemEnvVars, F: FileAccess = SystemFileAccess> {
     env: E,
     files: F,
     pub config_dir: Option<PathBuf>,
     pub(crate) warnings: Warnings,
-    errors: Vec<ParseError>,
-    pub trace: Option<Vec<String>>,
+    pub(crate) traces: Option<Traces>,
 }
 
 impl Default for BuildContextImpl<SystemEnvVars, SystemFileAccess> {
@@ -153,8 +215,7 @@ impl BuildContextImpl<SystemEnvVars, SystemFileAccess> {
             files: SystemFileAccess,
             config_dir: None,
             warnings: Warnings::default(),
-            errors: Vec::new(),
-            trace: None,
+            traces: None,
         }
     }
 }
@@ -167,17 +228,15 @@ impl<E: EnvVar, F: FileAccess> BuildContextImpl<E, F> {
             files,
             config_dir: None,
             warnings: Warnings::default(),
-            errors: Vec::new(),
-            trace: None,
+            traces: None,
         }
     }
 }
 
-pub trait BuildContext {
+pub(crate) trait BuildContext {
     type EnvVar: EnvVar;
     fn env(&self) -> &impl EnvVar;
     fn files(&self) -> &impl FileAccess;
-    fn warnings(&mut self) -> &mut Warnings;
     fn warn(&mut self, message: String);
     fn ok<T>(&self, value: T) -> Result<T, ParseError>;
     fn read_config_file<T: FromParamStr>(
@@ -203,10 +262,6 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
 
     fn files(&self) -> &impl FileAccess {
         &self.files
-    }
-
-    fn warnings(&mut self) -> &mut Warnings {
-        &mut self.warnings
     }
 
     fn warn(&mut self, message: String) {
@@ -260,8 +315,8 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
     }
 
     fn trace(&mut self, message: &str) {
-        if let Some(trace) = &mut self.trace {
-            trace.push(message.to_string());
+        if let Some(traces) = &mut self.traces {
+            traces.traces.push(message.to_string());
         }
     }
 }
@@ -295,7 +350,7 @@ impl FromStr for ClientSecurity {
     }
 }
 
-/// Client security mode.
+/// The type of cloud certificate to use.
 #[derive(Debug, Clone, Copy)]
 pub enum CloudCerts {
     Staging,
@@ -365,54 +420,38 @@ impl fmt::Display for TlsSecurity {
 }
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(default)]
 #[serde(deny_unknown_fields)]
 pub struct ConnectionOptions {
-    #[serde(default)]
     pub dsn: Option<String>,
-    #[serde(default)]
     pub user: Option<String>,
-    #[serde(default)]
     pub password: Option<String>,
-    #[serde(default)]
     pub instance: Option<String>,
-    #[serde(default)]
     pub database: Option<String>,
-    #[serde(default)]
     pub host: Option<String>,
     #[serde(deserialize_with = "deserialize_string_or_number")]
-    #[serde(default)]
     pub port: Option<String>,
-    #[serde(default)]
     pub branch: Option<String>,
-    #[serde(default)]
     #[serde(rename = "tlsSecurity")]
     pub tls_security: Option<String>,
-    #[serde(default)]
     #[serde(rename = "tlsCA")]
     pub tls_ca: Option<String>,
-    #[serde(default)]
     #[serde(rename = "tlsCAFile")]
     pub tls_ca_file: Option<String>,
-    #[serde(default)]
     #[serde(rename = "tlsServerName")]
     pub tls_server_name: Option<String>,
-    #[serde(default)]
     #[serde(rename = "waitUntilAvailable")]
     pub wait_until_available: Option<String>,
-    #[serde(default)]
     #[serde(rename = "serverSettings")]
     pub server_settings: Option<HashMap<String, String>>,
-    #[serde(default)]
     #[serde(rename = "credentialsFile")]
     pub credentials_file: Option<String>,
-    #[serde(default)]
-    #[serde(rename = "credentials")]
     pub credentials: Option<String>,
-    #[serde(default)]
     #[serde(rename = "secretKey")]
     pub secret_key: Option<String>,
 }
 
+#[cfg(feature = "serde")]
 fn deserialize_string_or_number<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -425,10 +464,10 @@ where
     }
 }
 
-impl TryInto<Explicit> for ConnectionOptions {
+impl TryInto<Params> for ConnectionOptions {
     type Error = ParseError;
 
-    fn try_into(self) -> Result<Explicit, Self::Error> {
+    fn try_into(self) -> Result<Params, Self::Error> {
         if self.credentials.is_some() && self.credentials_file.is_some() {
             return Err(ParseError::MultipleCompoundOpts(vec![
                 CompoundSource::CredentialsFile,
@@ -454,7 +493,7 @@ impl TryInto<Explicit> for ConnectionOptions {
             tls_ca = Param::from_file(self.tls_ca_file.clone());
         }
 
-        let explicit = Explicit {
+        let explicit = Params {
             dsn: Param::from_unparsed(self.dsn.clone()),
             credentials,
             user: Param::from_unparsed(self.user.clone()),

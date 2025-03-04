@@ -12,10 +12,8 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use super::{
-    builder::{CompoundSource, InvalidCredentialsFileError, TlsSecurityError},
-    env::Env,
-    BuildContext, ClientSecurity, Config, DatabaseBranch, FromParamStr, InstanceName, ParseError,
-    TlsSecurity,
+    env::Env, BuildContext, ClientSecurity, CompoundSource, Config, DatabaseBranch, FromParamStr,
+    InstanceName, InvalidCredentialsFileError, ParseError, TlsSecurity, TlsSecurityError,
 };
 use crate::{
     env::EnvVar,
@@ -24,17 +22,26 @@ use crate::{
     FileAccess,
 };
 
+/// A parameter that may be sourced from a file, environment variable, provided
+/// explicitly, etc.
 #[derive(Default, Debug, Clone)]
 pub enum Param<T: Clone> {
+    /// No value.
     #[default]
     None,
+    /// Unparsed value.
     Unparsed(String),
+    /// Value from given environment variable.
     Env(String),
+    /// Value from given file.
     File(PathBuf),
+    /// Value from environment variable pointing to a file.
     EnvFile(String),
+    /// Parsed value.
     Parsed(T),
 }
 
+#[allow(private_bounds)]
 impl<T: Clone> Param<T>
 where
     T: FromParamStr,
@@ -140,7 +147,8 @@ pub enum BuildPhase {
 }
 
 #[derive(Clone, Default)]
-pub struct Explicit {
+#[non_exhaustive]
+pub struct Params {
     pub dsn: Param<Url>,
     pub instance: Param<InstanceName>,
     pub credentials: Param<CredentialsFile>,
@@ -164,7 +172,7 @@ pub struct Explicit {
     pub server_settings: HashMap<String, String>,
 }
 
-impl Debug for Explicit {
+impl Debug for Params {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = f.debug_struct("Explicit");
         if self.dsn.is_some() {
@@ -225,7 +233,7 @@ impl Debug for Explicit {
     }
 }
 
-impl Explicit {
+impl Params {
     pub fn merge(&mut self, other: Self) {
         if self.dsn.is_none() {
             self.dsn = other.dsn;
@@ -294,6 +302,9 @@ impl Explicit {
         }
         if self.credentials.is_some() {
             sources.push(CompoundSource::CredentialsFile);
+        }
+        if self.unix_path.is_some() {
+            sources.push(CompoundSource::UnixSocket);
         }
         sources
     }
@@ -377,18 +388,30 @@ impl Explicit {
         context.trace(&format!("Merged: {:?}", explicit));
 
         // Step 2: Resolve host. If we have no host yet, exit.
-        let host = match (explicit.host.get(context)?, explicit.port.get(context)?) {
-            (Some(host), Some(port)) => Host(host, port.into()),
-            (Some(host), None) => Host(host, 5656),
-            (None, Some(port)) => Host(HostType::Hostname("localhost".to_string()), port.into()),
-            (None, None) => {
-                return Ok(None);
+        let host = if let Some(unix_path) = explicit.unix_path.get(context)? {
+            match explicit.port.get(context)? {
+                Some(port) => Host(HostType::Path(unix_path), port.into()),
+                None => Host(HostType::Path(unix_path), 5656),
             }
-        };
+        } else {
+            let host = match (explicit.host.get(context)?, explicit.port.get(context)?) {
+                (Some(host), Some(port)) => Host(host, port.into()),
+                (Some(host), None) => Host(host, 5656),
+                (None, Some(port)) => {
+                    Host(HostType::Hostname("localhost".to_string()), port.into())
+                }
+                (None, None) => {
+                    return Ok(None);
+                }
+            };
 
-        if host.is_unix() {
-            return Err(ParseError::UnixSocketUnsupported);
-        }
+            // Only allow the unix socket if it's explicitly set through unix_path
+            if host.is_unix() {
+                return Err(ParseError::UnixSocketUnsupported);
+            }
+
+            host
+        };
 
         let authentication = if let Some(password) = explicit.password.get(context)? {
             Authentication::Password(password)
@@ -463,8 +486,8 @@ impl Explicit {
     }
 }
 
-pub fn parse_dsn(dsn: &Url, context: &mut impl BuildContext) -> Result<Explicit, ParseError> {
-    let mut explicit = Explicit::default();
+pub fn parse_dsn(dsn: &Url, context: &mut impl BuildContext) -> Result<Params, ParseError> {
+    let mut explicit = Params::default();
 
     context.trace(&format!("Parsing DSN: {:?}", dsn));
 
@@ -574,8 +597,8 @@ pub fn parse_dsn(dsn: &Url, context: &mut impl BuildContext) -> Result<Explicit,
 pub fn parse_credentials(
     credentials: &CredentialsFile,
     context: &mut impl BuildContext,
-) -> Result<Explicit, ParseError> {
-    let mut explicit = Explicit::default();
+) -> Result<Params, ParseError> {
+    let mut explicit = Params::default();
 
     explicit.host = Param::from_unparsed(credentials.host.clone());
     explicit.port = Param::Parsed(credentials.port);
@@ -590,8 +613,8 @@ pub fn parse_credentials(
     context.ok(explicit)
 }
 
-pub fn parse_env(context: &mut impl BuildContext) -> Result<Explicit, ParseError> {
-    let mut explicit = Explicit {
+pub fn parse_env(context: &mut impl BuildContext) -> Result<Params, ParseError> {
+    let mut explicit = Params {
         dsn: Param::from_parsed(context.read_env(Env::dsn)?),
         instance: Param::from_parsed(context.read_env(Env::instance)?),
         credentials: Param::from_file(context.read_env(Env::credentials_file)?),
@@ -625,10 +648,7 @@ pub fn parse_env(context: &mut impl BuildContext) -> Result<Explicit, ParseError
     context.ok(explicit)
 }
 
-pub fn parse_instance(
-    local: &str,
-    context: &mut impl BuildContext,
-) -> Result<Explicit, ParseError> {
+pub fn parse_instance(local: &str, context: &mut impl BuildContext) -> Result<Params, ParseError> {
     let Some(credentials) = (match context.read_config_file(format!("credentials/{local}.json"))? {
         Some(credentials) => Some(credentials),
         None => {
@@ -636,18 +656,18 @@ pub fn parse_instance(
             None
         }
     }) else {
-        return context.ok(Explicit::default());
+        return context.ok(Params::default());
     };
     parse_credentials(&credentials, context)
 }
 
-pub fn parse_cloud(profile: &str, context: &mut impl BuildContext) -> Result<Explicit, ParseError> {
-    let mut explicit = Explicit::default();
+pub fn parse_cloud(profile: &str, context: &mut impl BuildContext) -> Result<Params, ParseError> {
+    let mut explicit = Params::default();
 
     let Some(cloud_credentials): Option<CloudCredentialsFile> =
         context.read_config_file(format!("cloud-credentials/{profile}.json"))?
     else {
-        return context.ok(Explicit::default());
+        return context.ok(Params::default());
     };
     explicit.secret_key = Param::Unparsed(cloud_credentials.secret_key);
 

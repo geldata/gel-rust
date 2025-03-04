@@ -1,12 +1,10 @@
-use std::fmt::Debug;
-use std::num::NonZeroU16;
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{borrow::Cow, fmt::Debug, num::NonZeroU16, path::PathBuf, time::Duration};
 
 use url::Url;
 
-use super::{BuildContext, ClientSecurity, CloudCerts, InstanceName, ParseError, TlsSecurity};
-use crate::env::define_env;
+use super::{
+    BuildContext, ClientSecurity, CloudCerts, FromParamStr, InstanceName, ParseError, TlsSecurity,
+};
 use crate::host::HostType;
 
 define_env!(
@@ -95,5 +93,156 @@ fn ignore_docker_tcp_port(
         Ok(None)
     } else {
         Ok(Some(s.to_string()))
+    }
+}
+
+use crate::EnvVar;
+pub use crate::__UNEXPORTED_define_env as define_env;
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __UNEXPORTED_define_env {
+    (
+        type Error = $error:ty;
+        $(
+            #[doc=$doc:expr]
+            #[env($($env_name:expr),+)]
+            $(#[preprocess=$preprocess:expr])?
+            $(#[parse=$parse:expr])?
+            $(#[validate=$validate:expr])?
+            $name:ident: $type:ty
+        ),* $(,)?
+    ) => {
+        #[derive(Debug, Clone)]
+        pub struct Env {
+        }
+
+        #[allow(clippy::diverging_sub_expression)]
+        impl Env {
+            $(
+                #[doc = $doc]
+                pub fn $name(context: &mut impl $crate::gel::BuildContext) -> ::std::result::Result<::std::option::Option<$type>, $error> {
+                    const ENV_NAMES: &[&str] = &[$(stringify!($env_name)),+];
+                    let Some((_name, s)) = $crate::gel::env::get_envs(ENV_NAMES, context)? else {
+                        return Ok(None);
+                    };
+                    $(let Some(s) = $preprocess(&s, context)? else {
+                        return Ok(None);
+                    };)?
+
+                    // This construct lets us choose between $parse and std::str::FromStr
+                    // without requiring all types to implement FromStr.
+                    #[allow(unused_labels)]
+                    let value: $type = 'block: {
+                        $(
+                            break 'block $parse(&name, &s)?;
+
+                            // Disable the fallback parser
+                            #[cfg(all(debug_assertions, not(debug_assertions)))]
+                        )?
+                        $crate::gel::env::parse::<_, $error>(s, context)?
+                    };
+
+                    $($validate(name, &value)?;)?
+                    Ok(Some(value))
+                }
+            )*
+        }
+    };
+}
+
+#[inline(never)]
+#[doc(hidden)]
+pub fn parse<T: FromParamStr, E>(
+    s: impl AsRef<str>,
+    context: &mut impl BuildContext,
+) -> Result<T, E>
+where
+    <T as FromParamStr>::Err: Into<E>,
+{
+    match T::from_param_str(s.as_ref(), context) {
+        Ok(value) => Ok(value),
+        Err(e) => Err(e.into()),
+    }
+}
+
+#[inline(never)]
+#[doc(hidden)]
+pub fn get_envs(
+    names: &'static [&'static str],
+    context: &mut impl BuildContext,
+) -> Result<Option<(&'static str, Cow<'static, str>)>, std::env::VarError> {
+    let mut value = None;
+    let mut found_vars = Vec::new();
+
+    for name in names {
+        match context.env().read(name) {
+            Ok(val) => {
+                found_vars.push(format!("{}={}", name, val));
+                if value.is_none() {
+                    value = Some((*name, Cow::Owned(val.to_string())));
+                }
+            }
+            Err(std::env::VarError::NotPresent) => continue,
+            Err(err @ std::env::VarError::NotUnicode(_)) => {
+                return Err(err);
+            }
+        }
+    }
+
+    if found_vars.len() > 1 {
+        context.warn(format!(
+            "Multiple environment variables set: {}",
+            found_vars.join(", ")
+        ));
+    }
+
+    Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::HashMap, convert::Infallible};
+
+    #[derive(Debug)]
+    pub enum Error {
+        VarError,
+    }
+
+    impl From<Infallible> for Error {
+        fn from(_: Infallible) -> Self {
+            unreachable!()
+        }
+    }
+
+    impl From<std::env::VarError> for Error {
+        fn from(_error: std::env::VarError) -> Self {
+            Error::VarError
+        }
+    }
+
+    use crate::gel::BuildContextImpl;
+
+    use super::define_env;
+    define_env! {
+        type Error = Error;
+
+        #[doc="The host to connect to."]
+        #[env(GEL_HOST, EDGEDB_HOST)]
+        host: String,
+    }
+
+    #[test]
+    fn test_define_env() {
+        let map = HashMap::from([("GEL_HOST", "localhost"), ("EDGEDB_HOST", "localhost")]);
+        let mut context = BuildContextImpl::new_with(&map, ());
+        assert_eq!(
+            Env::host(&mut context).unwrap(),
+            Some("localhost".to_string())
+        );
+        assert_eq!(
+            context.warnings.warnings,
+            vec!["Multiple environment variables set: GEL_HOST=localhost, EDGEDB_HOST=localhost"]
+        );
     }
 }

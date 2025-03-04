@@ -1,5 +1,8 @@
-use gel_stream::{ResolvedTarget, TargetName};
-use std::net::{IpAddr, Ipv6Addr};
+use gel_stream::TargetName;
+use std::{
+    net::{IpAddr, Ipv6Addr},
+    path::PathBuf,
+};
 
 #[cfg(feature = "serde")]
 use serde::Serialize;
@@ -34,12 +37,11 @@ impl Host {
                 self.1,
             ))),
             HostType::IP(ip, None) => Ok(TargetName::new_tcp((format!("{}", ip), self.1))),
-            HostType::Path(path) => TargetName::new_unix_path(format!(
-                "{}/.s.{}.{}",
-                path,
+            HostType::Path(path) => TargetName::new_unix_path(path.join(format!(
+                ".s.{}.{}",
                 target.target_name()?,
                 self.1
-            )),
+            ))),
             #[allow(unused)]
             HostType::Abstract(name) => {
                 #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -67,40 +69,12 @@ impl Host {
     }
 }
 
-pub trait ToAddrsSyncVec {
-    fn to_addrs_sync(
-        &self,
-        target: HostTarget,
-    ) -> Vec<(Host, Result<Vec<ResolvedTarget>, std::io::Error>)>;
-}
-
-impl ToAddrsSyncVec for Vec<Host> {
-    fn to_addrs_sync(
-        &self,
-        target: HostTarget,
-    ) -> Vec<(Host, Result<Vec<ResolvedTarget>, std::io::Error>)> {
-        let mut result = Vec::with_capacity(self.len());
-        for host in self {
-            match host.target_name(target) {
-                Ok(target_name) => match target_name.to_addrs_sync() {
-                    Ok(addrs) => result.push((host.clone(), Ok(addrs))),
-                    Err(err) => result.push((host.clone(), Err(err))),
-                },
-                Err(err) => {
-                    result.push((host.clone(), Err(err)));
-                }
-            }
-        }
-        result
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub enum HostType {
     Hostname(String),
     IP(IpAddr, Option<String>),
-    Path(String),
+    Path(PathBuf),
     Abstract(String),
 }
 
@@ -112,7 +86,7 @@ impl std::fmt::Display for HostType {
             HostType::IP(ip, None) => {
                 write!(f, "{}", ip)
             }
-            HostType::Path(path) => write!(f, "{}", path),
+            HostType::Path(path) => write!(f, "{}", path.display()),
             HostType::Abstract(name) => write!(f, "@{}", name),
         }
     }
@@ -127,7 +101,7 @@ impl HostType {
             return Err(s);
         }
         if s.starts_with('/') {
-            return Ok(HostType::Path(s.to_string()));
+            return Ok(HostType::Path(PathBuf::from(s)));
         }
         if let Some(s) = s.strip_prefix('@') {
             return Ok(HostType::Abstract(s.to_string()));

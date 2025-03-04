@@ -1,5 +1,6 @@
-//! Parses DSNs for database connections. There are some small differences with
-//! how `libpq` works:
+//! Parses DSNs for database connections.
+//!
+//! There are some small differences with how `libpq` works:
 //!
 //!  - Unrecognized options are supported and collected in a map.
 //!  - `database` is recognized as an alias for `dbname`

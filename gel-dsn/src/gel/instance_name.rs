@@ -1,10 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use crate::gel::builder::InvalidSecretKeyError;
-
-use super::builder::InstanceNameError;
-use super::ParseError;
+use super::{InstanceNameError, InvalidSecretKeyError, ParseError};
 
 const DOMAIN_LABEL_MAX_LENGTH: usize = 63;
 const CLOUD_INSTANCE_NAME_MAX_LENGTH: usize = DOMAIN_LABEL_MAX_LENGTH - 2 + 1; // "--" -> "/"
