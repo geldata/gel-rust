@@ -1,6 +1,5 @@
 use std::{
-    collections::HashMap, convert::Infallible, num::ParseIntError, path::Path, str::FromStr,
-    time::Duration,
+    collections::HashMap, convert::Infallible, num::ParseIntError, path::Path, time::Duration,
 };
 
 use super::{
@@ -283,7 +282,7 @@ pub fn parse(
     }
 
     if let Some(project) = project {
-        let project = Project::load(&project, context)?;
+        let project = Project::load(project, context)?;
         explicit.merge(Explicit {
             cloud_profile: Param::from_unparsed(project.cloud_profile),
             instance: Param::from_parsed(Some(project.instance_name)),
@@ -297,7 +296,7 @@ pub fn parse(
         return Ok(config);
     }
 
-    return Err(ParseError::NoOptionsOrToml);
+    Err(ParseError::NoOptionsOrToml)
 }
 
 #[cfg(test)]

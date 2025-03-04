@@ -34,7 +34,7 @@ macro_rules! impl_from_param_str {
             impl FromParamStr for $t {
                 type Err = <$t as FromStr>::Err;
                 fn from_param_str(s: &str, _context: &mut impl BuildContext) -> Result<Self, Self::Err> {
-                    Ok(FromStr::from_str(s)?)
+                    FromStr::from_str(s)
                 }
             }
         )*
@@ -137,6 +137,12 @@ pub struct BuildContextImpl<E: EnvVar = SystemEnvVars, F: FileAccess = SystemFil
     pub(crate) warnings: Warnings,
     errors: Vec<ParseError>,
     pub trace: Option<Vec<String>>,
+}
+
+impl Default for BuildContextImpl<SystemEnvVars, SystemFileAccess> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BuildContextImpl<SystemEnvVars, SystemFileAccess> {
@@ -484,7 +490,7 @@ mod tests {
             "edgedb://username%25@password%25:[::1%25lo0]:5656/db/",
             "edgedb://user3@[fe80::1ff:fe23:4567:890a%25lo0]:3000/ab",
         ] {
-            let result = <Url as FromParamStr>::from_param_str(&dsn, &mut BuildContextImpl::new());
+            let result = <Url as FromParamStr>::from_param_str(dsn, &mut BuildContextImpl::new());
             let dsn2 = dsn.replace("%25lo0", "");
             let result2 =
                 <Url as FromParamStr>::from_param_str(&dsn2, &mut BuildContextImpl::new());

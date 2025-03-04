@@ -14,8 +14,8 @@ use url::Url;
 use super::{
     builder::{CompoundSource, InvalidCredentialsFileError, TlsSecurityError},
     env::Env,
-    instance_name, BuildContext, ClientSecurity, Config, DatabaseBranch, FromParamStr,
-    InstanceName, ParseError, TlsSecurity,
+    BuildContext, ClientSecurity, Config, DatabaseBranch, FromParamStr, InstanceName, ParseError,
+    TlsSecurity,
 };
 use crate::{
     env::EnvVar,
@@ -277,9 +277,7 @@ impl Explicit {
             self.wait_until_available = other.wait_until_available;
         }
         for (key, value) in other.server_settings {
-            if !self.server_settings.contains_key(&key) {
-                self.server_settings.insert(key, value);
-            }
+            self.server_settings.entry(key).or_insert(value);
         }
     }
 
@@ -454,11 +452,11 @@ impl Explicit {
             host,
             db,
             user,
-            authentication: authentication,
-            client_security: client_security,
+            authentication,
+            client_security,
             tls_security,
-            tls_ca: tls_ca,
-            tls_server_name: tls_server_name,
+            tls_ca,
+            tls_server_name,
             wait_until_available: wait_until_available.unwrap_or(Duration::from_secs(30)),
             server_settings,
         }))
@@ -631,7 +629,7 @@ pub fn parse_instance(
     local: &str,
     context: &mut impl BuildContext,
 ) -> Result<Explicit, ParseError> {
-    let Some(credentials) = (match context.read_config_file(&format!("credentials/{local}.json"))? {
+    let Some(credentials) = (match context.read_config_file(format!("credentials/{local}.json"))? {
         Some(credentials) => Some(credentials),
         None => {
             return Err(ParseError::CredentialsFileNotFound);
@@ -647,7 +645,7 @@ pub fn parse_cloud(profile: &str, context: &mut impl BuildContext) -> Result<Exp
     let mut explicit = Explicit::default();
 
     let Some(cloud_credentials): Option<CloudCredentialsFile> =
-        context.read_config_file(&format!("cloud-credentials/{profile}.json"))?
+        context.read_config_file(format!("cloud-credentials/{profile}.json"))?
     else {
         return context.ok(Explicit::default());
     };
@@ -742,7 +740,7 @@ impl TryInto<CredentialsFile> for CredentialsFileCompat {
                 .map(|(actual, expected)| actual != expected)
                 .unwrap_or(false)
         {
-            return Err(ParseError::InvalidCredentialsFile(
+            Err(ParseError::InvalidCredentialsFile(
                 InvalidCredentialsFileError::ConflictingSettings(
                     (
                         "tls_security".to_string(),
@@ -753,7 +751,7 @@ impl TryInto<CredentialsFile> for CredentialsFileCompat {
                         self.tls_verify_hostname.unwrap().to_string(),
                     ),
                 ),
-            ));
+            ))
         } else if self.tls_ca.is_some()
             && self.tls_cert_data.is_some()
             && self.tls_ca != self.tls_cert_data
@@ -769,15 +767,13 @@ impl TryInto<CredentialsFile> for CredentialsFileCompat {
             ));
         } else {
             // Special case: don't allow database and branch to be set at the same time
-            if self.database.is_some() && self.branch.is_some() {
-                if self.database != self.branch {
-                    return Err(ParseError::InvalidCredentialsFile(
-                        InvalidCredentialsFileError::ConflictingSettings(
-                            ("database".to_string(), self.database.unwrap().to_string()),
-                            ("branch".to_string(), self.branch.unwrap().to_string()),
-                        ),
-                    ));
-                }
+            if self.database.is_some() && self.branch.is_some() && self.database != self.branch {
+                return Err(ParseError::InvalidCredentialsFile(
+                    InvalidCredentialsFileError::ConflictingSettings(
+                        ("database".to_string(), self.database.unwrap().to_string()),
+                        ("branch".to_string(), self.branch.unwrap().to_string()),
+                    ),
+                ));
             }
 
             Ok(CredentialsFile {
@@ -808,11 +804,11 @@ impl FromStr for CloudCredentialsFile {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(serde_json::from_str(s).map_err(|e| {
+        serde_json::from_str(s).map_err(|e| {
             ParseError::InvalidCredentialsFile(InvalidCredentialsFileError::SerializationError(
                 e.to_string(),
             ))
-        })?)
+        })
     }
 }
 

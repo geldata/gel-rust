@@ -2,17 +2,16 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::Mutex,
     time::Duration,
 };
 
 use gel_dsn::{
-    gel::{BuildContext, BuildContextImpl, Config, ConnectionOptions, Explicit, Param, ParseError},
-    EnvVar, FileAccess, Warnings,
+    gel::{BuildContext, BuildContextImpl, ConnectionOptions, ParseError},
+    EnvVar, FileAccess,
 };
 use serde::{Deserialize, Serialize};
 
-const s: &str = include_str!("shared-client-testcases/connection_testcases.json");
+const JSON: &str = include_str!("shared-client-testcases/connection_testcases.json");
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ConnectionTestcase {
@@ -140,7 +139,7 @@ impl EnvVar for &ConnectionTestcase {
 }
 
 fn main() {
-    let testcases: Vec<ConnectionTestcase> = serde_json::from_str(s).unwrap();
+    let testcases: Vec<ConnectionTestcase> = serde_json::from_str(JSON).unwrap();
     let mut failed = 0;
     let mut passed = 0;
     let mut skipped = 0;
@@ -198,8 +197,7 @@ fn main() {
             if let Some(files) = &fs.files {
                 if files
                     .keys()
-                    .find(|k| k.ends_with("edgedb.toml") || k.ends_with("gel.toml"))
-                    .is_some()
+                    .any(|k| k.ends_with("edgedb.toml") || k.ends_with("gel.toml"))
                 {
                     Some(project)
                 } else {
@@ -214,7 +212,7 @@ fn main() {
 
         let mut context = BuildContextImpl::new_with(&testcase, &testcase);
         context.trace = Some(vec![]);
-        context.trace(&format!("{}", testcase.name));
+        context.trace(&testcase.name.to_string());
 
         if let Some(fs) = &testcase.fs {
             if let Some(homedir) = &fs.homedir {
@@ -277,7 +275,7 @@ fn main() {
             }
             println!(
                 "Failed: {}",
-                pretty_assertions::StrComparison::new(&expected, &actual).to_string()
+                pretty_assertions::StrComparison::new(&expected, &actual)
             );
         }
     }
