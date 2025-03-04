@@ -10,7 +10,7 @@ members = [
     "gel-tokio",
     "examples/globals",
     "examples/query-error",
-    "tests", "gel-dsn",
+    "tests"
 ]
 
 [profile.release]

@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::str::FromStr;
 
 pub struct SystemEnvVars;
 

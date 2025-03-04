@@ -174,7 +174,6 @@ pub trait BuildContext {
     fn warnings(&mut self) -> &mut Warnings;
     fn warn(&mut self, message: String);
     fn ok<T>(&self, value: T) -> Result<T, ParseError>;
-    fn error(&mut self, error: ParseError) -> Result<(), ParseError>;
     fn read_config_file<T: FromParamStr>(
         &mut self,
         path: impl AsRef<Path>,
@@ -210,15 +209,6 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
 
     fn ok<T>(&self, value: T) -> Result<T, ParseError> {
         Ok(value)
-    }
-
-    fn error(&mut self, error: ParseError) -> Result<(), ParseError> {
-        // Short-circuiting errors
-        if error.is_fatal() {
-            return Err(error);
-        }
-        self.errors.push(error);
-        Ok(())
     }
 
     fn read_config_file<T: FromParamStr>(

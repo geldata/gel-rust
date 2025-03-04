@@ -144,20 +144,34 @@ pub enum InstanceNameError {
     InvalidCloudInstanceName,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, PartialOrd, Ord)]
+pub enum InvalidCredentialsFileError {
+    FileNotFound,
+    #[display("{}={}, {}={}", _0.0, _0.1, _1.0, _1.1)]
+    ConflictingSettings((String, String), (String, String)),
+    SerializationError(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, PartialOrd, Ord)]
+pub enum InvalidSecretKeyError {
+    InvalidJwt,
+    MissingIssuer,
+}
+
 #[derive(Debug, derive_more::Error, derive_more::Display, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ParseError {
     CredentialsFileNotFound,
     EnvNotFound,
     ExclusiveOptions,
     FileNotFound,
-    InvalidCredentialsFile(#[error(not(source))] String),
+    InvalidCredentialsFile(#[error(not(source))] InvalidCredentialsFileError),
     InvalidDatabase,
     InvalidDsn,
     InvalidDsnOrInstanceName,
     InvalidHost,
     InvalidInstanceName(#[error(not(source))] InstanceNameError),
     InvalidPort,
-    InvalidSecretKey(#[error(not(source))] String),
+    InvalidSecretKey(#[error(not(source))] InvalidSecretKeyError),
     InvalidTlsSecurity(#[error(not(source))] TlsSecurityError),
     InvalidUser,
     #[display("{:?}", _0)]

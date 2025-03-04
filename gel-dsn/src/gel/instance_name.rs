@@ -1,6 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
 
+use crate::gel::builder::InvalidSecretKeyError;
+
 use super::builder::InstanceNameError;
 use super::ParseError;
 
@@ -22,9 +24,9 @@ pub enum InstanceName {
 }
 
 impl InstanceName {
-    pub fn cloud_address(&self, secret_key: &str) -> Result<String, String> {
+    pub fn cloud_address(&self, secret_key: &str) -> Result<Option<String>, ParseError> {
         let InstanceName::Cloud { org_slug, name } = self else {
-            return Err("Instance is not a cloud instance".to_string());
+            return Ok(None);
         };
 
         #[derive(Debug, serde::Deserialize)]
@@ -37,22 +39,26 @@ impl InstanceName {
         let claims_b64 = secret_key
             .split('.')
             .nth(1)
-            .ok_or("Illegal JWT token".to_string())?;
+            .ok_or(ParseError::InvalidSecretKey(
+                InvalidSecretKeyError::InvalidJwt,
+            ))?;
         let claims = base64::engine::general_purpose::URL_SAFE_NO_PAD
             .decode(claims_b64)
-            .map_err(|_| "Invalid base64 encoded JWT token".to_string())?;
-        let claims: Claims =
-            serde_json::from_slice(&claims).map_err(|_| "Invalid JWT token".to_string())?;
-        let dns_zone = claims.issuer.ok_or("Invalid secret key".to_string())?;
+            .map_err(|_| ParseError::InvalidSecretKey(InvalidSecretKeyError::InvalidJwt))?;
+        let claims: Claims = serde_json::from_slice(&claims)
+            .map_err(|_| ParseError::InvalidSecretKey(InvalidSecretKeyError::InvalidJwt))?;
+        let dns_zone = claims.issuer.ok_or(ParseError::InvalidSecretKey(
+            InvalidSecretKeyError::MissingIssuer,
+        ))?;
         let org_slug = org_slug.to_lowercase();
         let name = name.to_lowercase();
         let msg = format!("{}/{}", org_slug, name);
         let checksum = crc16::State::<crc16::XMODEM>::calculate(msg.as_bytes());
         let dns_bucket = format!("c-{:02}", checksum % 100);
-        Ok(format!(
+        Ok(Some(format!(
             "{}--{}.{}.i.{}",
             name, org_slug, dns_bucket, dns_zone
-        ))
+        )))
     }
 }
 

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use super::{
-    builder::{CompoundSource, TlsSecurityError},
+    builder::{CompoundSource, InvalidCredentialsFileError, TlsSecurityError},
     env::Env,
     instance_name, BuildContext, ClientSecurity, Config, DatabaseBranch, FromParamStr,
     InstanceName, ParseError, TlsSecurity,
@@ -327,8 +327,9 @@ impl Explicit {
             explicit.merge(dsn);
         }
         if let Some(file) = self.credentials.get(context).map_err(|e| {
+            // Special case: map FileNotFound to InvalidCredentialsFile
             if e == ParseError::FileNotFound {
-                ParseError::InvalidCredentialsFile("File not found".to_string())
+                ParseError::InvalidCredentialsFile(InvalidCredentialsFileError::FileNotFound)
             } else {
                 e
             }
@@ -355,20 +356,21 @@ impl Explicit {
 
                     if let Some(secret_key) = explicit.secret_key.get(context)? {
                         match instance.cloud_address(&secret_key) {
-                            Ok(address) => {
+                            Ok(Some(address)) => {
                                 explicit.host = Param::Unparsed(address);
+                            }
+                            Ok(None) => {
+                                unreachable!();
                             }
                             Err(e) => {
                                 // Special case: we ignore the secret key error until the final phase
                                 if phase == BuildPhase::Project {
-                                    return Err(ParseError::InvalidSecretKey(e));
+                                    return Err(e);
                                 }
-
-                                context.error(ParseError::InvalidSecretKey(e))?;
                             }
                         }
                     } else {
-                        context.error(ParseError::SecretKeyNotFound)?;
+                        return Err(ParseError::SecretKeyNotFound);
                     }
                 }
             }
@@ -387,7 +389,7 @@ impl Explicit {
         };
 
         if host.is_unix() {
-            context.error(ParseError::UnixSocketUnsupported)?;
+            return Err(ParseError::UnixSocketUnsupported);
         }
 
         let authentication = if let Some(password) = explicit.password.get(context)? {
@@ -409,15 +411,14 @@ impl Explicit {
         ] {
             if let Some(param) = param {
                 if param.trim() != param || param.is_empty() {
-                    context.error(error)?;
+                    return Err(error);
                 }
             }
         }
 
         let db = match (database, branch) {
             (Some(db), Some(branch)) if db != branch => {
-                context.error(ParseError::InvalidDatabase)?;
-                DatabaseBranch::Branch(branch)
+                return Err(ParseError::InvalidDatabase);
             }
             (Some(_), Some(branch)) => DatabaseBranch::Branch(branch),
             (Some(db), None) => DatabaseBranch::Database(db),
@@ -495,7 +496,7 @@ pub fn parse_dsn(dsn: &Url, context: &mut impl BuildContext) -> Result<Explicit,
             set.insert("port".to_string());
             explicit.port = Param::Parsed(port);
         } else {
-            context.error(ParseError::InvalidPort)?;
+            return Err(ParseError::InvalidPort);
         }
     } else {
         explicit.port = Param::Parsed(NonZeroU16::new(5656).unwrap());
@@ -539,7 +540,7 @@ pub fn parse_dsn(dsn: &Url, context: &mut impl BuildContext) -> Result<Explicit,
             (key.as_ref(), Param::Unparsed(value.to_string()))
         };
         if !set.insert(key.to_string()) {
-            context.error(ParseError::InvalidDsn)?;
+            return Err(ParseError::InvalidDsn);
         }
         match key {
             "host" => explicit.host = param.cast().unwrap(),
@@ -559,14 +560,14 @@ pub fn parse_dsn(dsn: &Url, context: &mut impl BuildContext) -> Result<Explicit,
                     .insert(key.to_string(), value.to_string())
                     .is_some()
                 {
-                    context.error(ParseError::InvalidDsn)?;
+                    return Err(ParseError::InvalidDsn);
                 }
             }
         }
     }
 
     if explicit.database.is_some() && explicit.branch.is_some() {
-        context.error(ParseError::InvalidDsn)?;
+        return Err(ParseError::InvalidDsn);
     }
 
     context.ok(explicit)
@@ -620,7 +621,7 @@ pub fn parse_env(context: &mut impl BuildContext) -> Result<Explicit, ParseError
     if explicit.tls_ca.is_none() {
         explicit.tls_ca = ca_file;
     } else if ca_file.is_some() {
-        context.error(ParseError::ExclusiveOptions)?;
+        return Err(ParseError::ExclusiveOptions);
     }
 
     context.ok(explicit)
@@ -633,7 +634,7 @@ pub fn parse_instance(
     let Some(credentials) = (match context.read_config_file(&format!("credentials/{local}.json"))? {
         Some(credentials) => Some(credentials),
         None => {
-            context.error(ParseError::CredentialsFileNotFound)?;
+            return Err(ParseError::CredentialsFileNotFound);
             None
         }
     }) else {
@@ -676,19 +677,25 @@ impl FromStr for CredentialsFile {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Ok(res) = serde_json::from_str::<CredentialsFile>(s) {
             // Special case: don't allow database and branch to be set at the same time
-            if res.database.is_some() && res.branch.is_some() {
-                if res.database != res.branch {
-                    return Err(ParseError::InvalidCredentialsFile(format!(
-                        "database and branch cannot both be set"
-                    )));
+            if let (Some(database), Some(branch)) = (&res.database, &res.branch) {
+                if database != branch {
+                    return Err(ParseError::InvalidCredentialsFile(
+                        InvalidCredentialsFileError::ConflictingSettings(
+                            ("database".to_string(), database.clone()),
+                            ("branch".to_string(), branch.clone()),
+                        ),
+                    ));
                 }
             }
 
             return Ok(res);
         }
 
-        let res = serde_json::from_str::<CredentialsFileCompat>(s)
-            .map_err(|e| ParseError::InvalidCredentialsFile(e.to_string()))?;
+        let res = serde_json::from_str::<CredentialsFileCompat>(s).map_err(|e| {
+            ParseError::InvalidCredentialsFile(InvalidCredentialsFileError::SerializationError(
+                e.to_string(),
+            ))
+        })?;
 
         res.try_into()
     }
@@ -735,27 +742,41 @@ impl TryInto<CredentialsFile> for CredentialsFileCompat {
                 .map(|(actual, expected)| actual != expected)
                 .unwrap_or(false)
         {
-            return Err(ParseError::InvalidCredentialsFile(format!(
-                "detected conflicting settings. \
-                 \ntls_security =\n{:?}\nbut tls_verify_hostname =\n{:?}",
-                self.tls_security, self.tls_verify_hostname
-            )));
+            return Err(ParseError::InvalidCredentialsFile(
+                InvalidCredentialsFileError::ConflictingSettings(
+                    (
+                        "tls_security".to_string(),
+                        self.tls_security.unwrap().to_string(),
+                    ),
+                    (
+                        "tls_verify_hostname".to_string(),
+                        self.tls_verify_hostname.unwrap().to_string(),
+                    ),
+                ),
+            ));
         } else if self.tls_ca.is_some()
             && self.tls_cert_data.is_some()
             && self.tls_ca != self.tls_cert_data
         {
-            Err(ParseError::InvalidCredentialsFile(format!(
-                "detected conflicting settings. \
-                 \ntls_ca =\n{:#?}\nbut tls_cert_data =\n{:#?}",
-                self.tls_ca, self.tls_cert_data,
-            )))
+            return Err(ParseError::InvalidCredentialsFile(
+                InvalidCredentialsFileError::ConflictingSettings(
+                    ("tls_ca".to_string(), self.tls_ca.unwrap().to_string()),
+                    (
+                        "tls_cert_data".to_string(),
+                        self.tls_cert_data.unwrap().to_string(),
+                    ),
+                ),
+            ));
         } else {
             // Special case: don't allow database and branch to be set at the same time
             if self.database.is_some() && self.branch.is_some() {
                 if self.database != self.branch {
-                    return Err(ParseError::InvalidCredentialsFile(format!(
-                        "database and branch cannot both be set"
-                    )));
+                    return Err(ParseError::InvalidCredentialsFile(
+                        InvalidCredentialsFileError::ConflictingSettings(
+                            ("database".to_string(), self.database.unwrap().to_string()),
+                            ("branch".to_string(), self.branch.unwrap().to_string()),
+                        ),
+                    ));
                 }
             }
 
@@ -787,8 +808,11 @@ impl FromStr for CloudCredentialsFile {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(serde_json::from_str(s)
-            .map_err(|e| ParseError::InvalidCredentialsFile(e.to_string()))?)
+        Ok(serde_json::from_str(s).map_err(|e| {
+            ParseError::InvalidCredentialsFile(InvalidCredentialsFileError::SerializationError(
+                e.to_string(),
+            ))
+        })?)
     }
 }
 
@@ -819,7 +843,6 @@ impl Project {
             .read_config_file::<String>(path.join("database"))
             .unwrap_or_default();
         let Some(instance_name) = instance_name else {
-            context.error(ParseError::ProjectNotInitialised)?;
             return Err(ParseError::ProjectNotInitialised);
         };
         Ok(Self {
