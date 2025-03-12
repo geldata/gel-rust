@@ -28,6 +28,24 @@ impl UserProfile for () {
     }
 }
 
+impl UserProfile for &'static str {
+    fn username(&self) -> Option<Cow<str>> {
+        Some(Cow::Borrowed(self))
+    }
+
+    fn homedir(&self) -> Option<Cow<Path>> {
+        Some(Cow::Borrowed(Path::new("/home/edgedb")))
+    }
+
+    fn config_dir(&self) -> Option<Cow<Path>> {
+        Some(Cow::Borrowed(Path::new("/home/edgedb/.config")))
+    }
+
+    fn data_local_dir(&self) -> Option<Cow<Path>> {
+        Some(Cow::Borrowed(Path::new("/home/edgedb/.local")))
+    }
+}
+
 impl UserProfile for SystemUserProfile {
     fn username(&self) -> Option<Cow<str>> {
         whoami::fallible::username().ok().map(Cow::Owned)

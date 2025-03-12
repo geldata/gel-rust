@@ -783,42 +783,38 @@ impl Params {
 
         let instance = instance?;
         if let Some(instance) = &instance {
-            // Special case: if the unix path is set we ignore the instance
-            // credentials.
-            if explicit.unix_path.is_none() {
-                match &instance {
-                    InstanceName::Local(local) => {
-                        let instance = parse_instance(local, context)?;
-                        context_trace!(context, "Instance: {:?}", instance);
-                        explicit.merge(instance);
-                    }
-                    InstanceName::Cloud { .. } => {
-                        let profile = explicit
-                            .cloud_profile
-                            .get(context)?
-                            .unwrap_or("default".to_string());
-                        let cloud = parse_cloud(&profile, context)?;
-                        context_trace!(context, "Cloud: {:?}", cloud);
-                        explicit.merge(cloud);
+            match &instance {
+                InstanceName::Local(local) => {
+                    let instance = parse_instance(local, context)?;
+                    context_trace!(context, "Instance: {:?}", instance);
+                    explicit.merge(instance);
+                }
+                InstanceName::Cloud { .. } => {
+                    let profile = explicit
+                        .cloud_profile
+                        .get(context)?
+                        .unwrap_or("default".to_string());
+                    let cloud = parse_cloud(&profile, context)?;
+                    context_trace!(context, "Cloud: {:?}", cloud);
+                    explicit.merge(cloud);
 
-                        if let Some(secret_key) = explicit.secret_key.get(context)? {
-                            match instance.cloud_address(&secret_key) {
-                                Ok(Some(address)) => {
-                                    explicit.host = Param::Unparsed(address);
-                                }
-                                Ok(None) => {
-                                    unreachable!();
-                                }
-                                Err(e) => {
-                                    // Special case: we ignore the secret key error until the final phase
-                                    if phase == BuildPhase::Project {
-                                        return Err(e);
-                                    }
+                    if let Some(secret_key) = explicit.secret_key.get(context)? {
+                        match instance.cloud_address(&secret_key) {
+                            Ok(Some(address)) => {
+                                explicit.host = Param::Unparsed(address);
+                            }
+                            Ok(None) => {
+                                unreachable!();
+                            }
+                            Err(e) => {
+                                // Special case: we ignore the secret key error until the final phase
+                                if phase == BuildPhase::Project {
+                                    return Err(e);
                                 }
                             }
-                        } else {
-                            return Err(ParseError::SecretKeyNotFound);
                         }
+                    } else {
+                        return Err(ParseError::SecretKeyNotFound);
                     }
                 }
             }
@@ -1524,18 +1520,22 @@ mod tests {
         assert_eq!(params.host.to_string(), "/.s.EDGEDB.admin.1234");
         eprintln!("{:?}", params);
 
-        // This is allowed, but instance credentials are ignored in this case
-        // and just transferred to the output Config.
+        // Pull the port from the credentials.
         let params = Builder::default()
-            .instance(InstanceName::Local("instancedoesnotexist".to_string()))
-            .unix_path(Path::new("/"))
+            .instance(InstanceName::Local("instancename".to_string()))
+            .unix_path(UnixPath::PortSuffixed(PathBuf::from("/tmp/port.")))
             .without_system()
+            .with_fs_impl(HashMap::from_iter([(
+                PathBuf::from("/home/edgedb/.config/edgedb/credentials/instancename.json"),
+                r#"{ "user": "user", "port": 12345 }"#.to_string(),
+            )]))
+            .with_user_impl("edgedb")
             .build()
             .expect("Unix path and instance is OK");
-        assert_eq!(params.host.to_string(), "/");
+        assert_eq!(params.host.to_string(), "/tmp/port.12345");
         assert_eq!(
             params.instance_name,
-            Some(InstanceName::Local("instancedoesnotexist".to_string()))
+            Some(InstanceName::Local("instancename".to_string()))
         );
         eprintln!("{:?}", params);
     }
