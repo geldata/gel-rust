@@ -94,7 +94,7 @@ impl std::fmt::Display for Host {
             HostTypeInner::IP(ip, None) => write!(f, "[{}]:{}", ip, port),
             HostTypeInner::Path(path) => {
                 if let Some(target_name) = self.2.target_name(port) {
-                    write!(f, "{}/{}", path.display(), target_name)
+                    write!(f, "{}", path.join(target_name).display())
                 } else {
                     write!(f, "{}", path.display())
                 }

@@ -147,12 +147,10 @@ macro_rules! define_params {
 
         impl Builder {
             $(
-                paste::paste!(
-                    $(#[doc = $doc])*
-                    pub fn $name(mut self, value: impl Into<$type>) -> Self {
-                        self.params.$name = Param::Parsed(value.into());
-                        self
-                    }
+                // Note that paste! forces re-interpretation of type token and allows us
+                // to match the __maybe__* macros below.
+                paste::paste!{
+                    define_params!{__maybe_into__ $(#[doc = $doc])* $name: $type}
 
                     $(#[doc = $doc])*
                     #[doc = "\n\nThis value will be loaded from `path` in the filesystem and parsed as [`"]
@@ -171,10 +169,26 @@ macro_rules! define_params {
                         self.params.$name = Param::Env(value.as_ref().to_string());
                         self
                     }
-                );
 
-                define_params!(__maybe_string__ $(#[doc = $doc])* $name: $type);
+                    define_params!{__maybe_string__ $(#[doc = $doc])* $name: $type}
+                }
             )*
+        }
+    };
+    // NOTE: Special case u16 since number literals don't cooperate well with
+    // type inference + Into.
+    (__maybe_into__ $(#[doc = $doc:expr])* $name:ident: u16) => {
+        $(#[doc = $doc])*
+        pub fn $name(mut self, value: u16) -> Self {
+            self.params.$name = Param::Parsed(value);
+            self
+        }
+    };
+    (__maybe_into__ $(#[doc = $doc:expr])* $name:ident: $type:ty) => {
+        $(#[doc = $doc])*
+        pub fn $name(mut self, value: impl Into<$type>) -> Self {
+            self.params.$name = Param::Parsed(value.into());
+            self
         }
     };
     (__maybe_string__ $(#[doc = $doc:expr])* $name:ident: String) => {
@@ -703,7 +717,9 @@ impl Params {
             sources.push(CompoundSource::Dsn);
         }
         if self.instance.is_some() {
-            sources.push(CompoundSource::Instance);
+            if self.unix_path.is_none() {
+                sources.push(CompoundSource::Instance);
+            }
         }
         if self.unix_path.is_some() {
             sources.push(CompoundSource::UnixSocket);
@@ -772,38 +788,42 @@ impl Params {
 
         let instance = instance?;
         if let Some(instance) = &instance {
-            match &instance {
-                InstanceName::Local(local) => {
-                    let instance = parse_instance(local, context)?;
-                    context_trace!(context, "Instance: {:?}", instance);
-                    explicit.merge(instance);
-                }
-                InstanceName::Cloud { .. } => {
-                    let profile = explicit
-                        .cloud_profile
-                        .get(context)?
-                        .unwrap_or("default".to_string());
-                    let cloud = parse_cloud(&profile, context)?;
-                    context_trace!(context, "Cloud: {:?}", cloud);
-                    explicit.merge(cloud);
+            // Special case: if the unix path is set we ignore the instance
+            // credentials.
+            if explicit.unix_path.is_none() {
+                match &instance {
+                    InstanceName::Local(local) => {
+                        let instance = parse_instance(local, context)?;
+                        context_trace!(context, "Instance: {:?}", instance);
+                        explicit.merge(instance);
+                    }
+                    InstanceName::Cloud { .. } => {
+                        let profile = explicit
+                            .cloud_profile
+                            .get(context)?
+                            .unwrap_or("default".to_string());
+                        let cloud = parse_cloud(&profile, context)?;
+                        context_trace!(context, "Cloud: {:?}", cloud);
+                        explicit.merge(cloud);
 
-                    if let Some(secret_key) = explicit.secret_key.get(context)? {
-                        match instance.cloud_address(&secret_key) {
-                            Ok(Some(address)) => {
-                                explicit.host = Param::Unparsed(address);
-                            }
-                            Ok(None) => {
-                                unreachable!();
-                            }
-                            Err(e) => {
-                                // Special case: we ignore the secret key error until the final phase
-                                if phase == BuildPhase::Project {
-                                    return Err(e);
+                        if let Some(secret_key) = explicit.secret_key.get(context)? {
+                            match instance.cloud_address(&secret_key) {
+                                Ok(Some(address)) => {
+                                    explicit.host = Param::Unparsed(address);
+                                }
+                                Ok(None) => {
+                                    unreachable!();
+                                }
+                                Err(e) => {
+                                    // Special case: we ignore the secret key error until the final phase
+                                    if phase == BuildPhase::Project {
+                                        return Err(e);
+                                    }
                                 }
                             }
+                        } else {
+                            return Err(ParseError::SecretKeyNotFound);
                         }
-                    } else {
-                        return Err(ParseError::SecretKeyNotFound);
                     }
                 }
             }
@@ -1482,5 +1502,40 @@ mod tests {
             .with_explicit_project(Path::new("."));
         // This intentionally won't work
         // let params = Builder::default().with_env().project_dir(Path::new("."));
+    }
+
+    #[test]
+    fn test_with_unix_socket() {
+        let params = Builder::default()
+            .unix_path(Path::new("/"))
+            .without_system()
+            .build()
+            .expect("Just a unix path is OK");
+        assert_eq!(params.host.to_string(), "/");
+        eprintln!("{:?}", params);
+
+        let params = Builder::default()
+            .unix_path(Path::new("/"))
+            .port(1234)
+            .without_system()
+            .build()
+            .expect("Unix path and port is OK");
+        assert_eq!(params.host.to_string(), "/.s.EDGEDB.admin.1234");
+        eprintln!("{:?}", params);
+
+        // This is allowed, but instance credentials are ignored in this case
+        // and just transferred to the output Config.
+        let params = Builder::default()
+            .instance(InstanceName::Local("instancedoesnotexist".to_string()))
+            .unix_path(Path::new("/"))
+            .without_system()
+            .build()
+            .expect("Unix path and instance is OK");
+        assert_eq!(params.host.to_string(), "/");
+        assert_eq!(
+            params.instance_name,
+            Some(InstanceName::Local("instancedoesnotexist".to_string()))
+        );
+        eprintln!("{:?}", params);
     }
 }
