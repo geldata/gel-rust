@@ -357,7 +357,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::host::{Host, HostTarget, HostType};
+    use crate::host::{Host, HostType};
     use std::{collections::HashMap, time::Duration};
 
     #[test]
@@ -370,11 +370,7 @@ mod tests {
         assert_eq!(
             cfg.unwrap(),
             Config {
-                host: Host::new(
-                    HostType::try_from_str("hostname").unwrap(),
-                    1234,
-                    HostTarget::Gel
-                ),
+                host: Host::new(HostType::try_from_str("hostname").unwrap(), 1234,),
                 ..Default::default()
             }
         );
@@ -398,10 +394,7 @@ mod tests {
             .build()
             .expect("Failed to build credentials");
 
-        assert_eq!(
-            credentials.host,
-            Host::new(DEFAULT_HOST.clone(), 10702, HostTarget::Gel)
-        );
+        assert_eq!(credentials.host, Host::new(DEFAULT_HOST.clone(), 10702));
         assert_eq!(&credentials.user, "test3n");
         assert_eq!(
             credentials.db,
@@ -441,12 +434,21 @@ mod tests {
 
         // Test unix path with a port
         let cfg = Builder::new()
-            .port(8888_u16)
+            .port(8888)
             .unix_path("/test")
             .build()
             .unwrap();
         let host = cfg.host.target_name().unwrap();
-        assert_eq!(host.path(), Some(Path::new("/test/.s.EDGEDB.admin.8888")));
+        assert_eq!(host.path(), Some(Path::new("/test")));
+
+        // Test unix path with a port
+        let cfg = Builder::new()
+            .port(8888)
+            .unix_path(UnixPath::with_port_suffix(PathBuf::from("/prefix.")))
+            .build()
+            .unwrap();
+        let host = cfg.host.target_name().unwrap();
+        assert_eq!(host.path(), Some(Path::new("/prefix.8888")));
     }
 
     /// Test that the hidden CloudCerts env var is parsed correctly.
@@ -455,7 +457,7 @@ mod tests {
         let cloud_cert =
             HashMap::from_iter([("_GEL_CLOUD_CERTS".to_string(), "local".to_string())]);
         let cfg = Builder::new()
-            .port(5656_u16)
+            .port(5656)
             .without_system()
             .with_env_impl(cloud_cert)
             .build()
@@ -466,7 +468,7 @@ mod tests {
     #[test]
     fn test_tcp_keepalive() {
         let cfg = Builder::new()
-            .port(5656_u16)
+            .port(5656)
             .tcp_keepalive(TcpKeepalive::Explicit(Duration::from_secs(10)))
             .without_system()
             .build()

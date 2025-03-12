@@ -16,14 +16,14 @@ use super::{
     error::*,
     project::{find_project_file, ProjectDir},
     BuildContext, BuildContextImpl, ClientSecurity, CloudCerts, Config, DatabaseBranch,
-    FromParamStr, InstanceName, Logging, Param, ParamSource, TcpKeepalive, TlsSecurity,
+    FromParamStr, InstanceName, Logging, Param, ParamSource, TcpKeepalive, TlsSecurity, UnixPath,
     DEFAULT_CONNECT_TIMEOUT, DEFAULT_PORT, DEFAULT_WAIT,
 };
 use crate::{
     env::SystemEnvVars,
     file::SystemFileAccess,
     gel::{context_trace, Authentication},
-    host::{Host, HostTarget, HostType},
+    host::{Host, HostType},
     user::SystemUserProfile,
     EnvVar, FileAccess, UserProfile,
 };
@@ -233,12 +233,7 @@ define_params!(
     /// The port.
     port: u16,
     /// The unix socket path.
-    ///
-    /// If set, the client will connect to the database via a Unix socket.
-    /// If a port is also set, this must refer to a directory in the filesystem
-    /// containing a Gel admin socket. If no port is set, the client will
-    /// connect to the database via a Unix socket on the exact given path.
-    unix_path: PathBuf,
+    unix_path: UnixPath,
     /// The database name. Used for EdgeDB < 5. For Gel or EdgeDB >= 5, use
     /// [`Builder::branch`].
     database: String,
@@ -788,42 +783,38 @@ impl Params {
 
         let instance = instance?;
         if let Some(instance) = &instance {
-            // Special case: if the unix path is set we ignore the instance
-            // credentials.
-            if explicit.unix_path.is_none() {
-                match &instance {
-                    InstanceName::Local(local) => {
-                        let instance = parse_instance(local, context)?;
-                        context_trace!(context, "Instance: {:?}", instance);
-                        explicit.merge(instance);
-                    }
-                    InstanceName::Cloud { .. } => {
-                        let profile = explicit
-                            .cloud_profile
-                            .get(context)?
-                            .unwrap_or("default".to_string());
-                        let cloud = parse_cloud(&profile, context)?;
-                        context_trace!(context, "Cloud: {:?}", cloud);
-                        explicit.merge(cloud);
+            match &instance {
+                InstanceName::Local(local) => {
+                    let instance = parse_instance(local, context)?;
+                    context_trace!(context, "Instance: {:?}", instance);
+                    explicit.merge(instance);
+                }
+                InstanceName::Cloud { .. } => {
+                    let profile = explicit
+                        .cloud_profile
+                        .get(context)?
+                        .unwrap_or("default".to_string());
+                    let cloud = parse_cloud(&profile, context)?;
+                    context_trace!(context, "Cloud: {:?}", cloud);
+                    explicit.merge(cloud);
 
-                        if let Some(secret_key) = explicit.secret_key.get(context)? {
-                            match instance.cloud_address(&secret_key) {
-                                Ok(Some(address)) => {
-                                    explicit.host = Param::Unparsed(address);
-                                }
-                                Ok(None) => {
-                                    unreachable!();
-                                }
-                                Err(e) => {
-                                    // Special case: we ignore the secret key error until the final phase
-                                    if phase == BuildPhase::Project {
-                                        return Err(e);
-                                    }
+                    if let Some(secret_key) = explicit.secret_key.get(context)? {
+                        match instance.cloud_address(&secret_key) {
+                            Ok(Some(address)) => {
+                                explicit.host = Param::Unparsed(address);
+                            }
+                            Ok(None) => {
+                                unreachable!();
+                            }
+                            Err(e) => {
+                                // Special case: we ignore the secret key error until the final phase
+                                if phase == BuildPhase::Project {
+                                    return Err(e);
                                 }
                             }
-                        } else {
-                            return Err(ParseError::SecretKeyNotFound);
                         }
+                    } else {
+                        return Err(ParseError::SecretKeyNotFound);
                     }
                 }
             }
@@ -859,27 +850,15 @@ impl Params {
         }
 
         let host = if let Some(unix_path) = computed.unix_path {
-            match port {
-                Some(port) => Host::new(
-                    HostType::from_unix_path(unix_path),
-                    port,
-                    HostTarget::GelAdmin,
-                ),
-                None => Host::new(
-                    HostType::from_unix_path(unix_path),
-                    DEFAULT_PORT,
-                    HostTarget::Raw,
-                ),
-            }
+            let path = unix_path
+                .path_with_port(port.unwrap_or(DEFAULT_PORT))
+                .into_owned();
+            Host::new(HostType::from_unix_path(path), DEFAULT_PORT)
         } else {
             let host = match (computed.host, port) {
-                (Some(host), Some(port)) => Host::new(host, port, HostTarget::Gel),
-                (Some(host), None) => Host::new(host, DEFAULT_PORT, HostTarget::Gel),
-                (None, Some(port)) => Host::new(
-                    HostType::try_from_str("localhost").unwrap(),
-                    port,
-                    HostTarget::Gel,
-                ),
+                (Some(host), Some(port)) => Host::new(host, port),
+                (Some(host), None) => Host::new(host, DEFAULT_PORT),
+                (None, Some(port)) => Host::new(HostType::try_from_str("localhost").unwrap(), port),
                 (None, None) => {
                     return Ok(None);
                 }
@@ -1524,7 +1503,9 @@ mod tests {
         eprintln!("{:?}", params);
 
         let params = Builder::default()
-            .unix_path(Path::new("/"))
+            .unix_path(UnixPath::with_port_suffix(PathBuf::from(
+                "/.s.EDGEDB.admin.",
+            )))
             .port(1234)
             .without_system()
             .build()
@@ -1532,18 +1513,22 @@ mod tests {
         assert_eq!(params.host.to_string(), "/.s.EDGEDB.admin.1234");
         eprintln!("{:?}", params);
 
-        // This is allowed, but instance credentials are ignored in this case
-        // and just transferred to the output Config.
+        // Pull the port from the credentials.
         let params = Builder::default()
-            .instance(InstanceName::Local("instancedoesnotexist".to_string()))
-            .unix_path(Path::new("/"))
+            .instance(InstanceName::Local("instancename".to_string()))
+            .unix_path(UnixPath::with_port_suffix(PathBuf::from("/tmp/port.")))
             .without_system()
+            .with_fs_impl(HashMap::from_iter([(
+                PathBuf::from("/home/edgedb/.config/edgedb/credentials/instancename.json"),
+                r#"{ "user": "user", "port": 12345 }"#.to_string(),
+            )]))
+            .with_user_impl("edgedb")
             .build()
             .expect("Unix path and instance is OK");
-        assert_eq!(params.host.to_string(), "/");
+        assert_eq!(params.host.to_string(), "/tmp/port.12345");
         assert_eq!(
             params.instance_name,
-            Some(InstanceName::Local("instancedoesnotexist".to_string()))
+            Some(InstanceName::Local("instancename".to_string()))
         );
         eprintln!("{:?}", params);
     }

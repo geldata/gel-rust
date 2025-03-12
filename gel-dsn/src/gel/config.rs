@@ -1,11 +1,12 @@
 use super::{error::*, BuildContextImpl, FromParamStr, InstanceName, Param, Params};
 use crate::{
     gel::parse_duration,
-    host::{Host, HostTarget, HostType},
+    host::{Host, HostType},
 };
 use rustls_pki_types::CertificateDer;
 use serde::{Deserialize, Serialize};
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fmt,
     path::{Path, PathBuf},
@@ -102,7 +103,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            host: Host::new(DEFAULT_HOST.clone(), DEFAULT_PORT, HostTarget::Gel),
+            host: Host::new(DEFAULT_HOST.clone(), DEFAULT_PORT),
             db: DatabaseBranch::Default,
             user: DEFAULT_USER.to_string(),
             instance_name: None,
@@ -191,17 +192,6 @@ impl Config {
             Some(format!("http{}://{}:{}", s, host, port))
         } else {
             None
-        }
-    }
-
-    pub fn with_unix_path(&self, path: &Path) -> Self {
-        Self {
-            host: Host::new(
-                HostType::from_unix_path(PathBuf::from(path)),
-                DEFAULT_PORT,
-                HostTarget::Raw,
-            ),
-            ..self.clone()
         }
     }
 
@@ -597,6 +587,68 @@ impl FromStr for TcpKeepalive {
                 parse_duration(s).map_err(|_| ParseError::InvalidDuration)?,
             )),
         }
+    }
+}
+
+#[derive(derive_more::Debug, Clone, PartialEq, Eq)]
+enum UnixPathInner {
+    /// The selected port will be appended to the path.
+    #[debug("{:?}{{port}}", _0)]
+    PortSuffixed(PathBuf),
+    /// The path will be used as-is.
+    #[debug("{:?}", _0)]
+    Exact(PathBuf),
+}
+
+#[derive(Clone, PartialEq, Eq, derive_more::Debug)]
+pub struct UnixPath {
+    #[debug("{:?}", inner)]
+    inner: UnixPathInner,
+}
+
+impl UnixPath {
+    /// The selected port will be appended to the path.
+    pub fn with_port_suffix(path: PathBuf) -> Self {
+        UnixPath {
+            inner: UnixPathInner::PortSuffixed(path),
+        }
+    }
+
+    /// The path will be used as-is.
+    pub fn exact(path: PathBuf) -> Self {
+        UnixPath {
+            inner: UnixPathInner::Exact(path),
+        }
+    }
+
+    /// Returns a path with the port suffix appended.
+    pub fn path_with_port(&self, port: u16) -> Cow<Path> {
+        match &self.inner {
+            UnixPathInner::PortSuffixed(path) => {
+                let Some(filename) = path.file_name() else {
+                    return Cow::Owned(path.join(port.to_string()));
+                };
+                let mut path = path.clone();
+                let mut filename = filename.to_owned();
+                filename.push(&port.to_string());
+                path.set_file_name(filename);
+                Cow::Owned(path)
+            }
+            UnixPathInner::Exact(path) => Cow::Borrowed(path),
+        }
+    }
+}
+
+impl FromStr for UnixPath {
+    type Err = ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(UnixPath::exact(PathBuf::from(s)))
+    }
+}
+
+impl<T: Into<PathBuf>> From<T> for UnixPath {
+    fn from(path: T) -> Self {
+        UnixPath::exact(path.into())
     }
 }
 
