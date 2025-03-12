@@ -1145,14 +1145,20 @@ fn parse_env(context: &mut impl BuildContext) -> Result<Params, ParseError> {
     };
 
     if explicit.branch.is_some() && explicit.database.is_some() {
-        return Err(ParseError::ExclusiveOptions);
+        return Err(ParseError::ExclusiveOptions(
+            "branch".to_string(),
+            "database".to_string(),
+        ));
     }
 
     let ca_file = Param::from_file(context.read_env(Env::tls_ca_file)?);
     if explicit.tls_ca.is_none() {
         explicit.tls_ca = ca_file;
     } else if ca_file.is_some() {
-        return Err(ParseError::ExclusiveOptions);
+        return Err(ParseError::ExclusiveOptions(
+            "tls_ca".to_string(),
+            "tls_ca_file".to_string(),
+        ));
     }
 
     Ok(explicit)

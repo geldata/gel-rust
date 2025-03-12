@@ -60,8 +60,8 @@ pub enum ParseError {
     CredentialsFileNotFound,
     #[display("Environment variable not found: {_1} ({_0})")]
     EnvNotFound(EnvironmentSource, #[error(not(source))] String),
-    #[display("Exclusive options")]
-    ExclusiveOptions,
+    #[display("{_0} and {_1} are mutually exclusive and cannot be used together")]
+    ExclusiveOptions(String, String),
     #[display("File not found")]
     FileNotFound,
     #[display("Invalid credentials file: {_0}")]
@@ -107,7 +107,7 @@ impl ParseError {
         match self {
             Self::EnvNotFound(..) => "env_not_found",
             Self::CredentialsFileNotFound => "credentials_file_not_found",
-            Self::ExclusiveOptions => "exclusive_options",
+            Self::ExclusiveOptions(..) => "exclusive_options",
             Self::FileNotFound => "file_not_found",
             Self::InvalidCredentialsFile(_) => "invalid_credentials_file",
             Self::InvalidDatabase => "invalid_database",
@@ -155,7 +155,7 @@ impl ParseError {
             }
             Self::MultipleCompoundEnv(_)
             | Self::MultipleCompoundOpts(_)
-            | Self::ExclusiveOptions => {
+            | Self::ExclusiveOptions(..) => {
                 // The argument is valid, but the use is invalid
                 gel_errors::InterfaceError::with_source(self)
             }
