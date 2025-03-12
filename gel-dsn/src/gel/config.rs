@@ -658,11 +658,17 @@ impl TryInto<Params> for ConnectionOptions {
         }
 
         if self.tls_ca.is_some() && self.tls_ca_file.is_some() {
-            return Err(ParseError::ExclusiveOptions);
+            return Err(ParseError::ExclusiveOptions(
+                "tls_ca".to_string(),
+                "tls_ca_file".to_string(),
+            ));
         }
 
         if self.branch.is_some() && self.database.is_some() {
-            return Err(ParseError::ExclusiveOptions);
+            return Err(ParseError::ExclusiveOptions(
+                "branch".to_string(),
+                "database".to_string(),
+            ));
         }
 
         let mut credentials = Param::from_file(self.credentials_file.clone());

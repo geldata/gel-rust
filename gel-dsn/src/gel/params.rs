@@ -16,8 +16,8 @@ use super::{
     error::*,
     project::{find_project_file, ProjectDir},
     BuildContext, BuildContextImpl, ClientSecurity, CloudCerts, Config, DatabaseBranch,
-    FromParamStr, InstanceName, Logging, Param, TcpKeepalive, TlsSecurity, DEFAULT_CONNECT_TIMEOUT,
-    DEFAULT_PORT, DEFAULT_WAIT,
+    FromParamStr, InstanceName, Logging, Param, ParamSource, TcpKeepalive, TlsSecurity,
+    DEFAULT_CONNECT_TIMEOUT, DEFAULT_PORT, DEFAULT_WAIT,
 };
 use crate::{
     env::SystemEnvVars,
@@ -147,12 +147,10 @@ macro_rules! define_params {
 
         impl Builder {
             $(
-                paste::paste!(
-                    $(#[doc = $doc])*
-                    pub fn $name(mut self, value: impl Into<$type>) -> Self {
-                        self.params.$name = Param::Parsed(value.into());
-                        self
-                    }
+                // Note that paste! forces re-interpretation of type token and allows us
+                // to match the __maybe__* macros below.
+                paste::paste!{
+                    define_params!{__maybe_into__ $(#[doc = $doc])* $name: $type}
 
                     $(#[doc = $doc])*
                     #[doc = "\n\nThis value will be loaded from `path` in the filesystem and parsed as [`"]
@@ -168,13 +166,29 @@ macro_rules! define_params {
                     #[doc = stringify!($type)]
                     #[doc = "`]."]
                     pub fn [<$name _env>](mut self, value: impl AsRef<str>) -> Self {
-                        self.params.$name = Param::Env(value.as_ref().to_string());
+                        self.params.$name = Param::Env(ParamSource::Explicit, value.as_ref().to_string());
                         self
                     }
-                );
 
-                define_params!(__maybe_string__ $(#[doc = $doc])* $name: $type);
+                    define_params!{__maybe_string__ $(#[doc = $doc])* $name: $type}
+                }
             )*
+        }
+    };
+    // NOTE: Special case u16 since number literals don't cooperate well with
+    // type inference + Into.
+    (__maybe_into__ $(#[doc = $doc:expr])* $name:ident: u16) => {
+        $(#[doc = $doc])*
+        pub fn $name(mut self, value: u16) -> Self {
+            self.params.$name = Param::Parsed(value);
+            self
+        }
+    };
+    (__maybe_into__ $(#[doc = $doc:expr])* $name:ident: $type:ty) => {
+        $(#[doc = $doc])*
+        pub fn $name(mut self, value: impl Into<$type>) -> Self {
+            self.params.$name = Param::Parsed(value.into());
+            self
         }
     };
     (__maybe_string__ $(#[doc = $doc:expr])* $name:ident: String) => {
@@ -703,7 +717,9 @@ impl Params {
             sources.push(CompoundSource::Dsn);
         }
         if self.instance.is_some() {
-            sources.push(CompoundSource::Instance);
+            if self.unix_path.is_none() {
+                sources.push(CompoundSource::Instance);
+            }
         }
         if self.unix_path.is_some() {
             sources.push(CompoundSource::UnixSocket);
@@ -772,38 +788,42 @@ impl Params {
 
         let instance = instance?;
         if let Some(instance) = &instance {
-            match &instance {
-                InstanceName::Local(local) => {
-                    let instance = parse_instance(local, context)?;
-                    context_trace!(context, "Instance: {:?}", instance);
-                    explicit.merge(instance);
-                }
-                InstanceName::Cloud { .. } => {
-                    let profile = explicit
-                        .cloud_profile
-                        .get(context)?
-                        .unwrap_or("default".to_string());
-                    let cloud = parse_cloud(&profile, context)?;
-                    context_trace!(context, "Cloud: {:?}", cloud);
-                    explicit.merge(cloud);
+            // Special case: if the unix path is set we ignore the instance
+            // credentials.
+            if explicit.unix_path.is_none() {
+                match &instance {
+                    InstanceName::Local(local) => {
+                        let instance = parse_instance(local, context)?;
+                        context_trace!(context, "Instance: {:?}", instance);
+                        explicit.merge(instance);
+                    }
+                    InstanceName::Cloud { .. } => {
+                        let profile = explicit
+                            .cloud_profile
+                            .get(context)?
+                            .unwrap_or("default".to_string());
+                        let cloud = parse_cloud(&profile, context)?;
+                        context_trace!(context, "Cloud: {:?}", cloud);
+                        explicit.merge(cloud);
 
-                    if let Some(secret_key) = explicit.secret_key.get(context)? {
-                        match instance.cloud_address(&secret_key) {
-                            Ok(Some(address)) => {
-                                explicit.host = Param::Unparsed(address);
-                            }
-                            Ok(None) => {
-                                unreachable!();
-                            }
-                            Err(e) => {
-                                // Special case: we ignore the secret key error until the final phase
-                                if phase == BuildPhase::Project {
-                                    return Err(e);
+                        if let Some(secret_key) = explicit.secret_key.get(context)? {
+                            match instance.cloud_address(&secret_key) {
+                                Ok(Some(address)) => {
+                                    explicit.host = Param::Unparsed(address);
+                                }
+                                Ok(None) => {
+                                    unreachable!();
+                                }
+                                Err(e) => {
+                                    // Special case: we ignore the secret key error until the final phase
+                                    if phase == BuildPhase::Project {
+                                        return Err(e);
+                                    }
                                 }
                             }
+                        } else {
+                            return Err(ParseError::SecretKeyNotFound);
                         }
-                    } else {
-                        return Err(ParseError::SecretKeyNotFound);
                     }
                 }
             }
@@ -1031,9 +1051,12 @@ fn parse_dsn(dsn: &str, context: &mut impl BuildContext) -> Result<Params, Parse
         };
 
         let (key, param) = if let Some(key) = key.strip_suffix("_file_env") {
-            (key, Param::EnvFile(value.to_string()))
+            (key, Param::EnvFile(ParamSource::Dsn, value.to_string()))
         } else if let Some(key) = key.strip_suffix("_env") {
-            (key, Param::<String>::Env(value.to_string()))
+            (
+                key,
+                Param::<String>::Env(ParamSource::Dsn, value.to_string()),
+            )
         } else if let Some(key) = key.strip_suffix("_file") {
             (key, Param::File(PathBuf::from(value.to_string())))
         } else {
@@ -1125,14 +1148,20 @@ fn parse_env(context: &mut impl BuildContext) -> Result<Params, ParseError> {
     };
 
     if explicit.branch.is_some() && explicit.database.is_some() {
-        return Err(ParseError::ExclusiveOptions);
+        return Err(ParseError::ExclusiveOptions(
+            "branch".to_string(),
+            "database".to_string(),
+        ));
     }
 
     let ca_file = Param::from_file(context.read_env(Env::tls_ca_file)?);
     if explicit.tls_ca.is_none() {
         explicit.tls_ca = ca_file;
     } else if ca_file.is_some() {
-        return Err(ParseError::ExclusiveOptions);
+        return Err(ParseError::ExclusiveOptions(
+            "tls_ca".to_string(),
+            "tls_ca_file".to_string(),
+        ));
     }
 
     Ok(explicit)
@@ -1482,5 +1511,40 @@ mod tests {
             .with_explicit_project(Path::new("."));
         // This intentionally won't work
         // let params = Builder::default().with_env().project_dir(Path::new("."));
+    }
+
+    #[test]
+    fn test_with_unix_socket() {
+        let params = Builder::default()
+            .unix_path(Path::new("/"))
+            .without_system()
+            .build()
+            .expect("Just a unix path is OK");
+        assert_eq!(params.host.to_string(), "/");
+        eprintln!("{:?}", params);
+
+        let params = Builder::default()
+            .unix_path(Path::new("/"))
+            .port(1234)
+            .without_system()
+            .build()
+            .expect("Unix path and port is OK");
+        assert_eq!(params.host.to_string(), "/.s.EDGEDB.admin.1234");
+        eprintln!("{:?}", params);
+
+        // This is allowed, but instance credentials are ignored in this case
+        // and just transferred to the output Config.
+        let params = Builder::default()
+            .instance(InstanceName::Local("instancedoesnotexist".to_string()))
+            .unix_path(Path::new("/"))
+            .without_system()
+            .build()
+            .expect("Unix path and instance is OK");
+        assert_eq!(params.host.to_string(), "/");
+        assert_eq!(
+            params.instance_name,
+            Some(InstanceName::Local("instancedoesnotexist".to_string()))
+        );
+        eprintln!("{:?}", params);
     }
 }

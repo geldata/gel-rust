@@ -1,6 +1,8 @@
 use crate::host::HostParseError;
 use std::{convert::Infallible, num::ParseIntError};
 
+use super::ParamSource;
+
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, PartialOrd, Ord)]
 pub enum CompoundSource {
     Dsn,
@@ -46,22 +48,14 @@ pub enum InvalidDsnError {
     BranchAndDatabase,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, PartialOrd, Ord)]
-pub enum EnvironmentSource {
-    #[display("Explicit")]
-    Explicit,
-    #[display("Param::Env")]
-    Param,
-}
-
 #[derive(Debug, derive_more::Error, derive_more::Display, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ParseError {
     #[display("Credentials file not found")]
     CredentialsFileNotFound,
-    #[display("Environment variable not found: {_1} ({_0})")]
-    EnvNotFound(EnvironmentSource, #[error(not(source))] String),
-    #[display("Exclusive options")]
-    ExclusiveOptions,
+    #[display("Environment variable was not set: {_1} (from {_0})")]
+    EnvNotFound(ParamSource, #[error(not(source))] String),
+    #[display("{_0} and {_1} are mutually exclusive and cannot be used together")]
+    ExclusiveOptions(String, String),
     #[display("File not found")]
     FileNotFound,
     #[display("Invalid credentials file: {_0}")]
@@ -94,7 +88,7 @@ pub enum ParseError {
     MultipleCompoundOpts(#[error(not(source))] Vec<CompoundSource>),
     #[display("No options or .toml file")]
     NoOptionsOrToml,
-    #[display("Project not initialised")]
+    #[display("Project not initialized")]
     ProjectNotInitialised,
     #[display("Secret key not found")]
     SecretKeyNotFound,
@@ -107,7 +101,7 @@ impl ParseError {
         match self {
             Self::EnvNotFound(..) => "env_not_found",
             Self::CredentialsFileNotFound => "credentials_file_not_found",
-            Self::ExclusiveOptions => "exclusive_options",
+            Self::ExclusiveOptions(..) => "exclusive_options",
             Self::FileNotFound => "file_not_found",
             Self::InvalidCredentialsFile(_) => "invalid_credentials_file",
             Self::InvalidDatabase => "invalid_database",
@@ -136,7 +130,6 @@ impl ParseError {
         match self {
             Self::EnvNotFound(..)
             | Self::CredentialsFileNotFound
-            | Self::ExclusiveOptions
             | Self::FileNotFound
             | Self::InvalidCredentialsFile(_)
             | Self::InvalidDatabase
@@ -150,15 +143,24 @@ impl ParseError {
             | Self::InvalidUser
             | Self::InvalidCertificate
             | Self::InvalidDuration
-            | Self::MultipleCompoundEnv(_)
-            | Self::MultipleCompoundOpts(_)
-            | Self::NoOptionsOrToml
-            | Self::ProjectNotInitialised
             | Self::UnixSocketUnsupported => {
+                // The argument is invalid
+                gel_errors::InvalidArgumentError::with_source(self)
+            }
+            Self::MultipleCompoundEnv(_)
+            | Self::MultipleCompoundOpts(_)
+            | Self::ExclusiveOptions(..) => {
+                // The argument is valid, but the use is invalid
+                gel_errors::InterfaceError::with_source(self)
+            }
+            Self::NoOptionsOrToml | Self::ProjectNotInitialised => {
+                // Credentials are missing
                 gel_errors::ClientNoCredentialsError::with_source(self)
             }
-
-            Self::SecretKeyNotFound => gel_errors::NoCloudConfigFound::with_source(self),
+            Self::SecretKeyNotFound => {
+                // Required cloud configuration is missing
+                gel_errors::NoCloudConfigFound::with_source(self)
+            }
         }
     }
 }
