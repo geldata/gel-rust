@@ -10,7 +10,7 @@ rust-version.workspace = true
 
 [features]
 default = []
-gel = ["serde", "dirs"]
+gel = ["serde"]
 postgres = []
 serde = ["dep:serde", "gel-stream/serde"]
 log = ["dep:log"]
@@ -50,6 +50,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 gel-dsn = { path = ".", features = ["gel", "postgres"] }
 tempfile = "3"
+
+[package.metadata.docs.rs]
+features = ["gel"]
 
 [lib]
 
