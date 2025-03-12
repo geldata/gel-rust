@@ -406,6 +406,8 @@ impl Builder {
             .with_auto_project_cwd()
     }
 
+    /// Prepare the builder for building the config with environment variables
+    /// configured.
     #[allow(deprecated, private_interfaces)]
     pub fn with_env(
         self,
@@ -413,6 +415,8 @@ impl Builder {
         self.without_system().with_env()
     }
 
+    /// Prepare the builder for building the config with file system access
+    /// configured.
     #[allow(deprecated, private_interfaces)]
     pub fn with_fs(
         self,
