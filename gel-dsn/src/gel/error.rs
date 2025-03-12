@@ -94,7 +94,7 @@ pub enum ParseError {
     MultipleCompoundOpts(#[error(not(source))] Vec<CompoundSource>),
     #[display("No options or .toml file")]
     NoOptionsOrToml,
-    #[display("Project not initialised")]
+    #[display("Project not initialized")]
     ProjectNotInitialised,
     #[display("Secret key not found")]
     SecretKeyNotFound,
@@ -136,7 +136,6 @@ impl ParseError {
         match self {
             Self::EnvNotFound(..)
             | Self::CredentialsFileNotFound
-            | Self::ExclusiveOptions
             | Self::FileNotFound
             | Self::InvalidCredentialsFile(_)
             | Self::InvalidDatabase
@@ -150,15 +149,24 @@ impl ParseError {
             | Self::InvalidUser
             | Self::InvalidCertificate
             | Self::InvalidDuration
-            | Self::MultipleCompoundEnv(_)
-            | Self::MultipleCompoundOpts(_)
-            | Self::NoOptionsOrToml
-            | Self::ProjectNotInitialised
             | Self::UnixSocketUnsupported => {
+                // The argument is invalid
+                gel_errors::InvalidArgumentError::with_source(self)
+            }
+            Self::MultipleCompoundEnv(_)
+            | Self::MultipleCompoundOpts(_)
+            | Self::ExclusiveOptions => {
+                // The argument is valid, but the use is invalid
+                gel_errors::InterfaceError::with_source(self)
+            }
+            Self::NoOptionsOrToml | Self::ProjectNotInitialised => {
+                // Credentials are missing
                 gel_errors::ClientNoCredentialsError::with_source(self)
             }
-
-            Self::SecretKeyNotFound => gel_errors::NoCloudConfigFound::with_source(self),
+            Self::SecretKeyNotFound => {
+                // Required cloud configuration is missing
+                gel_errors::NoCloudConfigFound::with_source(self)
+            }
         }
     }
 }
