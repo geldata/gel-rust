@@ -8,37 +8,16 @@ use std::{
 #[cfg(feature = "serde")]
 use serde::Serialize;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
-#[allow(unused)]
-pub(crate) enum HostTarget {
-    PostgreSQL,
-    Gel,
-    GelAdmin,
-    Raw,
-}
-
-impl HostTarget {
-    fn target_name(&self, port: u16) -> Option<String> {
-        match self {
-            HostTarget::PostgreSQL => Some(format!(".s.PGSQL.{}", port)),
-            HostTarget::Gel => Some(format!(".s.EDGEDB.{}", port)),
-            HostTarget::GelAdmin => Some(format!(".s.EDGEDB.admin.{}", port)),
-            HostTarget::Raw => None,
-        }
-    }
-}
-
 /// A pointer to a host and port which may be a hostname, IP address or unix
 /// socket.
 #[derive(Clone, derive_more::Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[debug("{}", self)]
-pub struct Host(pub(crate) HostType, pub(crate) u16, pub(crate) HostTarget);
+pub struct Host(pub(crate) HostType, pub(crate) u16);
 
 impl Host {
-    pub(crate) fn new(host: HostType, port: u16, host_target: HostTarget) -> Self {
-        Self(host, port, host_target)
+    pub(crate) fn new(host: HostType, port: u16) -> Self {
+        Self(host, port)
     }
 
     pub fn target_name(&self) -> Result<TargetName, std::io::Error> {
@@ -49,31 +28,9 @@ impl Host {
                 self.1,
             ))),
             HostTypeInner::IP(ip, None) => Ok(TargetName::new_tcp((format!("{}", ip), self.1))),
-            HostTypeInner::Path(path) => {
-                if let Some(suffix) = self.2.target_name(self.1) {
-                    TargetName::new_unix_path(path.join(suffix))
-                } else {
-                    TargetName::new_unix_path(path)
-                }
-            }
+            HostTypeInner::Path(path) => TargetName::new_unix_path(path),
             #[allow(unused)]
-            HostTypeInner::Abstract(name) => {
-                #[cfg(any(target_os = "linux", target_os = "android"))]
-                {
-                    if let Some(suffix) = self.2.target_name(self.1) {
-                        TargetName::new_unix_domain(format!("{}/{}", name, suffix))
-                    } else {
-                        TargetName::new_unix_domain(name)
-                    }
-                }
-                #[cfg(not(any(target_os = "linux", target_os = "android")))]
-                {
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::Unsupported,
-                        "Abstract sockets unsupported on this platform",
-                    ))
-                }
-            }
+            HostTypeInner::Abstract(name) => TargetName::new_unix_domain(name),
         }
     }
 
@@ -93,18 +50,10 @@ impl std::fmt::Display for Host {
             HostTypeInner::IP(ip, Some(interface)) => write!(f, "[{}%{}]:{}", ip, interface, port),
             HostTypeInner::IP(ip, None) => write!(f, "[{}]:{}", ip, port),
             HostTypeInner::Path(path) => {
-                if let Some(target_name) = self.2.target_name(port) {
-                    write!(f, "{}", path.join(target_name).display())
-                } else {
-                    write!(f, "{}", path.display())
-                }
+                write!(f, "{}", path.display())
             }
             HostTypeInner::Abstract(name) => {
-                if let Some(target_name) = self.2.target_name(port) {
-                    write!(f, "@{}/{}", name, target_name)
-                } else {
-                    write!(f, "@{}", name)
-                }
+                write!(f, "@{}", name)
             }
         }
     }
@@ -244,11 +193,7 @@ mod tests {
 
     #[test]
     fn test_host_display() {
-        let host = Host::new(
-            HostType::from_str("localhost").unwrap(),
-            5656,
-            HostTarget::Gel,
-        );
+        let host = Host::new(HostType::from_str("localhost").unwrap(), 5656);
         assert_eq!(host.to_string(), "localhost:5656");
     }
 }

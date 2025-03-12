@@ -16,14 +16,14 @@ use super::{
     error::*,
     project::{find_project_file, ProjectDir},
     BuildContext, BuildContextImpl, ClientSecurity, CloudCerts, Config, DatabaseBranch,
-    FromParamStr, InstanceName, Logging, Param, ParamSource, TcpKeepalive, TlsSecurity,
+    FromParamStr, InstanceName, Logging, Param, ParamSource, TcpKeepalive, TlsSecurity, UnixPath,
     DEFAULT_CONNECT_TIMEOUT, DEFAULT_PORT, DEFAULT_WAIT,
 };
 use crate::{
     env::SystemEnvVars,
     file::SystemFileAccess,
     gel::{context_trace, Authentication},
-    host::{Host, HostTarget, HostType},
+    host::{Host, HostType},
     user::SystemUserProfile,
     EnvVar, FileAccess, UserProfile,
 };
@@ -233,12 +233,7 @@ define_params!(
     /// The port.
     port: u16,
     /// The unix socket path.
-    ///
-    /// If set, the client will connect to the database via a Unix socket.
-    /// If a port is also set, this must refer to a directory in the filesystem
-    /// containing a Gel admin socket. If no port is set, the client will
-    /// connect to the database via a Unix socket on the exact given path.
-    unix_path: PathBuf,
+    unix_path: UnixPath,
     /// The database name. Used for EdgeDB < 5. For Gel or EdgeDB >= 5, use
     /// [`Builder::branch`].
     database: String,
@@ -859,27 +854,24 @@ impl Params {
         }
 
         let host = if let Some(unix_path) = computed.unix_path {
-            match port {
-                Some(port) => Host::new(
-                    HostType::from_unix_path(unix_path),
-                    port,
-                    HostTarget::GelAdmin,
-                ),
-                None => Host::new(
-                    HostType::from_unix_path(unix_path),
-                    DEFAULT_PORT,
-                    HostTarget::Raw,
-                ),
+            match unix_path {
+                UnixPath::PortSuffixed(mut path) => {
+                    let Some(filename) = path.file_name() else {
+                        return Err(ParseError::UnixSocketUnsupported);
+                    };
+                    let port = port.unwrap_or(DEFAULT_PORT);
+                    let mut filename = filename.to_owned();
+                    filename.push(&port.to_string());
+                    path.set_file_name(filename);
+                    Host::new(HostType::from_unix_path(path), DEFAULT_PORT)
+                }
+                UnixPath::Exact(path) => Host::new(HostType::from_unix_path(path), DEFAULT_PORT),
             }
         } else {
             let host = match (computed.host, port) {
-                (Some(host), Some(port)) => Host::new(host, port, HostTarget::Gel),
-                (Some(host), None) => Host::new(host, DEFAULT_PORT, HostTarget::Gel),
-                (None, Some(port)) => Host::new(
-                    HostType::try_from_str("localhost").unwrap(),
-                    port,
-                    HostTarget::Gel,
-                ),
+                (Some(host), Some(port)) => Host::new(host, port),
+                (Some(host), None) => Host::new(host, DEFAULT_PORT),
+                (None, Some(port)) => Host::new(HostType::try_from_str("localhost").unwrap(), port),
                 (None, None) => {
                     return Ok(None);
                 }
@@ -1524,7 +1516,7 @@ mod tests {
         eprintln!("{:?}", params);
 
         let params = Builder::default()
-            .unix_path(Path::new("/"))
+            .unix_path(UnixPath::PortSuffixed(PathBuf::from("/.s.EDGEDB.admin.")))
             .port(1234)
             .without_system()
             .build()

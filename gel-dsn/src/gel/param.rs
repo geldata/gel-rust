@@ -8,7 +8,7 @@ use url::Url;
 
 use super::{
     duration, error::*, BuildContext, ClientSecurity, CloudCerts, CloudCredentialsFile,
-    CredentialsFile, InstanceName, TcpKeepalive, TlsSecurity,
+    CredentialsFile, InstanceName, TcpKeepalive, TlsSecurity, UnixPath,
 };
 use crate::{gel::context_trace, host::HostType, EnvVar, FileAccess};
 
@@ -43,7 +43,8 @@ impl_from_param_str!(
     ClientSecurity,
     CloudCredentialsFile,
     CloudCerts,
-    TcpKeepalive
+    TcpKeepalive,
+    UnixPath
 );
 
 impl FromParamStr for std::time::Duration {

@@ -1,17 +1,11 @@
 use super::{error::*, BuildContextImpl, FromParamStr, InstanceName, Param, Params};
 use crate::{
     gel::parse_duration,
-    host::{Host, HostTarget, HostType},
+    host::{Host, HostType},
 };
 use rustls_pki_types::CertificateDer;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    fmt,
-    path::{Path, PathBuf},
-    str::FromStr,
-    time::Duration,
-};
+use std::{collections::HashMap, fmt, path::PathBuf, str::FromStr, time::Duration};
 
 pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 pub const DEFAULT_WAIT: Duration = Duration::from_secs(30);
@@ -102,7 +96,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            host: Host::new(DEFAULT_HOST.clone(), DEFAULT_PORT, HostTarget::Gel),
+            host: Host::new(DEFAULT_HOST.clone(), DEFAULT_PORT),
             db: DatabaseBranch::Default,
             user: DEFAULT_USER.to_string(),
             instance_name: None,
@@ -191,17 +185,6 @@ impl Config {
             Some(format!("http{}://{}:{}", s, host, port))
         } else {
             None
-        }
-    }
-
-    pub fn with_unix_path(&self, path: &Path) -> Self {
-        Self {
-            host: Host::new(
-                HostType::from_unix_path(PathBuf::from(path)),
-                DEFAULT_PORT,
-                HostTarget::Raw,
-            ),
-            ..self.clone()
         }
     }
 
@@ -597,6 +580,28 @@ impl FromStr for TcpKeepalive {
                 parse_duration(s).map_err(|_| ParseError::InvalidDuration)?,
             )),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+
+pub enum UnixPath {
+    /// The selected port will be appended to the path.
+    PortSuffixed(PathBuf),
+    /// The path will be used as-is.
+    Exact(PathBuf),
+}
+
+impl FromStr for UnixPath {
+    type Err = ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(UnixPath::Exact(PathBuf::from(s)))
+    }
+}
+
+impl<T: Into<PathBuf>> From<T> for UnixPath {
+    fn from(path: T) -> Self {
+        UnixPath::Exact(path.into())
     }
 }
 
