@@ -16,8 +16,8 @@ use super::{
     error::*,
     project::{find_project_file, ProjectDir},
     BuildContext, BuildContextImpl, ClientSecurity, CloudCerts, Config, DatabaseBranch,
-    FromParamStr, InstanceName, Logging, Param, TcpKeepalive, TlsSecurity, DEFAULT_CONNECT_TIMEOUT,
-    DEFAULT_PORT, DEFAULT_WAIT,
+    FromParamStr, InstanceName, Logging, Param, ParamSource, TcpKeepalive, TlsSecurity,
+    DEFAULT_CONNECT_TIMEOUT, DEFAULT_PORT, DEFAULT_WAIT,
 };
 use crate::{
     env::SystemEnvVars,
@@ -166,7 +166,7 @@ macro_rules! define_params {
                     #[doc = stringify!($type)]
                     #[doc = "`]."]
                     pub fn [<$name _env>](mut self, value: impl AsRef<str>) -> Self {
-                        self.params.$name = Param::Env(value.as_ref().to_string());
+                        self.params.$name = Param::Env(ParamSource::Explicit, value.as_ref().to_string());
                         self
                     }
 
@@ -1051,9 +1051,12 @@ fn parse_dsn(dsn: &str, context: &mut impl BuildContext) -> Result<Params, Parse
         };
 
         let (key, param) = if let Some(key) = key.strip_suffix("_file_env") {
-            (key, Param::EnvFile(value.to_string()))
+            (key, Param::EnvFile(ParamSource::Dsn, value.to_string()))
         } else if let Some(key) = key.strip_suffix("_env") {
-            (key, Param::<String>::Env(value.to_string()))
+            (
+                key,
+                Param::<String>::Env(ParamSource::Dsn, value.to_string()),
+            )
         } else if let Some(key) = key.strip_suffix("_file") {
             (key, Param::File(PathBuf::from(value.to_string())))
         } else {

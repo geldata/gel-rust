@@ -1,6 +1,8 @@
 use crate::host::HostParseError;
 use std::{convert::Infallible, num::ParseIntError};
 
+use super::ParamSource;
+
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, PartialOrd, Ord)]
 pub enum CompoundSource {
     Dsn,
@@ -46,20 +48,12 @@ pub enum InvalidDsnError {
     BranchAndDatabase,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, PartialOrd, Ord)]
-pub enum EnvironmentSource {
-    #[display("Explicit")]
-    Explicit,
-    #[display("Param::Env")]
-    Param,
-}
-
 #[derive(Debug, derive_more::Error, derive_more::Display, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ParseError {
     #[display("Credentials file not found")]
     CredentialsFileNotFound,
-    #[display("Environment variable not found: {_1} ({_0})")]
-    EnvNotFound(EnvironmentSource, #[error(not(source))] String),
+    #[display("Environment variable was not set: {_1} (from {_0})")]
+    EnvNotFound(ParamSource, #[error(not(source))] String),
     #[display("{_0} and {_1} are mutually exclusive and cannot be used together")]
     ExclusiveOptions(String, String),
     #[display("File not found")]

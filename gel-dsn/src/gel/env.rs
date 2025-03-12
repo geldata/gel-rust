@@ -1,5 +1,6 @@
 use super::{
-    error::*, BuildContext, ClientSecurity, CloudCerts, FromParamStr, InstanceName, TlsSecurity,
+    error::*, BuildContext, ClientSecurity, CloudCerts, FromParamStr, InstanceName, ParamSource,
+    TlsSecurity,
 };
 use crate::host::HostType;
 use crate::EnvVar;
@@ -186,7 +187,7 @@ pub fn get_envs(
             Err(std::env::VarError::NotPresent) => continue,
             Err(err @ std::env::VarError::NotUnicode(_)) => {
                 return Err(ParseError::EnvNotFound(
-                    EnvironmentSource::Explicit,
+                    ParamSource::Explicit,
                     err.to_string(),
                 ));
             }

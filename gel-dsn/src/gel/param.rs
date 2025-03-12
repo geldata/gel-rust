@@ -152,13 +152,21 @@ pub enum Param<T: Clone> {
     /// Unparsed value.
     Unparsed(String),
     /// Value from given environment variable.
-    Env(String),
+    Env(ParamSource, String),
     /// Value from given file.
     File(PathBuf),
     /// Value from environment variable pointing to a file.
-    EnvFile(String),
+    EnvFile(ParamSource, String),
     /// Parsed value.
     Parsed(T),
+}
+
+#[derive(Debug, Copy, Clone, derive_more::Display, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ParamSource {
+    #[display("DSN")]
+    Dsn,
+    #[display("explicit")]
+    Explicit,
 }
 
 #[allow(private_bounds)]
@@ -199,9 +207,9 @@ where
         match self {
             Self::None => Ok(Param::None),
             Self::Unparsed(value) => Ok(Param::Unparsed(value)),
-            Self::Env(value) => Ok(Param::Env(value)),
+            Self::Env(source, value) => Ok(Param::Env(source, value)),
             Self::File(value) => Ok(Param::File(value)),
-            Self::EnvFile(value) => Ok(Param::EnvFile(value)),
+            Self::EnvFile(source, value) => Ok(Param::EnvFile(source, value)),
             Self::Parsed(value) => Err(Self::Parsed(value)),
         }
     }
@@ -212,15 +220,13 @@ where
                 return Ok(None);
             }
             Self::Unparsed(value) => value.clone(),
-            Self::Env(key) => {
-                context_trace!(context, "Reading env: {key}");
+            Self::Env(source, key) => {
+                context_trace!(context, "Reading env: {key} (from {source})");
                 context
                     .env()
                     .read(key)
                     .map(|s| s.to_string())
-                    .map_err(|_| {
-                        ParseError::EnvNotFound(EnvironmentSource::Param, key.to_string())
-                    })?
+                    .map_err(|_| ParseError::EnvNotFound(*source, key.to_string()))?
             }
             Self::File(path) => {
                 context_trace!(context, "Reading file: {path:?}");
@@ -232,14 +238,12 @@ where
                 context_trace!(context, "File content: {res:?}");
                 res?
             }
-            Self::EnvFile(key) => {
-                context_trace!(context, "Reading env for file: {key}");
+            Self::EnvFile(source, key) => {
+                context_trace!(context, "Reading env for file: {key} (from {source})");
                 let env = context
                     .env()
                     .read(key)
-                    .map_err(|_| {
-                        ParseError::EnvNotFound(EnvironmentSource::Param, key.to_string())
-                    })?
+                    .map_err(|_| ParseError::EnvNotFound(*source, key.to_string()))?
                     .to_string();
                 context_trace!(context, "Reading file: {env}");
                 let res = context
