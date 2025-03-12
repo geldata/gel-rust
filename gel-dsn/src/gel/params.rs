@@ -850,19 +850,10 @@ impl Params {
         }
 
         let host = if let Some(unix_path) = computed.unix_path {
-            match unix_path {
-                UnixPath::PortSuffixed(mut path) => {
-                    let Some(filename) = path.file_name() else {
-                        return Err(ParseError::UnixSocketUnsupported);
-                    };
-                    let port = port.unwrap_or(DEFAULT_PORT);
-                    let mut filename = filename.to_owned();
-                    filename.push(&port.to_string());
-                    path.set_file_name(filename);
-                    Host::new(HostType::from_unix_path(path), DEFAULT_PORT)
-                }
-                UnixPath::Exact(path) => Host::new(HostType::from_unix_path(path), DEFAULT_PORT),
-            }
+            let path = unix_path
+                .path_with_port(port.unwrap_or(DEFAULT_PORT))
+                .into_owned();
+            Host::new(HostType::from_unix_path(path), DEFAULT_PORT)
         } else {
             let host = match (computed.host, port) {
                 (Some(host), Some(port)) => Host::new(host, port),
@@ -1512,7 +1503,9 @@ mod tests {
         eprintln!("{:?}", params);
 
         let params = Builder::default()
-            .unix_path(UnixPath::PortSuffixed(PathBuf::from("/.s.EDGEDB.admin.")))
+            .unix_path(UnixPath::with_port_suffix(PathBuf::from(
+                "/.s.EDGEDB.admin.",
+            )))
             .port(1234)
             .without_system()
             .build()
@@ -1523,7 +1516,7 @@ mod tests {
         // Pull the port from the credentials.
         let params = Builder::default()
             .instance(InstanceName::Local("instancename".to_string()))
-            .unix_path(UnixPath::PortSuffixed(PathBuf::from("/tmp/port.")))
+            .unix_path(UnixPath::with_port_suffix(PathBuf::from("/tmp/port.")))
             .without_system()
             .with_fs_impl(HashMap::from_iter([(
                 PathBuf::from("/home/edgedb/.config/edgedb/credentials/instancename.json"),

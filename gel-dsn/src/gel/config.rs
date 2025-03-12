@@ -5,7 +5,14 @@ use crate::{
 };
 use rustls_pki_types::CertificateDer;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt, path::PathBuf, str::FromStr, time::Duration};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    fmt,
+    path::{Path, PathBuf},
+    str::FromStr,
+    time::Duration,
+};
 
 pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 pub const DEFAULT_WAIT: Duration = Duration::from_secs(30);
@@ -583,25 +590,65 @@ impl FromStr for TcpKeepalive {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-
-pub enum UnixPath {
+#[derive(derive_more::Debug, Clone, PartialEq, Eq)]
+enum UnixPathInner {
     /// The selected port will be appended to the path.
+    #[debug("{:?}{{port}}", _0)]
     PortSuffixed(PathBuf),
     /// The path will be used as-is.
+    #[debug("{:?}", _0)]
     Exact(PathBuf),
+}
+
+#[derive(Clone, PartialEq, Eq, derive_more::Debug)]
+pub struct UnixPath {
+    #[debug("{:?}", inner)]
+    inner: UnixPathInner,
+}
+
+impl UnixPath {
+    /// The selected port will be appended to the path.
+    pub fn with_port_suffix(path: PathBuf) -> Self {
+        UnixPath {
+            inner: UnixPathInner::PortSuffixed(path),
+        }
+    }
+
+    /// The path will be used as-is.
+    pub fn exact(path: PathBuf) -> Self {
+        UnixPath {
+            inner: UnixPathInner::Exact(path),
+        }
+    }
+
+    /// Returns a path with the port suffix appended.
+    pub fn path_with_port(&self, port: u16) -> Cow<Path> {
+        match &self.inner {
+            UnixPathInner::PortSuffixed(path) => {
+                let Some(filename) = path.file_name() else {
+                    return Cow::Owned(path.join(port.to_string()));
+                };
+                let mut path = path.clone();
+                let mut filename = filename.to_owned();
+                filename.push(&port.to_string());
+                path.set_file_name(filename);
+                Cow::Owned(path)
+            }
+            UnixPathInner::Exact(path) => Cow::Borrowed(path),
+        }
+    }
 }
 
 impl FromStr for UnixPath {
     type Err = ParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(UnixPath::Exact(PathBuf::from(s)))
+        Ok(UnixPath::exact(PathBuf::from(s)))
     }
 }
 
 impl<T: Into<PathBuf>> From<T> for UnixPath {
     fn from(path: T) -> Self {
-        UnixPath::Exact(path.into())
+        UnixPath::exact(path.into())
     }
 }
 

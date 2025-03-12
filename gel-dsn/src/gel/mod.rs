@@ -444,7 +444,7 @@ mod tests {
         // Test unix path with a port
         let cfg = Builder::new()
             .port(8888)
-            .unix_path(UnixPath::PortSuffixed(PathBuf::from("/prefix.")))
+            .unix_path(UnixPath::with_port_suffix(PathBuf::from("/prefix.")))
             .build()
             .unwrap();
         let host = cfg.host.target_name().unwrap();
