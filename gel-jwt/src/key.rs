@@ -62,6 +62,7 @@ impl PrivateKey {
         Ok(Self { kid, inner })
     }
 
+    #[cfg(feature = "keygen")]
     pub fn generate(kid: Option<String>, kty: KeyType) -> Result<Self, KeyError> {
         let key = BarePrivateKey::generate(kty)?;
         Self::from_bare_private_key(kid, key)

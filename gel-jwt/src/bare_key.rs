@@ -2,22 +2,17 @@ use base64ct::Encoding;
 use const_oid::db::rfc5912::{ID_EC_PUBLIC_KEY, RSA_ENCRYPTION, SECP_256_R_1};
 use der::{asn1::BitString, Any, AnyRef, Decode, Encode, SliceReader};
 use elliptic_curve::{generic_array::GenericArray, sec1::FromEncodedPoint};
+use num_bigint_dig::BigUint;
 use p256::elliptic_curve::{sec1::ToEncodedPoint, JwkEcKey};
 use pem::Pem;
-use pkcs1::{DecodeRsaPrivateKey, UintRef};
+use pkcs1::UintRef;
 use pkcs8::{
     spki::{AlgorithmIdentifier, SubjectPublicKeyInfoOwned},
     PrivateKeyInfo,
 };
-use rand::{rngs::ThreadRng, Rng};
 use ring::{
     rand::SystemRandom,
     signature::{RsaKeyPair, ECDSA_P256_SHA256_FIXED_SIGNING},
-};
-use rsa::{
-    pkcs1::EncodeRsaPrivateKey,
-    traits::{PrivateKeyParts, PublicKeyParts},
-    BigUint, RsaPrivateKey,
 };
 use rustls_pki_types::PrivatePkcs1KeyDer;
 use sec1::{EcParameters, EcPrivateKey};
@@ -27,9 +22,12 @@ use std::{collections::HashMap, str::FromStr, vec::Vec};
 use crate::{KeyError, KeyType, KeyValidationError};
 
 const MIN_OCT_LEN_BYTES: usize = 16;
-const DEFAULT_GEN_OCT_LEN_BYTES: usize = 32;
 const MIN_RSA_KEY_BITS: usize = 2048;
+
+#[cfg(feature = "keygen")]
 const DEFAULT_GEN_RSA_KEY_BITS: usize = 2048;
+#[cfg(feature = "keygen")]
+const DEFAULT_GEN_OCT_LEN_BYTES: usize = 32;
 
 #[derive(zeroize::ZeroizeOnDrop, Eq, PartialEq, Clone)]
 pub(crate) struct HmacKey {
@@ -88,6 +86,9 @@ impl<'de> serde::Deserialize<'de> for SerializedKey {
                         get("d"),
                         get("p"),
                         get("q"),
+                        get("dp"),
+                        get("dq"),
+                        get("qi"),
                     ) {
                         Ok(key) => Ok(SerializedKey::Private(kid, key)),
                         Err(e) => Ok(SerializedKey::UnknownOrInvalid(e, kty.to_string(), map)),
@@ -143,47 +144,29 @@ impl serde::Serialize for SerializedKey {
                 let mut map = serializer.serialize_map(None)?;
                 match &key.inner {
                     BarePrivateKeyInner::RS256(key) => {
-                        let rsa = RsaPrivateKey::from_pkcs1_der(key.secret_pkcs1_der())
+                        let rsa = pkcs1::RsaPrivateKey::from_der(key.secret_pkcs1_der())
                             .map_err(serde::ser::Error::custom)?;
                         if let Some(kid) = kid {
                             map.serialize_entry("kid", kid)?;
                         }
                         map.serialize_entry("kty", "RSA")?;
-                        map.serialize_entry("n", &b64(&rsa.n().to_bytes_be()))?;
-                        map.serialize_entry("e", &b64(&rsa.e().to_bytes_be()))?;
-                        map.serialize_entry("d", &b64(&rsa.d().to_bytes_be()))?;
+                        map.serialize_entry("n", &b64(&rsa.modulus.as_bytes()))?;
+                        map.serialize_entry("e", &b64(&rsa.public_exponent.as_bytes()))?;
+                        map.serialize_entry("d", &b64(&rsa.private_exponent.as_bytes()))?;
 
                         // Add dp, dq, qi
-                        let dp = rsa
-                            .dp()
-                            .map(|dp| dp.to_bytes_be())
-                            .ok_or(serde::ser::Error::custom("RSA private key must have dp"))?;
-                        let dq = rsa
-                            .dq()
-                            .map(|dq| dq.to_bytes_be())
-                            .ok_or(serde::ser::Error::custom("RSA private key must have dq"))?;
-
-                        map.serialize_entry("dp", &b64(&dp))?;
-                        map.serialize_entry("dq", &b64(&dq))?;
-                        if rsa.primes().len() == 2 {
-                            map.serialize_entry("p", &b64(&rsa.primes()[0].to_bytes_be()))?;
-                            map.serialize_entry("q", &b64(&rsa.primes()[1].to_bytes_be()))?;
+                        map.serialize_entry("dp", &b64(&rsa.exponent1.as_bytes()))?;
+                        map.serialize_entry("dq", &b64(&rsa.exponent2.as_bytes()))?;
+                        if rsa.other_prime_infos.is_none() {
+                            map.serialize_entry("p", &b64(&rsa.prime1.as_bytes()))?;
+                            map.serialize_entry("q", &b64(&rsa.prime2.as_bytes()))?;
                         } else {
                             return Err(serde::ser::Error::custom(
                                 "RSA private key must have 2 primes",
                             ));
                         }
 
-                        // Note special handling: qi should be a positive integer. Becuase we always source
-                        // these RSA keys from PKCS1 or RsaPrivateKey, we know that qi is always positive.
-                        let qi = rsa
-                            .qinv()
-                            .ok_or(serde::ser::Error::custom("RSA private key must have qi"))?;
-                        if qi.sign() < Default::default() {
-                            return Err(serde::ser::Error::custom("qi must be a positive integer"));
-                        }
-                        let (_, qi) = qi.to_bytes_be();
-                        map.serialize_entry("qi", &b64(&qi))?;
+                        map.serialize_entry("qi", &b64(&rsa.coefficient.as_bytes()))?;
                     }
                     BarePrivateKeyInner::ES256(key) => {
                         if let Some(kid) = kid {
@@ -387,10 +370,10 @@ impl std::hash::Hash for BarePrivateKeyInner {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match &self {
             BarePrivateKeyInner::RS256(key) => {
-                let Ok(key) = RsaPrivateKey::from_pkcs1_der(key.secret_pkcs1_der()) else {
+                let Ok(key) = ring::rsa::KeyPair::from_der(key.secret_pkcs1_der()) else {
                     return;
                 };
-                key.n().hash(state);
+                key.public().as_ref().hash(state);
             }
             BarePrivateKeyInner::ES256(key) => {
                 let key = key.public_key();
@@ -406,13 +389,13 @@ impl PartialEq for BarePrivateKeyInner {
     fn eq(&self, other: &Self) -> bool {
         match (&self, &other) {
             (BarePrivateKeyInner::RS256(a), BarePrivateKeyInner::RS256(b)) => {
-                let Ok(a) = RsaPrivateKey::from_pkcs1_der(a.secret_pkcs1_der()) else {
+                let Ok(a) = ring::rsa::KeyPair::from_der(a.secret_pkcs1_der()) else {
                     return false;
                 };
-                let Ok(b) = RsaPrivateKey::from_pkcs1_der(b.secret_pkcs1_der()) else {
+                let Ok(b) = ring::rsa::KeyPair::from_der(b.secret_pkcs1_der()) else {
                     return false;
                 };
-                a.n() == b.n() && a.e() == b.e()
+                a.public().as_ref() == b.public().as_ref()
             }
             (BarePrivateKeyInner::ES256(a), BarePrivateKeyInner::ES256(b)) => {
                 let a = a.public_key();
@@ -483,7 +466,12 @@ impl BarePrivateKey {
 
     /// Generate a new key of the given type. This may be slow for RSA keys
     /// when running without compiler optimizations.
+    #[cfg(feature = "keygen")]
     pub fn generate(key_type: KeyType) -> Result<Self, KeyError> {
+        use pkcs1::EncodeRsaPrivateKey;
+        use ring::rand::SystemRandom;
+        use rand::{rngs::ThreadRng, Rng};
+
         match key_type {
             KeyType::RS256 => {
                 // Because keygen is so slow in debug mode, we use openssl to generate.
@@ -496,7 +484,7 @@ impl BarePrivateKey {
                 }
 
                 let key =
-                    rsa::RsaPrivateKey::new(&mut ThreadRng::default(), DEFAULT_GEN_RSA_KEY_BITS)
+                    rsa::RsaPrivateKey::new(&mut rand::thread_rng(), DEFAULT_GEN_RSA_KEY_BITS)
                         .unwrap();
                 let key = key.to_pkcs1_der().unwrap();
                 Self::from_unvalidated(BarePrivateKeyInner::RS256(PrivatePkcs1KeyDer::from(
@@ -544,23 +532,50 @@ impl BarePrivateKey {
     }
 
     /// Load an RSA key from a JWK.
-    pub fn from_jwt_rsa(n: &str, e: &str, d: &str, p: &str, q: &str) -> Result<Self, KeyError> {
-        let n = BigUint::from_bytes_be(&b64_decode(n)?);
-        let e = BigUint::from_bytes_be(&b64_decode(e)?);
-        let d = BigUint::from_bytes_be(&b64_decode(d)?);
-        let p = BigUint::from_bytes_be(&b64_decode(p)?);
-        let q = BigUint::from_bytes_be(&b64_decode(q)?);
-        let primes = vec![p, q];
+    pub fn from_jwt_rsa(
+        n: &str,
+        e: &str,
+        d: &str,
+        p: &str,
+        q: &str,
+        dp: &str,
+        dq: &str,
+        qinv: &str,
+    ) -> Result<Self, KeyError> {
+        let n = b64_decode(n)?;
+        let e = b64_decode(e)?;
+        let d = b64_decode(d)?;
+        let p = b64_decode(p)?;
+        let q = b64_decode(q)?;
+        let dp = b64_decode(dp)?;
+        let dq = b64_decode(dq)?;
+        let qinv = b64_decode(qinv)?;
 
-        let rsa = rsa::RsaPrivateKey::from_components(n, e, d, primes)
+        eprintln!("n: {}", BigUint::from_bytes_be(&n));
+        eprintln!("e: {}", BigUint::from_bytes_be(&e));
+        eprintln!("d: {}", BigUint::from_bytes_be(&d));
+        eprintln!("p: {}", BigUint::from_bytes_be(&p));
+        eprintln!("q: {}", BigUint::from_bytes_be(&q));
+        eprintln!("dp: {}", BigUint::from_bytes_be(&dp));
+        eprintln!("dq: {}", BigUint::from_bytes_be(&dq));
+        eprintln!("qinv: {}", BigUint::from_bytes_be(&qinv));
+        let rsa = pkcs1::RsaPrivateKey {
+            modulus: UintRef::new(&n).map_err(|_| KeyError::DecodeError)?,
+            public_exponent: UintRef::new(&e).map_err(|_| KeyError::DecodeError)?,
+            private_exponent: UintRef::new(&d).map_err(|_| KeyError::DecodeError)?,
+            prime1: UintRef::new(&p).map_err(|_| KeyError::DecodeError)?,
+            prime2: UintRef::new(&q).map_err(|_| KeyError::DecodeError)?,
+            exponent1: UintRef::new(&dp).map_err(|_| KeyError::DecodeError)?,
+            exponent2: UintRef::new(&dq).map_err(|_| KeyError::DecodeError)?,
+            coefficient: UintRef::new(&qinv).map_err(|_| KeyError::DecodeError)?,
+            other_prime_infos: None,
+        };
+
+        let mut vec = Vec::with_capacity(n.len() * 4);
+        rsa.encode_to_vec(&mut vec)
             .map_err(|_| KeyError::DecodeError)?;
-        let key = rsa
-            .to_pkcs1_der()
-            .to_owned()
-            .map_err(|_| KeyError::DecodeError)?;
-        Self::from_unvalidated(BarePrivateKeyInner::RS256(PrivatePkcs1KeyDer::from(
-            key.to_bytes().to_vec(),
-        )))
+
+        Self::from_unvalidated(BarePrivateKeyInner::RS256(PrivatePkcs1KeyDer::from(vec)))
     }
 
     /// Load an HMAC key from a base64-encoded string.
@@ -1260,7 +1275,19 @@ mod tests {
             1l9lKpP3orkpYY1wsRMWGrQyDZlKqwNp-x5IG7c5RescuCJ4Yy5JO_PmtXOwukWH7YUTk7nWCCYNCxfHCsxvr-X
             T4oct9FZAtHu9s"#
             .replace(char::is_whitespace, "");
-        let key = BarePrivateKey::from_jwt_rsa(&n, e, &d, &p, &q).unwrap();
+        let dp = r#"iKG49MM4AE5Xn-m2QBgpmIppghw87tS45g4cpsJgEYmjCDstqG4Aj8hWBoPBx4Gcfv9Cp
+            ULhkXtcrE0FZtksfGUhkDBbB3rVE8M3yM_WTgQI8RLW4NWni6LIVJqVohllIkih_1VdCcHqCO26VZhQ82usWO
+            TkvQ3cviAX56es_J0"#
+            .replace(char::is_whitespace, "");
+        let dq = r#"YqJl1qeg9R-WUQnfqnt9G9QXse5olqb2Mlw34JBALGmqQy2fotRyTgXt9wThmM-w_2Lb5
+            8AdALyaNioGJhMaQMi5y-dIcJURltVWpFH4IVwPLlbSG_SP0rOA0Xx-OXzgjmU2shiIL5hrNyTG337MX9Ytph
+            Mw-MWgdYnX-PA9QkE"#
+            .replace(char::is_whitespace, "");
+        let qinv = r#"CMSVnYipRlZJ0miceg9ECPNkAIvKUbaUYfccdJOl2ffP0Fs4FNxoJBoakyoNuJdYjV6
+            syGSMON0A9OBpGWCL3A21X5BHw3JhsA3XGLMwXAjLA1_2mb_fV9HsaO9SqOZsU-Lo1w_g9PHK5EtqieJMP0iT
+            fNdJIk8HyzKZVDPccJI"#
+            .replace(char::is_whitespace, "");
+        let key = BarePrivateKey::from_jwt_rsa(&n, e, &d, &p, &q, &dp, &dq, &qinv).unwrap();
         println!("{}", key.to_pem());
     }
 
