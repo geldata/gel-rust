@@ -469,8 +469,8 @@ impl BarePrivateKey {
     #[cfg(feature = "keygen")]
     pub fn generate(key_type: KeyType) -> Result<Self, KeyError> {
         use pkcs1::EncodeRsaPrivateKey;
-        use ring::rand::SystemRandom;
         use rand::{rngs::ThreadRng, Rng};
+        use ring::rand::SystemRandom;
 
         match key_type {
             KeyType::RS256 => {
@@ -551,14 +551,6 @@ impl BarePrivateKey {
         let dq = b64_decode(dq)?;
         let qinv = b64_decode(qinv)?;
 
-        eprintln!("n: {}", BigUint::from_bytes_be(&n));
-        eprintln!("e: {}", BigUint::from_bytes_be(&e));
-        eprintln!("d: {}", BigUint::from_bytes_be(&d));
-        eprintln!("p: {}", BigUint::from_bytes_be(&p));
-        eprintln!("q: {}", BigUint::from_bytes_be(&q));
-        eprintln!("dp: {}", BigUint::from_bytes_be(&dp));
-        eprintln!("dq: {}", BigUint::from_bytes_be(&dq));
-        eprintln!("qinv: {}", BigUint::from_bytes_be(&qinv));
         let rsa = pkcs1::RsaPrivateKey {
             modulus: UintRef::new(&n).map_err(|_| KeyError::DecodeError)?,
             public_exponent: UintRef::new(&e).map_err(|_| KeyError::DecodeError)?,
@@ -1288,7 +1280,17 @@ mod tests {
             fNdJIk8HyzKZVDPccJI"#
             .replace(char::is_whitespace, "");
         let key = BarePrivateKey::from_jwt_rsa(&n, e, &d, &p, &q, &dp, &dq, &qinv).unwrap();
-        println!("{}", key.to_pem());
+
+        let json = serde_json::to_value(&SerializedKey::Private(None, key)).unwrap();
+        assert_eq!(json["kty"], "RSA");
+        assert_eq!(json["n"], n);
+        assert_eq!(json["e"], e);
+        assert_eq!(json["d"], d);
+        assert_eq!(json["p"], p);
+        assert_eq!(json["q"], q);
+        assert_eq!(json["dp"], dp);
+        assert_eq!(json["dq"], dq);
+        assert_eq!(json["qi"], qinv);
     }
 
     #[test]
@@ -1305,6 +1307,8 @@ mod tests {
         println!("{}", pem);
         let key2 = BarePrivateKey::from_pem(&pem).expect("Failed to round-trip");
         println!("{}", key2.to_pem());
+        assert_eq!(key, key2);
+        assert_eq!(key.to_pem(), key2.to_pem());
     }
 
     #[test]
@@ -1314,6 +1318,8 @@ mod tests {
         println!("{}", pem);
         let key2 = BarePrivateKey::from_pem(&pem).expect("Failed to round-trip");
         println!("{}", key2.to_pem());
+        assert_eq!(key, key2);
+        assert_eq!(key.to_pem(), key2.to_pem());
     }
 
     #[test]
