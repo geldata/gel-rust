@@ -150,23 +150,23 @@ impl serde::Serialize for SerializedKey {
                             map.serialize_entry("kid", kid)?;
                         }
                         map.serialize_entry("kty", "RSA")?;
-                        map.serialize_entry("n", &b64(&rsa.modulus.as_bytes()))?;
-                        map.serialize_entry("e", &b64(&rsa.public_exponent.as_bytes()))?;
-                        map.serialize_entry("d", &b64(&rsa.private_exponent.as_bytes()))?;
+                        map.serialize_entry("n", &b64(rsa.modulus.as_bytes()))?;
+                        map.serialize_entry("e", &b64(rsa.public_exponent.as_bytes()))?;
+                        map.serialize_entry("d", &b64(rsa.private_exponent.as_bytes()))?;
 
                         // Add dp, dq, qi
-                        map.serialize_entry("dp", &b64(&rsa.exponent1.as_bytes()))?;
-                        map.serialize_entry("dq", &b64(&rsa.exponent2.as_bytes()))?;
+                        map.serialize_entry("dp", &b64(rsa.exponent1.as_bytes()))?;
+                        map.serialize_entry("dq", &b64(rsa.exponent2.as_bytes()))?;
                         if rsa.other_prime_infos.is_none() {
-                            map.serialize_entry("p", &b64(&rsa.prime1.as_bytes()))?;
-                            map.serialize_entry("q", &b64(&rsa.prime2.as_bytes()))?;
+                            map.serialize_entry("p", &b64(rsa.prime1.as_bytes()))?;
+                            map.serialize_entry("q", &b64(rsa.prime2.as_bytes()))?;
                         } else {
                             return Err(serde::ser::Error::custom(
                                 "RSA private key must have 2 primes",
                             ));
                         }
 
-                        map.serialize_entry("qi", &b64(&rsa.coefficient.as_bytes()))?;
+                        map.serialize_entry("qi", &b64(rsa.coefficient.as_bytes()))?;
                     }
                     BarePrivateKeyInner::ES256(key) => {
                         if let Some(kid) = kid {
@@ -532,6 +532,7 @@ impl BarePrivateKey {
     }
 
     /// Load an RSA key from a JWK.
+    #[allow(clippy::too_many_arguments)]
     pub fn from_jwt_rsa(
         n: &str,
         e: &str,
@@ -1281,7 +1282,7 @@ mod tests {
             .replace(char::is_whitespace, "");
         let key = BarePrivateKey::from_jwt_rsa(&n, e, &d, &p, &q, &dp, &dq, &qinv).unwrap();
 
-        let json = serde_json::to_value(&SerializedKey::Private(None, key)).unwrap();
+        let json = serde_json::to_value(SerializedKey::Private(None, key)).unwrap();
         assert_eq!(json["kty"], "RSA");
         assert_eq!(json["n"], n);
         assert_eq!(json["e"], e);
