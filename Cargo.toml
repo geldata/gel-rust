@@ -2,9 +2,10 @@
 resolver = "2"
 members = [
     "gel-auth",
+    "gel-derive",
     "gel-dsn",
     "gel-errors",
-    "gel-derive",
+    "gel-jwt",
     "gel-protocol",
     "gel-stream",
     "gel-tokio",
@@ -18,8 +19,9 @@ debug = true
 lto = true
 
 [workspace.dependencies]
-tokio = { version = "1.43" }
+tokio = { version = "1.44" }
 tracing = { version = "0.1" }
+pyo3 = { version = "0.23", features = ["extension-module", "serde", "macros"] }
 
 [workspace.package]
 rust-version = "1.81" # keep in sync with flake.nix
