@@ -87,7 +87,8 @@ impl SslError {
             #[cfg(feature = "rustls")]
             SslError::RustlsError(::rustls::Error::InvalidCertificate(cert_err)) => {
                 match cert_err {
-                    ::rustls::CertificateError::NotValidForName => {
+                    ::rustls::CertificateError::NotValidForName
+                    | ::rustls::CertificateError::NotValidForNameContext { .. } => {
                         Some(CommonError::InvalidCertificateForName)
                     }
                     ::rustls::CertificateError::Revoked => Some(CommonError::CertificateRevoked),
