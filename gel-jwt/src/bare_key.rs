@@ -453,7 +453,7 @@ fn optional_openssl_rsa_keygen(bits: usize) -> Option<BarePrivateKey> {
 
 #[allow(unused)]
 #[cfg(not(unix))]
-fn optional_openssl_rsa_keygen(bits: usize) -> Option<rsa::RsaPrivateKey> {
+fn optional_openssl_rsa_keygen(bits: usize) -> Option<BarePrivateKey> {
     None
 }
 
