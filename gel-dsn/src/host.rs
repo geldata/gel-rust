@@ -48,7 +48,8 @@ impl std::fmt::Display for Host {
         match &self.0 .0 {
             HostTypeInner::Hostname(hostname) => write!(f, "{}:{}", hostname, port),
             HostTypeInner::IP(ip, Some(interface)) => write!(f, "[{}%{}]:{}", ip, interface, port),
-            HostTypeInner::IP(ip, None) => write!(f, "[{}]:{}", ip, port),
+            HostTypeInner::IP(ip, None) if ip.is_ipv6() => write!(f, "[{}]:{}", ip, port),
+            HostTypeInner::IP(ip, None) => write!(f, "{}:{}", ip, port),
             HostTypeInner::Path(path) => {
                 write!(f, "{}", path.display())
             }
@@ -195,5 +196,11 @@ mod tests {
     fn test_host_display() {
         let host = Host::new(HostType::from_str("localhost").unwrap(), 5656);
         assert_eq!(host.to_string(), "localhost:5656");
+        let host = Host::new(HostType::from_str("192.168.1.1").unwrap(), 5656);
+        assert_eq!(host.to_string(), "192.168.1.1:5656");
+        let host = Host::new(HostType::from_str("::1").unwrap(), 5656);
+        assert_eq!(host.to_string(), "[::1]:5656");
+        let host = Host::new(HostType::from_str("/tmp/my.sock").unwrap(), 5656);
+        assert_eq!(host.to_string(), "/tmp/my.sock");
     }
 }
