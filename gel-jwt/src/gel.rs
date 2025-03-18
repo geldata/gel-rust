@@ -3,8 +3,8 @@
 //! Gel JWT tokens begin with `edbt_`, `edbt1_` (or their nbwt/nbwt1 variants), and are followed by a
 //! base64-encoded JWT token.
 use crate::{
-    registry::IsKey, Any, Key, KeyRegistry, SignatureError, SigningContext,
-    ValidationContext, ValidationError,
+    registry::IsKey, Any, Key, KeyRegistry, SignatureError, SigningContext, ValidationContext,
+    ValidationError,
 };
 use base64ct::{Base64Unpadded, Encoding};
 use std::collections::{HashMap, HashSet};
