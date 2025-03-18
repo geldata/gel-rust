@@ -124,7 +124,7 @@ if [ ${#NEEDS_PUBLISH[@]} -gt 0 ]; then
 
     for CRATE in "${NEEDS_PUBLISH[@]}"; do
         CRATE_VERSION=$(jq -r ".packages[] | select(.name == \"$CRATE\") | .version" $TEMP_DIR/metadata.json)
-        COMMAND="git tag --force releases/$CRATE/v$CRATE_VERSION && git push --force origin releases/$CRATE/v$CRATE_VERSION"
+        COMMAND="git tag --force releases/$CRATE/v$CRATE_VERSION origin/master && git push --force origin releases/$CRATE/v$CRATE_VERSION"
         echo
         echo "📦 $CRATE"
         echo "----------------------------------------"
