@@ -9,6 +9,11 @@ mod key;
 mod registry;
 mod sig;
 
+#[cfg(feature = "gel")]
+mod gel;
+#[cfg(feature = "gel")]
+pub use gel::{GelPrivateKeyRegistry, GelPublicKeyRegistry};
+
 pub use bare_key::{BareKey, BarePrivateKey, BarePublicKey};
 pub use key::{Key, KeyType, PrivateKey, PublicKey};
 pub use registry::KeyRegistry;

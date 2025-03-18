@@ -5,16 +5,14 @@ version = "0.1.1"
 authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2021"
 description = """
-    Low-level protocol implementation for Gel database client.
-    For applications, use gel-tokio.
-    Formerly published as edgedb-protocol.
+JWT implementation for the Gel database.
 """
 readme = "README.md"
 rust-version.workspace = true
 
 [features]
 default = []
-gel = ["dep:uuid"]
+gel = ["dep:uuid", "dep:tracing"]
 python_extension = ["pyo3/extension-module", "gel", "dep:tracing", "keygen"]
 keygen = ["dep:rsa", "dep:rand"]
 
