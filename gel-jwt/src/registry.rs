@@ -57,6 +57,27 @@ impl<K: IsKey> Default for KeyRegistry<K> {
     }
 }
 
+impl KeyRegistry<PrivateKey> {
+    /// Create a new private key registry.
+    pub fn private() -> Self {
+        Self::default()
+    }
+}
+
+impl KeyRegistry<PublicKey> {
+    /// Create a new public key registry.
+    pub fn public() -> Self {
+        Self::default()
+    }
+}
+
+impl KeyRegistry<Key> {
+    /// Create a new key registry that may contain both private and public keys.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 #[allow(private_bounds)]
 impl<K: IsKey> KeyRegistry<K> {
     /// Clear the registry.
@@ -222,6 +243,31 @@ impl<K: IsKey> KeyRegistry<K> {
         None
     }
 
+    /// Decode a token without validating the signature.
+    pub fn unsafely_decode_without_validation(
+        &self,
+        token: &str,
+    ) -> Result<HashMap<String, Any>, ValidationError> {
+        let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::default());
+        validation.insecure_disable_signature_validation();
+        validation.required_spec_claims.clear();
+        validation.validate_exp = false;
+        validation.validate_nbf = false;
+        validation.validate_aud = false;
+        let decoding_key = jsonwebtoken::DecodingKey::from_secret(b"");
+
+        let decoded =
+            jsonwebtoken::decode::<HashMap<String, Any>>(token, &decoding_key, &validation)
+                .map_err(|e| {
+                    ValidationError::Invalid(OpaqueValidationFailureReason::Failure(format!(
+                        "{:?}",
+                        e.kind()
+                    )))
+                })?;
+
+        Ok(decoded.claims)
+    }
+
     pub fn validate(
         &self,
         token: &str,
@@ -292,6 +338,13 @@ impl KeyRegistry<PrivateKey> {
         self.key_to_ordinal
             .iter()
             .any(|(k, _)| k.bare_key.key_type() == KeyType::HS256)
+    }
+
+    #[cfg(feature = "keygen")]
+    pub fn generate_key(&mut self, kid: Option<String>, key_type: KeyType) -> Result<(), KeyError> {
+        let key = PrivateKey::generate(kid, key_type)?;
+        self.add_key(key);
+        Ok(())
     }
 }
 
@@ -395,5 +448,12 @@ impl KeyRegistry<Key> {
             }
         }
         serde_json::to_string(&SerializedKeys { keys }).map_err(|_| KeyError::EncodeError)
+    }
+
+    #[cfg(feature = "keygen")]
+    pub fn generate_key(&mut self, kid: Option<String>, key_type: KeyType) -> Result<(), KeyError> {
+        let key = PrivateKey::generate(kid, key_type)?;
+        self.add_key(key.into());
+        Ok(())
     }
 }

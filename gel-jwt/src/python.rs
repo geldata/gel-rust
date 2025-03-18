@@ -4,18 +4,15 @@ use std::{
 };
 
 use crate::{
-    bare_key::SerializedKey, Any, BarePrivateKey, Key, KeyError, KeyRegistry, KeyType,
-    SignatureError, ValidationError, ValidationType,
+    bare_key::SerializedKey, gel::*, Any, BarePrivateKey, GelPublicKeyRegistry, Key, KeyError,
+    KeyRegistry, KeyType, SignatureError, ValidationError, ValidationType,
 };
-use base64ct::{Base64Unpadded, Encoding};
 use pyo3::{
     exceptions::PyValueError,
     prelude::*,
     types::{PyBytes, PyDict},
 };
 use serde::{Deserialize, Serialize};
-use tracing::warn;
-use uuid::Uuid;
 
 impl From<KeyError> for PyErr {
     fn from(value: KeyError) -> Self {
@@ -372,7 +369,8 @@ impl JWKSetCache {
     }
 }
 
-/// Generate a token with optional additional claims.
+/// Generate a token with optional additional claims. If `jti` is not provided,
+/// it will be generated.
 #[pyfunction]
 #[pyo3(signature = (registry, *, instances=None, roles=None, databases=None, **kwargs))]
 fn generate_gel_token(
@@ -383,44 +381,7 @@ fn generate_gel_token(
     databases: Option<Bound<PyAny>>,
     kwargs: Option<Bound<PyDict>>,
 ) -> PyResult<String> {
-    let mut claims = GelClaims::default();
-
-    if let Some(instances) = instances {
-        claims.instances = Some(vec_from_list_or_tuple(instances)?);
-    } else {
-        claims.all_instances = true;
-    }
-
-    if let Some(roles) = roles {
-        claims.roles = Some(vec_from_list_or_tuple(roles)?);
-    } else {
-        claims.all_roles = true;
-    }
-
-    if let Some(databases) = databases {
-        claims.databases = Some(vec_from_list_or_tuple(databases)?);
-    } else {
-        claims.all_databases = true;
-    }
-
-    let mut claims_map = HashMap::new();
-    if claims.all_instances {
-        claims_map.insert("edb.i.all".to_string(), Any::from(true));
-    } else if let Some(instances) = claims.instances {
-        claims_map.insert("edb.i".to_string(), Any::from(instances));
-    }
-
-    if claims.all_roles {
-        claims_map.insert("edb.r.all".to_string(), Any::from(true));
-    } else if let Some(roles) = claims.roles {
-        claims_map.insert("edb.r".to_string(), Any::from(roles));
-    }
-
-    if claims.all_databases {
-        claims_map.insert("edb.d.all".to_string(), Any::from(true));
-    } else if let Some(databases) = claims.databases {
-        claims_map.insert("edb.d".to_string(), Any::from(databases));
-    }
+    let mut claims_map = HashMap::default();
 
     if let Some(kwargs) = kwargs {
         for (key, value) in kwargs.iter() {
@@ -430,68 +391,36 @@ fn generate_gel_token(
         }
     }
 
-    // Add a JTI if and only if it's not already present.
-    if !claims_map.contains_key("jti") {
-        claims.jti = Uuid::new_v4();
-        // Encode UUID as base64 to make the token shorter
-        let jti_base64 = Base64Unpadded::encode_string(claims.jti.as_bytes());
-        claims_map.insert("jti".to_string(), Any::from(jti_base64));
-    }
+    let instances = if let Some(instances) = instances {
+        Some(vec_from_list_or_tuple(instances)?)
+    } else {
+        None
+    };
+    let roles = if let Some(roles) = roles {
+        Some(vec_from_list_or_tuple(roles)?)
+    } else {
+        None
+    };
+    let databases = if let Some(databases) = databases {
+        Some(vec_from_list_or_tuple(databases)?)
+    } else {
+        None
+    };
 
-    let token = registry
-        .registry
-        .sign(claims_map, &registry.default_signing_ctx.borrow(py).context)?;
-    Ok(format!("edbt1_{}", token))
+    let token = registry.registry.generate_gel_token(
+        instances,
+        roles,
+        databases,
+        Some(claims_map),
+        &registry.default_signing_ctx.borrow(py).context,
+    )?;
+
+    Ok(token)
 }
 
-#[derive(Debug, Default)]
-enum TokenMatch {
-    #[default]
-    None,
-    All,
-    Some(HashSet<String>),
-}
-
-impl TokenMatch {
-    fn from_claims(
-        claims: &HashMap<String, Any>,
-        all_key: &str,
-        array_key: &str,
-    ) -> PyResult<Self> {
-        if claims.contains_key(all_key) {
-            Ok(TokenMatch::All)
-        } else {
-            let Some(array) = claims.get(array_key).and_then(|v| v.as_array()) else {
-                warn!("Missing claims array key: {array_key}");
-                return Err(PyErr::new::<PyValueError, _>(
-                    "authentication failed: malformed JWT",
-                ));
-            };
-            Ok(TokenMatch::Some(
-                array
-                    .iter()
-                    .map(|v| v.as_str().unwrap_or_default().to_string())
-                    .collect::<HashSet<_>>(),
-            ))
-        }
-    }
-
-    fn matches(&self, value: &str) -> bool {
-        match self {
-            TokenMatch::All => true,
-            TokenMatch::Some(set) => set.contains(value),
-            TokenMatch::None => false,
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-struct TokenClaims {
-    instances: TokenMatch,
-    roles: TokenMatch,
-    databases: TokenMatch,
-}
-
+/// Validate a token with the given instance name, user, and database name.
+///
+/// Returns None if the token is valid, or a string error message if the token is invalid.
 #[pyfunction]
 #[pyo3(signature = (registry, token, user, dbname, instance_name))]
 fn validate_gel_token(
@@ -502,81 +431,16 @@ fn validate_gel_token(
     dbname: &str,
     instance_name: &str,
 ) -> PyResult<Option<String>> {
-    let mut token_version = 0;
-    let encoded_token = if let Some(stripped) = token.strip_prefix("nbwt1_") {
-        token_version = 1;
-        stripped
-    } else if let Some(stripped) = token.strip_prefix("nbwt_") {
-        stripped
-    } else if let Some(stripped) = token.strip_prefix("edbt1_") {
-        token_version = 1;
-        stripped
-    } else if let Some(stripped) = token.strip_prefix("edbt_") {
-        stripped
-    } else {
-        warn!(
-            "Invalid token prefix: [{}...]",
-            &token[0..token.len().min(7)]
-        );
-        return Ok(Some("authentication failed: malformed JWT".to_string()));
-    };
-
-    // Validate and decode the JWT
-    let decoded = match registry.registry.validate(
-        encoded_token,
-        &registry.default_validation_ctx.borrow(py).context,
-    ) {
-        Ok(claims) => claims,
-        Err(e) => {
-            warn!("Invalid token: {}", e.error_string_not_for_user());
-            return Ok(Some(
-                "authentication failed: Verification failed".to_string(),
-            ));
-        }
-    };
-
-    let claims = if token_version == 0 {
-        // Legacy v0 token: "edgedb.server.any_role" is a boolean, "edgedb.server.roles" is an array of strings
-        let roles =
-            TokenMatch::from_claims(&decoded, "edgedb.server.any_role", "edgedb.server.roles")?;
-        TokenClaims {
-            roles,
-            instances: TokenMatch::All,
-            databases: TokenMatch::All,
-        }
-    } else {
-        // New v1 token: "edb.{i,r,d}.all" are booleans, "edb.{i,r,d}" are arrays of strings
-        let instances = TokenMatch::from_claims(&decoded, "edb.i.all", "edb.i")?;
-        let roles = TokenMatch::from_claims(&decoded, "edb.r.all", "edb.r")?;
-        let databases = TokenMatch::from_claims(&decoded, "edb.d.all", "edb.d")?;
-        TokenClaims {
-            instances,
-            roles,
-            databases,
-        }
-    };
-
-    if !claims.instances.matches(instance_name) {
-        warn!("Instance not in token: {instance_name}");
-        return Ok(Some(
-            "authentication failed: secret key does not authorize access to this instance"
-                .to_string(),
-        ));
+    match registry
+        .registry
+        .validate_gel_token(token, &registry.default_validation_ctx.borrow(py).context)
+    {
+        Ok(claims) => match claims.validate(instance_name, user, dbname) {
+            Ok(_) => Ok(None),
+            Err(e) => Ok(Some(format!("authentication failed: {e}"))),
+        },
+        Err(e) => Ok(Some(format!("authentication failed: {e}"))),
     }
-    if !claims.roles.matches(user) {
-        warn!("Role not in token: {user}");
-        return Ok(Some(format!(
-            "authentication failed: secret key does not authorize access in role {user:?}"
-        )));
-    }
-    if !claims.databases.matches(dbname) {
-        warn!("Database not in token: {dbname}");
-        return Ok(Some(format!(
-            "authentication failed: secret key does not authorize access to database {dbname:?}"
-        )));
-    }
-
-    Ok(None)
 }
 
 #[pymodule]
