@@ -31,3 +31,7 @@ test-fast:
     cargo test --workspace --features=unstable
 
     cargo clippy --workspace --all-features --all-targets
+
+
+publish:
+    tools/publish.sh gel-tokio
