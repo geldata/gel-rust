@@ -1089,6 +1089,7 @@ fn parse_credentials(
         port: Param::from_parsed(credentials.port.map(|p| p.into())),
         user: Param::Unparsed(credentials.user.clone()),
         password: Param::from_unparsed(credentials.password.clone()),
+        secret_key: Param::from_unparsed(credentials.secret_key.clone()),
         database: Param::from_unparsed(credentials.database.clone()),
         branch: Param::from_unparsed(credentials.branch.clone()),
         tls_ca: Param::from_unparsed(credentials.tls_ca.clone()),
@@ -1200,6 +1201,7 @@ pub struct CredentialsFile {
     pub(crate) host: Option<String>,
     pub(crate) port: Option<NonZeroU16>,
     pub(crate) password: Option<String>,
+    pub(crate) secret_key: Option<String>,
     pub(crate) database: Option<String>,
     pub(crate) branch: Option<String>,
     pub(crate) tls_ca: Option<String>,
@@ -1256,6 +1258,8 @@ struct CredentialsFileCompat {
     user: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     password: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    secret_key: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     database: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1348,6 +1352,7 @@ impl TryInto<CredentialsFile> for CredentialsFileCompat {
                 port: self.port,
                 user: self.user,
                 password: self.password,
+                secret_key: self.secret_key,
                 database: self.database,
                 branch: self.branch,
                 tls_ca: self.tls_ca.or(self.tls_cert_data.clone()),
