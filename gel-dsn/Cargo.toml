@@ -8,6 +8,8 @@ description = "Data-source name (DSN) parser for Gel and PostgreSQL databases."
 readme = "README.md"
 rust-version.workspace = true
 
+exclude = [ "tests" ]
+
 [features]
 default = []
 gel = ["serde"]
