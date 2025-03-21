@@ -1,9 +1,10 @@
 use super::{
-    error::*, BuildContextImpl, CredentialsFile, FromParamStr, InstanceName, Param, Params,
+    error::*, format_duration, BuildContextImpl, CredentialsFile, FromParamStr, InstanceName,
+    Param, Params,
 };
 use crate::{
     gel::parse_duration,
-    host::{Host, HostType},
+    host::{Host, HostType, LOCALHOST_HOSTNAME},
 };
 use rustls_pki_types::CertificateDer;
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,7 @@ use std::{
     str::FromStr,
     time::Duration,
 };
+use url::Url;
 
 pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 pub const DEFAULT_WAIT: Duration = Duration::from_secs(30);
@@ -204,6 +206,95 @@ impl Config {
         }
     }
 
+    /// Return DSN url to server if not connected via unix socket.
+    ///
+    /// Note that this method is not guaranteed to return a fully-connectable URL.
+    pub fn dsn_url(&self) -> Option<String> {
+        let mut url = Url::parse("gel://").unwrap();
+
+        if let Some((host, port)) = self.host.target_name().ok()?.tcp() {
+            if host != LOCALHOST_HOSTNAME {
+                if port != DEFAULT_PORT {
+                    _ = url.set_host(Some(&host));
+                    _ = url.set_port(Some(port));
+                } else {
+                    _ = url.set_host(Some(&host));
+                }
+            } else {
+                if port != DEFAULT_PORT {
+                    url.query_pairs_mut().append_pair("port", &port.to_string());
+                }
+            }
+        } else {
+            return None;
+        }
+
+        if self.db != DatabaseBranch::Default {
+            if let Some(database) = self.db.database() {
+                url.set_path(database);
+            }
+
+            if let Some(branch) = self.db.branch() {
+                url.set_path(branch);
+            }
+        }
+
+        if self.user() != DEFAULT_USER {
+            if url.host().is_none() {
+                url.query_pairs_mut().append_pair("user", &self.user());
+            } else {
+                _ = url.set_username(&self.user());
+            }
+        }
+
+        if let Some(password) = self.authentication.password() {
+            if url.host().is_none() {
+                url.query_pairs_mut().append_pair("password", &password);
+            } else {
+                _ = url.set_password(Some(password));
+            }
+        }
+
+        // NOTE: The user will need to provide a CA file
+        if self.tls_ca.is_some() {
+            url.query_pairs_mut().append_pair("tls_ca_file", "<...>");
+        }
+
+        if let Some(secret_key) = self.authentication.secret_key() {
+            url.query_pairs_mut().append_pair("secret_key", secret_key);
+        }
+
+        if self.tls_security != TlsSecurity::Strict {
+            url.query_pairs_mut()
+                .append_pair("tls_security", &self.tls_security.to_string());
+        }
+
+        if let Some(tls_server_name) = &self.tls_server_name {
+            url.query_pairs_mut()
+                .append_pair("tls_server_name", &tls_server_name);
+        }
+
+        if self.wait_until_available != DEFAULT_WAIT {
+            url.query_pairs_mut().append_pair(
+                "wait_until_available",
+                &format_duration(&self.wait_until_available),
+            );
+        }
+
+        for (key, value) in &self.server_settings {
+            url.query_pairs_mut().append_pair(key, value);
+        }
+
+        Some(url.to_string())
+    }
+
+    pub fn with_host(&self, host: &str, port: u16) -> Result<Self, ParseError> {
+        Ok(Self {
+            host: Host::new(HostType::from_str(host)?, port),
+            ..self.clone()
+        })
+    }
+
     pub fn with_branch(&self, branch: &str) -> Self {
         Self {
             db: DatabaseBranch::Branch(branch.to_string()),
@@ -213,6 +304,13 @@ impl Config {
 
     pub fn with_db(&self, db: DatabaseBranch) -> Self {
         Self { db, ..self.clone() }
+    }
+
+    pub fn with_user(&self, user: &str) -> Self {
+        Self {
+            user: user.to_string(),
+            ..self.clone()
+        }
     }
 
     pub fn with_password(&self, password: &str) -> Self {
@@ -796,5 +894,47 @@ mod tests {
         let config = Config::default();
         let credentials = config.as_credentials().unwrap();
         assert_eq!(credentials.host, Some("localhost".to_string()));
+    }
+
+    #[test]
+    fn test_dsn_url() {
+        let config = Config::default();
+        let url = config.dsn_url().unwrap();
+        assert_eq!(url, "gel://");
+
+        let config = Config::default().with_host("example.com", 1234).unwrap();
+        let url = config.dsn_url().unwrap();
+        assert_eq!(url, "gel://example.com:1234");
+
+        let config = Config::default()
+            .with_host("localhost", 5656)
+            .unwrap()
+            .with_db(DatabaseBranch::Database("edgedb".to_string()));
+        let url = config.dsn_url().unwrap();
+        assert_eq!(url, "gel:///edgedb");
+
+        let config = Config::default()
+            .with_host("example.com", 5656)
+            .unwrap()
+            .with_db(DatabaseBranch::Branch("main".to_string()));
+        let url = config.dsn_url().unwrap();
+        assert_eq!(url, "gel://example.com/main");
+
+        let config = Config::default()
+            .with_host("localhost", 5656)
+            .unwrap()
+            .with_db(DatabaseBranch::Branch("main".to_string()))
+            .with_user("user");
+        let url = config.dsn_url().unwrap();
+        assert_eq!(url, "gel:///main?user=user");
+
+        let config = Config::default()
+            .with_host("localhost", 5656)
+            .unwrap()
+            .with_db(DatabaseBranch::Branch("main".to_string()))
+            .with_user("user")
+            .with_password("%[]{}");
+        let url = config.dsn_url().unwrap();
+        assert_eq!(url, "gel:///main?user=user&password=%25%5B%5D%7B%7D");
     }
 }

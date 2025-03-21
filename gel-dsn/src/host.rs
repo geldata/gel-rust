@@ -79,7 +79,9 @@ impl std::fmt::Display for Host {
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct HostType(HostTypeInner);
 
-pub const LOCALHOST: &HostType = &HostType(HostTypeInner::Hostname(Cow::Borrowed("localhost")));
+pub const LOCALHOST_HOSTNAME: &str = "localhost";
+pub const LOCALHOST: &HostType =
+    &HostType(HostTypeInner::Hostname(Cow::Borrowed(LOCALHOST_HOSTNAME)));
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
