@@ -130,7 +130,7 @@ unstable_pub_mods! {
     mod server_params;
 }
 
-pub use gel_dsn::gel::{Builder, CloudName, Config, InstanceName};
+pub use gel_dsn::gel::{Builder, CloudName, Config, InstanceName, TlsSecurity};
 
 mod client;
 mod errors;

@@ -399,7 +399,7 @@ impl Config {
             .map_err(|_| CredentialsError::NoTcpAddress)?;
         let tcp = target.tcp().ok_or(CredentialsError::NoTcpAddress)?;
         Ok(CredentialsFile {
-            user: self.user.clone(),
+            user: Some(self.user.clone()),
             host: Some(tcp.0.to_string()),
             port: Some(NonZero::new(tcp.1).expect("invalid zero port")),
             password: self.authentication.password().map(|s| s.to_string()),

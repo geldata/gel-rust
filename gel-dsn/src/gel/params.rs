@@ -17,7 +17,7 @@ use super::{
     project::{find_project_file, ProjectDir},
     BuildContext, BuildContextImpl, ClientSecurity, CloudCerts, Config, DatabaseBranch,
     FromParamStr, InstanceName, Logging, Param, ParamSource, TcpKeepalive, TlsSecurity, UnixPath,
-    DEFAULT_CONNECT_TIMEOUT, DEFAULT_PORT, DEFAULT_WAIT,
+    DEFAULT_CONNECT_TIMEOUT, DEFAULT_HOST, DEFAULT_PORT, DEFAULT_WAIT,
 };
 use crate::{
     env::SystemEnvVars,
@@ -320,7 +320,7 @@ define_params!(
 
 impl Computed {
     pub fn is_complete(&self) -> bool {
-        self.host.is_some() || self.port.is_some()
+        self.host.is_some() || self.port.is_some() || self.credentials.is_some()
     }
 }
 
@@ -1179,21 +1179,20 @@ fn parse_cloud(profile: &str, context: &mut impl BuildContext) -> Result<Params,
 /// An opaque type representing a credentials file.
 ///
 /// Use [`std::str::FromStr`] to parse a credentials file from a string.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CredentialsFile {
-    pub(crate) user: String,
-
-    pub(crate) host: Option<String>,
-    pub(crate) port: Option<NonZeroU16>,
-    pub(crate) password: Option<String>,
-    pub(crate) secret_key: Option<String>,
-    pub(crate) database: Option<String>,
-    pub(crate) branch: Option<String>,
-    pub(crate) tls_ca: Option<String>,
+    pub user: Option<String>,
+    pub host: Option<String>,
+    pub port: Option<NonZeroU16>,
+    pub password: Option<String>,
+    pub secret_key: Option<String>,
+    pub database: Option<String>,
+    pub branch: Option<String>,
+    pub tls_ca: Option<String>,
     #[serde(default)]
-    pub(crate) tls_security: TlsSecurity,
-    pub(crate) tls_server_name: Option<String>,
+    pub tls_security: TlsSecurity,
+    pub tls_server_name: Option<String>,
 
     #[serde(skip)]
     pub(crate) warnings: Vec<Warning>,
@@ -1201,10 +1200,21 @@ pub struct CredentialsFile {
 
 impl From<&CredentialsFile> for Params {
     fn from(credentials: &CredentialsFile) -> Self {
+        let host = if let Some(host) = credentials.host.clone() {
+            Param::Unparsed(host)
+        } else {
+            Param::Parsed(DEFAULT_HOST.clone())
+        };
+        let port = if let Some(port) = credentials.port {
+            Param::Parsed(port.into())
+        } else {
+            Param::Parsed(DEFAULT_PORT)
+        };
+
         let params = Params {
-            user: Param::Unparsed(credentials.user.clone()),
-            host: Param::from_unparsed(credentials.host.clone()),
-            port: Param::from_parsed(credentials.port.map(|p| p.into())),
+            host,
+            port,
+            user: Param::from_unparsed(credentials.user.clone()),
             password: Param::from_unparsed(credentials.password.clone()),
             secret_key: Param::from_unparsed(credentials.secret_key.clone()),
             database: Param::from_unparsed(credentials.database.clone()),
@@ -1215,6 +1225,12 @@ impl From<&CredentialsFile> for Params {
             ..Default::default()
         };
         params
+    }
+}
+
+impl From<CredentialsFile> for Params {
+    fn from(credentials: CredentialsFile) -> Self {
+        credentials.into()
     }
 }
 
@@ -1260,7 +1276,8 @@ struct CredentialsFileCompat {
     host: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     port: Option<NonZeroU16>,
-    user: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    user: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     password: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
