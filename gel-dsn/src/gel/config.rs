@@ -1,4 +1,6 @@
-use super::{error::*, BuildContextImpl, FromParamStr, InstanceName, Param, Params};
+use super::{
+    error::*, BuildContextImpl, CredentialsFile, FromParamStr, InstanceName, Param, Params,
+};
 use crate::{
     gel::parse_duration,
     host::{Host, HostType},
@@ -9,6 +11,7 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     fmt,
+    num::NonZero,
     path::{Path, PathBuf},
     str::FromStr,
     time::Duration,
@@ -120,6 +123,12 @@ impl Default for Config {
             server_settings: HashMap::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum CredentialsError {
+    #[error("no TCP address")]
+    NoTcpAddress,
 }
 
 fn to_pem(certs: &[CertificateDer<'static>]) -> String {
@@ -282,6 +291,28 @@ impl Config {
             )
             .to_string(),
         }
+    }
+
+    /// Convert the config lossily to an opaque [`CredentialsFile`].
+    pub fn as_credentials(&self) -> Result<CredentialsFile, CredentialsError> {
+        let target = self
+            .host
+            .target_name()
+            .map_err(|_| CredentialsError::NoTcpAddress)?;
+        let tcp = target.tcp().ok_or(CredentialsError::NoTcpAddress)?;
+        Ok(CredentialsFile {
+            user: self.user.clone(),
+            host: Some(tcp.0.to_string()),
+            port: Some(NonZero::new(tcp.1).expect("invalid zero port")),
+            password: self.authentication.password().map(|s| s.to_string()),
+            secret_key: self.authentication.secret_key().map(|s| s.to_string()),
+            database: self.db.name().map(|s| s.to_string()),
+            branch: self.db.branch().map(|s| s.to_string()),
+            tls_ca: self.tls_ca_pem(),
+            tls_security: self.tls_security,
+            tls_server_name: self.tls_server_name.clone(),
+            warnings: vec![],
+        })
     }
 
     #[allow(clippy::field_reassign_with_default)]
@@ -630,7 +661,7 @@ impl UnixPath {
                 };
                 let mut path = path.clone();
                 let mut filename = filename.to_owned();
-                filename.push(&port.to_string());
+                filename.push(port.to_string());
                 path.set_file_name(filename);
                 Cow::Owned(path)
             }
@@ -753,5 +784,17 @@ impl TryInto<Params> for ConnectionOptions {
         };
 
         Ok(explicit)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_as_credentials() {
+        let config = Config::default();
+        let credentials = config.as_credentials().unwrap();
+        assert_eq!(credentials.host, Some("localhost".to_string()));
     }
 }

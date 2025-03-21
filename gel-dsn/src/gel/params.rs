@@ -758,7 +758,7 @@ impl Params {
 
         let dsn = dsn?;
         if let Some(dsn) = &dsn {
-            let res = parse_dsn(&dsn, context);
+            let res = parse_dsn(dsn, context);
             if let Err(e) = &res {
                 context_trace!(context, "DSN error: {:?}", e);
             }
@@ -1084,25 +1084,11 @@ fn parse_credentials(
     credentials: &CredentialsFile,
     context: &mut impl BuildContext,
 ) -> Result<Params, ParseError> {
-    let explicit = Params {
-        host: Param::from_unparsed(credentials.host.clone()),
-        port: Param::from_parsed(credentials.port.map(|p| p.into())),
-        user: Param::Unparsed(credentials.user.clone()),
-        password: Param::from_unparsed(credentials.password.clone()),
-        secret_key: Param::from_unparsed(credentials.secret_key.clone()),
-        database: Param::from_unparsed(credentials.database.clone()),
-        branch: Param::from_unparsed(credentials.branch.clone()),
-        tls_ca: Param::from_unparsed(credentials.tls_ca.clone()),
-        tls_security: Param::Unparsed(credentials.tls_security.to_string()),
-        tls_server_name: Param::from_unparsed(credentials.tls_server_name.clone()),
-        ..Default::default()
-    };
-
     for warning in credentials.warnings() {
         context.warn(warning.clone());
     }
 
-    Ok(explicit)
+    Ok(credentials.into())
 }
 
 fn parse_env(context: &mut impl BuildContext) -> Result<Params, ParseError> {
@@ -1210,7 +1196,26 @@ pub struct CredentialsFile {
     pub(crate) tls_server_name: Option<String>,
 
     #[serde(skip)]
-    warnings: Vec<Warning>,
+    pub(crate) warnings: Vec<Warning>,
+}
+
+impl From<&CredentialsFile> for Params {
+    fn from(credentials: &CredentialsFile) -> Self {
+        let params = Params {
+            user: Param::Unparsed(credentials.user.clone()),
+            host: Param::from_unparsed(credentials.host.clone()),
+            port: Param::from_parsed(credentials.port.map(|p| p.into())),
+            password: Param::from_unparsed(credentials.password.clone()),
+            secret_key: Param::from_unparsed(credentials.secret_key.clone()),
+            database: Param::from_unparsed(credentials.database.clone()),
+            branch: Param::from_unparsed(credentials.branch.clone()),
+            tls_ca: Param::from_unparsed(credentials.tls_ca.clone()),
+            tls_security: Param::Parsed(credentials.tls_security),
+            tls_server_name: Param::from_unparsed(credentials.tls_server_name.clone()),
+            ..Default::default()
+        };
+        params
+    }
 }
 
 impl CredentialsFile {
