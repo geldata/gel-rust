@@ -12,7 +12,7 @@ rust-version.workspace = true
 # rustls or openssl imply tokio, and tokio is the only stream we support
 # at this time.
 default = ["tokio"]
-full = ["client", "server", "tokio", "rustls", "openssl", "hickory", "keepalive"]
+full = ["client", "server", "tokio", "rustls", "openssl", "hickory", "keepalive", "socket2"]
 client = []
 server = []
 serde = ["dep:serde"]
@@ -21,6 +21,7 @@ rustls = ["tokio", "dep:rustls", "dep:rustls-tokio-stream", "dep:rustls-platform
 openssl = ["tokio", "dep:openssl", "dep:tokio-openssl", "dep:foreign-types", "dep:openssl-sys", "dep:openssl-probe", "dep:webpki-root-certs"]
 hickory = ["dep:hickory-resolver"]
 keepalive = ["dep:socket2"]
+socket2 = ["dep:socket2"]
 __manual_tests = []
 
 [dependencies]
@@ -33,7 +34,7 @@ futures = "0.3"
 
 rustls-pki-types = { version = "1", default-features = false, features = ["std"] }
 
-# feature = "keepalive"
+# feature = "keepalive" | "socket2"
 socket2 = { version = "0.5.2", optional = true }
 
 # feature = "tokio"

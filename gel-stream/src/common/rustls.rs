@@ -11,6 +11,7 @@ use rustls_pki_types::{
 };
 use rustls_platform_verifier::Verifier;
 use rustls_tokio_stream::TlsStream;
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use super::tokio_stream::TokioStream;
 use crate::{
@@ -20,13 +21,84 @@ use crate::{
 use crate::{TlsCert, TlsParameters, TlsServerCertVerify};
 use std::borrow::Cow;
 use std::net::{IpAddr, Ipv4Addr};
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 #[derive(Default)]
 pub struct RustlsDriver;
 
+pub struct RustlsStream {
+    stream: TlsStream,
+    #[cfg(not(windows))]
+    fd: std::os::fd::RawFd,
+    #[cfg(windows)]
+    fd: std::os::windows::io::RawSocket,
+}
+
+impl Stream for RustlsStream {
+    fn with_socket2(
+        &self,
+        f: &mut dyn for<'a> FnMut(socket2::SockRef<'a>) -> Result<(), std::io::Error>,
+    ) -> Result<(), std::io::Error> {
+        // SAFETY: We took this from the underlying stream, which is a socket and lives as long as the stream.
+        #[cfg(not(windows))]
+        let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(self.fd) };
+        // SAFETY: We took this from the underlying stream, which is a socket and lives as long as the stream.
+        #[cfg(windows)]
+        let fd = unsafe { std::os::windows::io::BorrowedSocket::borrow_raw(self.fd) };
+        f(socket2::SockRef::from(&fd))
+    }
+}
+
+impl AsyncRead for RustlsStream {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Pin::new(&mut self.stream).poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for RustlsStream {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize, std::io::Error>> {
+        Pin::new(&mut self.stream).poll_write(cx, buf)
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Pin::new(&mut self.stream).poll_flush(cx)
+    }
+
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Pin::new(&mut self.stream).poll_shutdown(cx)
+    }
+
+    fn poll_write_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[std::io::IoSlice<'_>],
+    ) -> Poll<Result<usize, std::io::Error>> {
+        Pin::new(&mut self.stream).poll_write_vectored(cx, bufs)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        Pin::new(&self.stream).is_write_vectored()
+    }
+}
+
 impl TlsDriver for RustlsDriver {
-    type Stream = TlsStream;
+    type Stream = RustlsStream;
     type ClientParams = ClientConnection;
     type ServerParams = Arc<ServerConfig>;
 
@@ -135,6 +207,17 @@ impl TlsDriver for RustlsDriver {
             return Err(crate::SslError::SslUnsupportedByClient);
         };
 
+        #[cfg(not(windows))]
+        let fd = {
+            use std::os::fd::AsRawFd;
+            stream.as_raw_fd()
+        };
+        #[cfg(windows)]
+        let fd = {
+            use std::os::windows::io::AsRawSocket;
+            stream.as_raw_socket()
+        };
+
         let mut stream = TlsStream::new_client_side(stream, params, None);
         match stream.handshake().await {
             Ok(handshake) => {
@@ -143,7 +226,7 @@ impl TlsDriver for RustlsDriver {
                     .and_then(|c| c.peer_certificates())
                     .and_then(|c| c.first().map(|cert| cert.to_owned()));
                 Ok((
-                    stream,
+                    RustlsStream { stream, fd },
                     TlsHandshake {
                         alpn: handshake.alpn.map(|alpn| Cow::Owned(alpn.to_vec())),
                         sni: handshake.sni.map(|sni| Cow::Owned(sni.to_string())),
@@ -177,6 +260,17 @@ impl TlsDriver for RustlsDriver {
             return Err(crate::SslError::SslUnsupportedByClient);
         };
 
+        #[cfg(not(windows))]
+        let fd = {
+            use std::os::fd::AsRawFd;
+            stream.as_raw_fd()
+        };
+        #[cfg(windows)]
+        let fd = {
+            use std::os::windows::io::AsRawSocket;
+            stream.as_raw_socket()
+        };
+
         let mut acceptor = Acceptor::default();
         acceptor.read_tls(&mut buffer.as_slice())?;
         let server_config_provider = Arc::new(move |client_hello: ClientHello| {
@@ -206,7 +300,7 @@ impl TlsDriver for RustlsDriver {
                     .and_then(|c| c.peer_certificates())
                     .and_then(|c| c.first().map(|cert| cert.to_owned()));
                 Ok((
-                    stream,
+                    RustlsStream { stream, fd },
                     TlsHandshake {
                         alpn: handshake.alpn.map(|alpn| Cow::Owned(alpn.to_vec())),
                         sni: handshake.sni.map(|sni| Cow::Owned(sni.to_string())),
