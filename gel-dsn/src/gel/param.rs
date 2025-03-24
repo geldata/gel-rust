@@ -145,7 +145,7 @@ impl FromParamStr for Vec<CertificateDer<'static>> {
 ///
 /// This type may be sourced from a file, an environment variable, or provided
 /// explicitly.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum Param<T: Clone> {
     /// No value.
     #[default]
