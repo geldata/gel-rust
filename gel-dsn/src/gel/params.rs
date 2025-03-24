@@ -1230,7 +1230,7 @@ impl From<&CredentialsFile> for Params {
 
 impl From<CredentialsFile> for Params {
     fn from(credentials: CredentialsFile) -> Self {
-        credentials.into()
+        Self::from(&credentials)
     }
 }
 
