@@ -46,7 +46,7 @@ macro_rules! define_params {
         $(#[doc = $doc:expr])* $name:ident: $type:ty
     ),* $(,)?) => {
         /// The parameters used to build the [`Config`].
-        #[derive(Clone, Default)]
+        #[derive(Clone, Default, PartialEq, Eq)]
         #[non_exhaustive]
         pub struct Params {
             $(
@@ -1179,7 +1179,7 @@ fn parse_cloud(profile: &str, context: &mut impl BuildContext) -> Result<Params,
 /// An opaque type representing a credentials file.
 ///
 /// Use [`std::str::FromStr`] to parse a credentials file from a string.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct CredentialsFile {
     pub user: Option<String>,
@@ -1230,7 +1230,7 @@ impl From<&CredentialsFile> for Params {
 
 impl From<CredentialsFile> for Params {
     fn from(credentials: CredentialsFile) -> Self {
-        credentials.into()
+        Self::from(&credentials)
     }
 }
 
@@ -1507,6 +1507,8 @@ pub(crate) fn compute(
 
 #[cfg(test)]
 mod tests {
+    use crate::host::LOCALHOST;
+
     use super::*;
 
     #[test]
@@ -1558,5 +1560,41 @@ mod tests {
             Some(InstanceName::Local("instancename".to_string()))
         );
         eprintln!("{:?}", params);
+    }
+
+    #[test]
+    fn test_credentials_file() {
+        let credentials = CredentialsFile::default();
+        assert_eq!(
+            Params::from(&credentials),
+            Params {
+                host: Param::from_parsed(Some(LOCALHOST.clone())),
+                port: Param::from_parsed(Some(5656)),
+                tls_security: Param::from_parsed(Some(TlsSecurity::Default)),
+                ..Default::default()
+            }
+        );
+        assert_eq!(
+            Params::from(credentials),
+            Params {
+                host: Param::from_parsed(Some(LOCALHOST.clone())),
+                port: Param::from_parsed(Some(5656)),
+                tls_security: Param::from_parsed(Some(TlsSecurity::Default)),
+                ..Default::default()
+            }
+        );
+
+        let mut credentials = CredentialsFile::default();
+        credentials.password = Some("password".to_string());
+        assert_eq!(
+            Params::from(&credentials),
+            Params {
+                host: Param::from_parsed(Some(LOCALHOST.clone())),
+                port: Param::from_parsed(Some(5656)),
+                password: Param::from_unparsed(Some("password".to_string())),
+                tls_security: Param::from_parsed(Some(TlsSecurity::Default)),
+                ..Default::default()
+            }
+        );
     }
 }
