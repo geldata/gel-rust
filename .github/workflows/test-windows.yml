@@ -27,7 +27,7 @@ jobs:
 
       - name: Set PATH
         run: |
-          echo "PATH=%PATH%;%UserProfile%\edgedb\bin" >> $GITHUB_ENV
+          echo "%UserProfile%\edgedb\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Gel server
         run: |
