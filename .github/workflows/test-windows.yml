@@ -29,7 +29,6 @@ jobs:
 
       - name: Install Gel server
         run: |
-          set
           gel server install --nightly
 
       - name: Show binaries
