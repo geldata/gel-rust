@@ -23,7 +23,7 @@ jobs:
       - name: Install Gel CLI
         run: |
           bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) --nightly -y
-          #. ~/.bash_profile
+          . ~/.profile
           echo "PATH=$PATH" >> $GITHUB_ENV
           gel server install --nightly
           #mkdir -p ~/.local/bin/
