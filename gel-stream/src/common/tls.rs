@@ -184,7 +184,7 @@ impl serde::Serialize for SslVersion {
     }
 }
 
-impl<'a> TryFrom<Cow<'a, str>> for SslVersion {
+impl TryFrom<Cow<'_, str>> for SslVersion {
     type Error = SslVersionParseError;
     fn try_from(value: Cow<str>) -> Result<SslVersion, Self::Error> {
         Ok(match value.to_lowercase().as_ref() {

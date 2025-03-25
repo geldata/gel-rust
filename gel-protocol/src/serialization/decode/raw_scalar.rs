@@ -35,7 +35,7 @@ fn ensure_exact_size(buf: &[u8], expected_size: usize) -> Result<(), DecodeError
     Ok(())
 }
 
-impl<'t> RawCodec<'t> for String {
+impl RawCodec<'_> for String {
     fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         <&str>::decode(buf).map(|s| s.to_owned())
     }
@@ -117,7 +117,7 @@ impl ScalarArg for Json {
     }
 }
 
-impl<'t> RawCodec<'t> for Json {
+impl RawCodec<'_> for Json {
     fn decode(mut buf: &[u8]) -> Result<Self, DecodeError> {
         ensure!(buf.remaining() >= 1, errors::Underflow);
         let format = buf.get_u8();
@@ -127,7 +127,7 @@ impl<'t> RawCodec<'t> for Json {
     }
 }
 
-impl<'t> RawCodec<'t> for Uuid {
+impl RawCodec<'_> for Uuid {
     fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         ensure_exact_size(buf, 16)?;
         let uuid = Uuid::from_slice(buf).unwrap();
@@ -149,7 +149,7 @@ impl ScalarArg for Uuid {
     }
 }
 
-impl<'t> RawCodec<'t> for bool {
+impl RawCodec<'_> for bool {
     fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         ensure_exact_size(buf, 1)?;
         let res = match buf[0] {
@@ -178,7 +178,7 @@ impl ScalarArg for bool {
     }
 }
 
-impl<'t> RawCodec<'t> for i16 {
+impl RawCodec<'_> for i16 {
     fn decode(mut buf: &[u8]) -> Result<Self, DecodeError> {
         ensure_exact_size(buf, size_of::<Self>())?;
         Ok(buf.get_i16())
@@ -199,7 +199,7 @@ impl ScalarArg for i16 {
     }
 }
 
-impl<'t> RawCodec<'t> for i32 {
+impl RawCodec<'_> for i32 {
     fn decode(mut buf: &[u8]) -> Result<Self, DecodeError> {
         ensure_exact_size(buf, size_of::<Self>())?;
         Ok(buf.get_i32())
@@ -220,14 +220,14 @@ impl ScalarArg for i32 {
     }
 }
 
-impl<'t> RawCodec<'t> for i64 {
+impl RawCodec<'_> for i64 {
     fn decode(mut buf: &[u8]) -> Result<Self, DecodeError> {
         ensure_exact_size(buf, size_of::<Self>())?;
         Ok(buf.get_i64())
     }
 }
 
-impl<'t> RawCodec<'t> for ConfigMemory {
+impl RawCodec<'_> for ConfigMemory {
     fn decode(mut buf: &[u8]) -> Result<Self, DecodeError> {
         ensure_exact_size(buf, size_of::<Self>())?;
         Ok(ConfigMemory(buf.get_i64()))
@@ -248,7 +248,7 @@ impl ScalarArg for i64 {
     }
 }
 
-impl<'t> RawCodec<'t> for f32 {
+impl RawCodec<'_> for f32 {
     fn decode(mut buf: &[u8]) -> Result<Self, DecodeError> {
         ensure_exact_size(buf, size_of::<Self>())?;
         Ok(buf.get_f32())
@@ -269,7 +269,7 @@ impl ScalarArg for f32 {
     }
 }
 
-impl<'t> RawCodec<'t> for f64 {
+impl RawCodec<'_> for f64 {
     fn decode(mut buf: &[u8]) -> Result<Self, DecodeError> {
         ensure_exact_size(buf, size_of::<Self>())?;
         Ok(buf.get_f64())
@@ -309,7 +309,7 @@ impl ScalarArg for &'_ [u8] {
     }
 }
 
-impl<'t> RawCodec<'t> for Bytes {
+impl RawCodec<'_> for Bytes {
     fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         Ok(Bytes::copy_from_slice(buf))
     }
@@ -342,7 +342,7 @@ impl ScalarArg for ConfigMemory {
     }
 }
 
-impl<'t> RawCodec<'t> for Decimal {
+impl RawCodec<'_> for Decimal {
     fn decode(mut buf: &[u8]) -> Result<Self, DecodeError> {
         ensure!(buf.remaining() >= 8, errors::Underflow);
         let ndigits = buf.get_u16() as usize;
@@ -415,7 +415,7 @@ impl ScalarArg for bigdecimal::BigDecimal {
     }
 }
 
-impl<'t> RawCodec<'t> for BigInt {
+impl RawCodec<'_> for BigInt {
     fn decode(mut buf: &[u8]) -> Result<Self, DecodeError> {
         ensure!(buf.remaining() >= 8, errors::Underflow);
         let ndigits = buf.get_u16() as usize;
@@ -471,7 +471,7 @@ impl ScalarArg for num_bigint::BigInt {
     }
 }
 
-impl<'t> RawCodec<'t> for Duration {
+impl RawCodec<'_> for Duration {
     fn decode(mut buf: &[u8]) -> Result<Self, DecodeError> {
         ensure_exact_size(buf, 16)?;
         let micros = buf.get_i64();
@@ -482,7 +482,7 @@ impl<'t> RawCodec<'t> for Duration {
     }
 }
 
-impl<'t> RawCodec<'t> for std::time::Duration {
+impl RawCodec<'_> for std::time::Duration {
     fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         let dur = Duration::decode(buf)?;
         dur.try_into().map_err(|_| errors::InvalidDate.build())
@@ -501,7 +501,7 @@ impl ScalarArg for Duration {
     }
 }
 
-impl<'t> RawCodec<'t> for RelativeDuration {
+impl RawCodec<'_> for RelativeDuration {
     fn decode(mut buf: &[u8]) -> Result<Self, DecodeError> {
         ensure_exact_size(buf, 16)?;
         let micros = buf.get_i64();
@@ -515,7 +515,7 @@ impl<'t> RawCodec<'t> for RelativeDuration {
     }
 }
 
-impl<'t> RawCodec<'t> for DateDuration {
+impl RawCodec<'_> for DateDuration {
     fn decode(mut buf: &[u8]) -> Result<Self, DecodeError> {
         ensure_exact_size(buf, 16)?;
         let micros = buf.get_i64();
@@ -538,7 +538,7 @@ impl ScalarArg for RelativeDuration {
     }
 }
 
-impl<'t> RawCodec<'t> for SystemTime {
+impl RawCodec<'_> for SystemTime {
     fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         let dur = Datetime::decode(buf)?;
         dur.try_into().map_err(|_| errors::InvalidDate.build())
@@ -563,7 +563,7 @@ impl ScalarArg for SystemTime {
     }
 }
 
-impl<'t> RawCodec<'t> for Datetime {
+impl RawCodec<'_> for Datetime {
     fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         let micros = i64::decode(buf)?;
         Datetime::from_postgres_micros(micros).map_err(|_| errors::InvalidDate.build())
@@ -582,7 +582,7 @@ impl ScalarArg for Datetime {
     }
 }
 
-impl<'t> RawCodec<'t> for LocalDatetime {
+impl RawCodec<'_> for LocalDatetime {
     fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         let micros = i64::decode(buf)?;
         LocalDatetime::from_postgres_micros(micros).map_err(|_| errors::InvalidDate.build())
@@ -601,7 +601,7 @@ impl ScalarArg for LocalDatetime {
     }
 }
 
-impl<'t> RawCodec<'t> for LocalDate {
+impl RawCodec<'_> for LocalDate {
     fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         let days = i32::decode(buf)?;
         Ok(LocalDate { days })
@@ -620,7 +620,7 @@ impl ScalarArg for LocalDate {
     }
 }
 
-impl<'t> RawCodec<'t> for LocalTime {
+impl RawCodec<'_> for LocalTime {
     fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         let micros = i64::decode(buf)?;
         ensure!(
@@ -735,7 +735,7 @@ impl<T: ScalarArg + Clone> ScalarArg for Range<T> {
     }
 }
 
-impl<'a> ScalarArg for VectorRef<'a> {
+impl ScalarArg for VectorRef<'_> {
     fn encode(&self, encoder: &mut crate::query_arg::Encoder) -> Result<(), gel_errors::Error> {
         encoder.buf.reserve(2 + 2 + self.0.len() * 4);
         encoder.buf.put_u16(self.0.len() as u16); // len

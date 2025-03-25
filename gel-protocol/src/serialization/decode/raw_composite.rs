@@ -111,7 +111,7 @@ impl<'t> Iterator for DecodeArrayLike<'t> {
     }
 }
 
-impl<'t> ExactSizeIterator for DecodeArrayLike<'t> {
+impl ExactSizeIterator for DecodeArrayLike<'_> {
     fn len(&self) -> usize {
         self.inner.count()
     }
@@ -127,7 +127,7 @@ mod inner {
         pub count: usize,
     }
 
-    impl<'t> std::fmt::Debug for DecodeCompositeInner<'t> {
+    impl std::fmt::Debug for DecodeCompositeInner<'_> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.write_fmt(format_args!(
                 "count = {} data = {:x?}",
