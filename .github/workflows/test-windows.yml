@@ -24,7 +24,7 @@ jobs:
         uses: geldata/setup-gel@v1
         with:
           cli-version: nightly
-          server-version: nightly
+          server-version: none
 
       - name: Show binaries
         run: |
