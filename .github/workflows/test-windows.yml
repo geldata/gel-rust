@@ -23,6 +23,7 @@ jobs:
       - name: Install Gel CLI
         run: |
           bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) --nightly -y
+          refreshenv
         shell: bash
 
       - name: Install Gel server
