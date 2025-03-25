@@ -25,6 +25,10 @@ jobs:
           bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) --nightly -y
         shell: bash
 
+      - name: Set PATH
+        run: |
+          echo "PATH=%PATH%;%UserProfile%\edgedb\bin" >> $GITHUB_ENV
+
       - name: Install Gel server
         run: |
           gel server install --nightly
