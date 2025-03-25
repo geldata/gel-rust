@@ -20,6 +20,11 @@ jobs:
         with:
           submodules: true
 
+      - name: Install WSL2
+        uses: vedantmgoyal9/setup-wsl2@06c52482d0c544a04c68c7e74dcf5bc99b46c8f6
+        with:
+          distro: none
+
       - name: Install Gel CLI
         run: |
           bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) --nightly -y
@@ -33,7 +38,6 @@ jobs:
 
       - name: Install Gel server
         run: |
-          $env:PATH -split ";" | ForEach-Object { Write-Host $_ }
           gel server install --nightly
 
       - name: Show binaries
