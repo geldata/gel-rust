@@ -27,7 +27,7 @@ jobs:
 
       - name: Set PATH
         run: |
-          Add-Content $env:GITHUB_PATH "$env:USERPROFILE\edgedb\bin"
+          Add-Content $env:GITHUB_PATH "$env:USERPROFILE\AppData\Roaming\edgedb\bin"
 
       - name: Install Gel server
         run: |
