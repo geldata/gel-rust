@@ -23,7 +23,7 @@ jobs:
       - name: Setup WSL
         uses: Vampire/setup-wsl@v1
         with:
-          distro: Alpine
+          distro: Debian
 
       - name: Install Gel CLI
         run: |
