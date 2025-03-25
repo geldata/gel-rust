@@ -21,16 +21,10 @@ jobs:
           submodules: true
 
       - name: Install Gel CLI
-        run: |
-          bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) --nightly -y
-          echo "PATH=$PATH;C:\Users\runneradmin\.profile" >> $GITHUB_ENV
-          gel server install --nightly
-          #mkdir -p ~/.local/bin/
-          #printf "#\!/bin/bash\n\"$(gel server info --channel=nightly --get bin-path)\" \"\$@\"\n" > ~/.local/bin/edgedb-server
-          #printf "#\!/bin/bash\n\"$(gel server info --channel=nightly --get bin-path)\" \"\$@\"\n" > ~/.local/bin/gel-server
-          #chmod +x ~/.local/bin/edgedb-server
-          #chmod +x ~/.local/bin/gel-server
-        shell: bash
+        uses: geldata/setup-gel@v1
+        with:
+          cli-version: nightly
+          server-version: nightly
 
       - name: Show binaries
         run: |
