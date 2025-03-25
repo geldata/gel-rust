@@ -21,9 +21,8 @@ jobs:
           submodules: true
 
       - name: Setup WSL
-        uses: Vampire/setup-wsl@v1
-        with:
-          distribution: Debian
+        run: |
+          wsl --install --distribution Debian --name EdgeDB.WSL.1 --version 1
 
       - name: Install Gel CLI
         run: |
