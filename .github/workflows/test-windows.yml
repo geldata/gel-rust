@@ -21,10 +21,14 @@ jobs:
           submodules: true
 
       - name: Install Gel CLI
-        uses: geldata/setup-gel@v1
-        with:
-          cli-version: nightly
-          server-version: none
+        run: |
+          bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) --nightly -y
+        shell: bash
+
+      - name: Install Gel server
+        run: |
+          gel server install --nightly
+        shell: bash
 
       - name: Show binaries
         run: |
