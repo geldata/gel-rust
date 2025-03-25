@@ -20,10 +20,10 @@ jobs:
         with:
           submodules: true
 
-      - name: Install WSL2
-        uses: vedantmgoyal9/setup-wsl2@06c52482d0c544a04c68c7e74dcf5bc99b46c8f6
+      - name: Setup WSL
+        uses: Vampire/setup-wsl@v1
         with:
-          distro: none
+          distro: Alpine
 
       - name: Install Gel CLI
         run: |
