@@ -5,7 +5,7 @@ name: CI
 jobs:
   build_and_test:
     name: Tests (Windows)
-    runs-on: windows-latest
+    runs-on: windows-2019
     strategy:
       matrix:
         rust_version: [default]
@@ -27,11 +27,13 @@ jobs:
 
       - name: Set PATH
         run: |
+          Write-Host "Adding install path to PATH:"
+          Write-Host "$env:USERPROFILE\AppData\Roaming\edgedb\bin"
           Add-Content $env:GITHUB_PATH "$env:USERPROFILE\AppData\Roaming\edgedb\bin"
 
       - name: Install Gel server
         run: |
-          Get-Item Env:PATH
+          $env:PATH -split ";" | ForEach-Object { Write-Host $_ }
           gel server install --nightly
 
       - name: Show binaries
