@@ -31,7 +31,6 @@ jobs:
         run: |
           set
           gel server install --nightly
-        shell: bash
 
       - name: Show binaries
         run: |
