@@ -5,7 +5,7 @@ name: CI
 jobs:
   build_and_test:
     name: Tests (Windows)
-    runs-on: windows-2019
+    runs-on: windows-2025
     strategy:
       matrix:
         rust_version: [default]
@@ -20,12 +20,7 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup WSL (part 1)
-        uses: Vampire/setup-wsl@v1
-        with:
-          distribution: Debian
-
-      - name: Setup WSL (part 2)
+      - name: Setup WSL
         run: |
           wsl --install --distribution Debian --name EdgeDB.WSL.1 --version 1
 
