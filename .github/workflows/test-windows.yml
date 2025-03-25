@@ -26,11 +26,11 @@ jobs:
           . ~/.bash_profile
           echo "PATH=$PATH" >> $GITHUB_ENV
           gel server install --nightly
-          mkdir -p ~/.local/bin/
-          printf "#\!/bin/bash\n\"$(gel server info --channel=nightly --get bin-path)\" \"\$@\"\n" > ~/.local/bin/edgedb-server
-          printf "#\!/bin/bash\n\"$(gel server info --channel=nightly --get bin-path)\" \"\$@\"\n" > ~/.local/bin/gel-server
-          chmod +x ~/.local/bin/edgedb-server
-          chmod +x ~/.local/bin/gel-server
+          #mkdir -p ~/.local/bin/
+          #printf "#\!/bin/bash\n\"$(gel server info --channel=nightly --get bin-path)\" \"\$@\"\n" > ~/.local/bin/edgedb-server
+          #printf "#\!/bin/bash\n\"$(gel server info --channel=nightly --get bin-path)\" \"\$@\"\n" > ~/.local/bin/gel-server
+          #chmod +x ~/.local/bin/edgedb-server
+          #chmod +x ~/.local/bin/gel-server
         shell: bash
 
       - name: Show binaries
