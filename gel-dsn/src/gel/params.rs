@@ -711,10 +711,8 @@ impl Params {
         if self.dsn.is_some() {
             sources.push(CompoundSource::Dsn);
         }
-        if self.instance.is_some() {
-            if self.unix_path.is_none() {
-                sources.push(CompoundSource::Instance);
-            }
+        if self.instance.is_some() && self.unix_path.is_none() {
+            sources.push(CompoundSource::Instance);
         }
         if self.unix_path.is_some() {
             sources.push(CompoundSource::UnixSocket);
@@ -1211,7 +1209,7 @@ impl From<&CredentialsFile> for Params {
             Param::Parsed(DEFAULT_PORT)
         };
 
-        let params = Params {
+        Params {
             host,
             port,
             user: Param::from_unparsed(credentials.user.clone()),
@@ -1223,8 +1221,7 @@ impl From<&CredentialsFile> for Params {
             tls_security: Param::Parsed(credentials.tls_security),
             tls_server_name: Param::from_unparsed(credentials.tls_server_name.clone()),
             ..Default::default()
-        };
-        params
+        }
     }
 }
 
@@ -1584,8 +1581,10 @@ mod tests {
             }
         );
 
-        let mut credentials = CredentialsFile::default();
-        credentials.password = Some("password".to_string());
+        let mut credentials = CredentialsFile {
+            password: Some("password".to_string()),
+            ..Default::default()
+        };
         assert_eq!(
             Params::from(&credentials),
             Params {

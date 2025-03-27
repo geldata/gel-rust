@@ -339,7 +339,7 @@ impl Deref for SQLRowShape {
     }
 }
 
-impl<'a> CodecBuilder<'a> {
+impl CodecBuilder<'_> {
     fn build(&self, pos: TypePos) -> Result<Arc<dyn Codec>, CodecError> {
         use Descriptor as D;
         if let Some(item) = self.descriptors.get(pos.0 as usize) {

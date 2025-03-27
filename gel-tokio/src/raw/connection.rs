@@ -166,7 +166,7 @@ impl Connection {
         future::pending::<()>().await;
         unreachable!();
     }
-    async fn synchronize_ping<'a>(&mut self) -> Result<(), Error> {
+    async fn synchronize_ping(&mut self) -> Result<(), Error> {
         debug_assert_eq!(self.mode, Mode::AwaitingPing);
 
         // Guard mechanism was invented for real queries, so we have to
@@ -629,7 +629,7 @@ fn conn_err(err: io::Error) -> Error {
     ClientConnectionError::with_source(err)
 }
 
-pub async fn wait_message<'x>(
+pub async fn wait_message(
     stream: &mut (impl AsyncRead + Unpin),
     buf: &mut BytesMut,
     proto: &ProtocolVersion,
@@ -675,7 +675,7 @@ async fn _read_buf(stream: &mut (impl AsyncRead + Unpin), buf: &mut BytesMut) ->
     Ok(n)
 }
 
-async fn _wait_message<'x>(
+async fn _wait_message(
     stream: &mut (impl AsyncRead + Unpin),
     buf: &mut BytesMut,
     proto: &ProtocolVersion,

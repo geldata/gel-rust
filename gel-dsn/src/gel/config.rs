@@ -221,10 +221,8 @@ impl Config {
                 } else {
                     _ = url.set_host(Some(&host));
                 }
-            } else {
-                if port != DEFAULT_PORT {
-                    url.query_pairs_mut().append_pair("port", &port.to_string());
-                }
+            } else if port != DEFAULT_PORT {
+                url.query_pairs_mut().append_pair("port", &port.to_string());
             }
         } else {
             return None;
@@ -242,15 +240,15 @@ impl Config {
 
         if self.user() != DEFAULT_USER {
             if url.host().is_none() {
-                url.query_pairs_mut().append_pair("user", &self.user());
+                url.query_pairs_mut().append_pair("user", self.user());
             } else {
-                _ = url.set_username(&self.user());
+                _ = url.set_username(self.user());
             }
         }
 
         if let Some(password) = self.authentication.password() {
             if url.host().is_none() {
-                url.query_pairs_mut().append_pair("password", &password);
+                url.query_pairs_mut().append_pair("password", password);
             } else {
                 _ = url.set_password(Some(password));
             }
@@ -272,7 +270,7 @@ impl Config {
 
         if let Some(tls_server_name) = &self.tls_server_name {
             url.query_pairs_mut()
-                .append_pair("tls_server_name", &tls_server_name);
+                .append_pair("tls_server_name", tls_server_name);
         }
 
         if self.wait_until_available != DEFAULT_WAIT {

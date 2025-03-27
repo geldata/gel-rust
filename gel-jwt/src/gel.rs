@@ -75,7 +75,7 @@ impl TokenClaims {
         let claims = if token_version == 0 {
             // Legacy v0 token: "edgedb.server.any_role" is a boolean, "edgedb.server.roles" is an array of strings
             let roles =
-                TokenMatch::from_claims(&decoded, "edgedb.server.any_role", "edgedb.server.roles")?;
+                TokenMatch::from_claims(decoded, "edgedb.server.any_role", "edgedb.server.roles")?;
             Self {
                 roles,
                 instances: TokenMatch::All,
@@ -84,9 +84,9 @@ impl TokenClaims {
             }
         } else {
             // New v1 token: "edb.{i,r,d}.all" are booleans, "edb.{i,r,d}" are arrays of strings
-            let instances = TokenMatch::from_claims(&decoded, "edb.i.all", "edb.i")?;
-            let roles = TokenMatch::from_claims(&decoded, "edb.r.all", "edb.r")?;
-            let databases = TokenMatch::from_claims(&decoded, "edb.d.all", "edb.d")?;
+            let instances = TokenMatch::from_claims(decoded, "edb.i.all", "edb.i")?;
+            let roles = TokenMatch::from_claims(decoded, "edb.r.all", "edb.r")?;
+            let databases = TokenMatch::from_claims(decoded, "edb.d.all", "edb.d")?;
             Self {
                 instances,
                 roles,
@@ -337,7 +337,7 @@ mod tests {
             panic!("token does not start with edbt1_");
         };
         eprintln!("token: {}", token);
-        let decoded = registry.unsafely_decode_without_validation(&token).unwrap();
+        let decoded = registry.unsafely_decode_without_validation(token).unwrap();
         assert_eq!(decoded.get("edb.i.all").unwrap(), &Any::from(true));
         assert_eq!(decoded.get("edb.r.all").unwrap(), &Any::from(true));
         assert_eq!(decoded.get("edb.d.all").unwrap(), &Any::from(true));

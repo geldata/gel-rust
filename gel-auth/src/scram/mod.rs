@@ -486,7 +486,7 @@ pub struct ServerFinalResponse<'a> {
     verifier: Cow<'a, str>,
 }
 
-impl<'a> Encode for ServerFinalResponse<'a> {
+impl Encode for ServerFinalResponse<'_> {
     fn encode(&self) -> String {
         format!("v={}", self.verifier)
     }

@@ -43,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
         .await;
     match res {
         Ok(val) => println!("New counter value: {val}"),
-        Err(e) if e.source().map_or(false, |e| e.is::<CounterError>()) => {
+        Err(e) if e.source().is_some_and(|e| e.is::<CounterError>()) => {
             println!("Skipping: {e:#}");
         }
         Err(e) => return Err(e)?,
