@@ -12,13 +12,31 @@ use std::{
 
 use crate::{Ssl, SslError, TlsDriver, TlsHandshake, TlsServerParameterProvider};
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum StreamOptimization {
+    #[default]
+    /// Optimize for general use.
+    General,
+    /// Optimize for interactive use with low latency.
+    Interactive,
+    /// Optimize for bulk streaming.
+    BulkStreaming(BulkStreamDirection),
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum BulkStreamDirection {
+    Send,
+    Receive,
+    #[default]
+    Both,
+}
+
 #[cfg(feature = "tokio")]
 pub trait Stream: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static {
     fn downcast<S: Stream + 'static>(self) -> Result<S, Self>
     where
         Self: Sized + 'static,
     {
-        // Note that we only support Tokio TcpStream for rustls.
         let mut holder = Some(self);
         let stream = &mut holder as &mut dyn Any;
         let Some(stream) = stream.downcast_mut::<Option<S>>() else {
@@ -27,10 +45,12 @@ pub trait Stream: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 
         let stream = stream.take().unwrap();
         Ok(stream)
     }
-}
 
-#[cfg(feature = "tokio")]
-impl<T> Stream for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static {}
+    fn with_socket2(
+        &self,
+        f: &mut dyn for<'a> FnMut(socket2::SockRef<'a>) -> Result<(), std::io::Error>,
+    ) -> Result<(), std::io::Error>;
+}
 
 #[cfg(not(feature = "tokio"))]
 pub trait Stream: 'static {}
@@ -39,7 +59,7 @@ impl<S: Stream, D: TlsDriver> Stream for UpgradableStream<S, D> {}
 #[cfg(not(feature = "tokio"))]
 impl Stream for () {}
 
-pub trait StreamUpgrade: Stream {
+pub trait StreamUpgrade {
     fn secure_upgrade(&mut self) -> impl Future<Output = Result<(), SslError>> + Send;
     fn handshake(&self) -> Option<&TlsHandshake>;
 }
@@ -81,6 +101,83 @@ impl<S: Stream, D: TlsDriver> UpgradableStream<S, D> {
             UpgradableStreamInner::Upgraded(_, handshake) => Some(handshake),
             _ => None,
         }
+    }
+
+    pub fn with_socket2(
+        &mut self,
+        mut f: impl for<'a> FnMut(socket2::SockRef<'a>) -> Result<(), std::io::Error>,
+    ) -> Result<(), std::io::Error> {
+        match &mut self.inner {
+            UpgradableStreamInner::BaseClient(base, _) => base.with_socket2(&mut f),
+            UpgradableStreamInner::BaseServer(base, _) => base.with_socket2(&mut f),
+            UpgradableStreamInner::Upgraded(upgraded, _) => upgraded.with_socket2(&mut f),
+            UpgradableStreamInner::Upgrading => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Cannot access raw socket while upgrading",
+            )),
+        }
+    }
+
+    pub fn optimize_for(&mut self, optimization: StreamOptimization) -> Result<(), std::io::Error> {
+        let mut with_socket2 = move |s: socket2::SockRef<'_>| {
+            #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+            s.set_cork(false)?;
+
+            #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+            s.set_quickack(false)?;
+
+            #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+            s.set_thin_linear_timeouts(false)?;
+
+            s.set_send_buffer_size(256 * 1024)?;
+            s.set_recv_buffer_size(256 * 1024)?;
+
+            match optimization {
+                StreamOptimization::General => {
+                    s.set_nodelay(false)?;
+                    #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+                    s.set_thin_linear_timeouts(true)?;
+                }
+                StreamOptimization::Interactive => {
+                    s.set_nodelay(true)?;
+                    #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+                    s.set_thin_linear_timeouts(true)?;
+                }
+                StreamOptimization::BulkStreaming(direction) => {
+                    s.set_nodelay(false)?;
+                    // Handle send buffer size
+                    match direction {
+                        BulkStreamDirection::Send | BulkStreamDirection::Both => {
+                            s.set_send_buffer_size(16 * 1024 * 1024)?;
+                            #[cfg(any(
+                                target_os = "android",
+                                target_os = "fuchsia",
+                                target_os = "linux"
+                            ))]
+                            s.set_cork(true)?;
+                        }
+                        BulkStreamDirection::Receive => {}
+                    }
+
+                    // Handle receive buffer size
+                    match direction {
+                        BulkStreamDirection::Receive | BulkStreamDirection::Both => {
+                            s.set_recv_buffer_size(16 * 1024 * 1024)?;
+                            #[cfg(any(
+                                target_os = "android",
+                                target_os = "fuchsia",
+                                target_os = "linux"
+                            ))]
+                            s.set_quickack(true)?;
+                        }
+                        BulkStreamDirection::Send => {}
+                    }
+                }
+            }
+            Ok(())
+        };
+
+        self.with_socket2(&mut with_socket2)
     }
 }
 
@@ -245,6 +342,16 @@ pub trait Rewindable {
 pub struct RewindStream<S> {
     buffer: Vec<u8>,
     inner: S,
+}
+
+#[cfg(feature = "tokio")]
+impl<S: Stream> Stream for RewindStream<S> {
+    fn with_socket2(
+        &self,
+        f: &mut dyn for<'a> FnMut(socket2::SockRef<'a>) -> Result<(), std::io::Error>,
+    ) -> Result<(), std::io::Error> {
+        self.inner.with_socket2(f)
+    }
 }
 
 impl<S> RewindStream<S> {
