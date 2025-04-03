@@ -136,7 +136,7 @@ impl fmt::Display for InstanceName {
             match self {
                 InstanceName::Local(name) => write!(f, "{BRANDING} instance '{}'", name),
                 InstanceName::Cloud(cloud_name) => {
-                    write!(f, "{BRANDING_CLOUD} Cloud instance '{}'", cloud_name)
+                    write!(f, "{BRANDING_CLOUD} instance '{}'", cloud_name)
                 }
             }
         } else {
