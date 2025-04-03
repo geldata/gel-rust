@@ -1,5 +1,6 @@
 //! Parses DSNs for Gel database connections.
 
+mod branding;
 mod config;
 mod duration;
 mod env;
