@@ -22,7 +22,7 @@ use super::{
 use crate::{
     env::SystemEnvVars,
     file::SystemFileAccess,
-    gel::{context_trace, Authentication},
+    gel::{context_trace, Authentication, DEFAULT_USER},
     host::{Host, HostType},
     user::SystemUserProfile,
     EnvVar, FileAccess, UserProfile,
@@ -934,7 +934,7 @@ impl Params {
             (_, TlsSecurity::Insecure) => TlsSecurity::Insecure,
         };
 
-        let user = user.unwrap_or_else(|| "edgedb".to_string());
+        let user = user.unwrap_or_else(|| DEFAULT_USER.to_string());
 
         let value = Some(Config {
             host,

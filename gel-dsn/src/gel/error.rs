@@ -1,3 +1,4 @@
+use super::branding::*;
 use crate::host::HostParseError;
 use std::{convert::Infallible, num::ParseIntError};
 
@@ -86,7 +87,7 @@ pub enum ParseError {
     MultipleCompoundEnv(#[error(not(source))] Vec<CompoundSource>),
     #[display("Multiple compound options: {:?}", _0)]
     MultipleCompoundOpts(#[error(not(source))] Vec<CompoundSource>),
-    #[display("No options or .toml file")]
+    #[display("No connection options specified, and no project manifest file found ({MANIFEST_FILE_DISPLAY_NAME})")]
     NoOptionsOrToml,
     #[display("Project not initialized")]
     ProjectNotInitialised,

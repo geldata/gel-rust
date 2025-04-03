@@ -25,7 +25,7 @@ pub const DEFAULT_TCP_KEEPALIVE: Duration = Duration::from_secs(60);
 pub const DEFAULT_POOL_SIZE: usize = 10;
 pub const DEFAULT_HOST: &HostType = crate::host::LOCALHOST;
 pub const DEFAULT_PORT: u16 = 5656;
-pub const DEFAULT_USER: &str = "edgedb";
+pub const DEFAULT_USER: &str = crate::gel::branding::BRANDING_DEFAULT_USERNAME_LEGACY;
 pub const DEFAULT_BRANCH: DatabaseBranch = DatabaseBranch::Default;
 
 /// The result of building a [`Config`].

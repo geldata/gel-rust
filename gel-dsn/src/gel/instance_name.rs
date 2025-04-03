@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
+use super::branding::*;
 use super::error::*;
 
 const DOMAIN_LABEL_MAX_LENGTH: usize = 63;
@@ -105,13 +106,46 @@ impl CloudName {
     }
 }
 
-/// Parsed Gel instance name.
-#[derive(Clone, Debug, PartialEq, Eq, derive_more::Display)]
+/// Parsed an instance name. This may refer to a locally-linked instance, or a
+/// cloud-based instance if the instance name contains a `/` character.
+///
+/// ```
+/// # use gel_dsn::gel::InstanceName;
+/// # use std::str::FromStr;
+/// let instance = InstanceName::from_str("my-instance").unwrap();
+/// assert_eq!(format!("{}", instance), "my-instance");
+/// assert_eq!(format!("{:#}", instance), "Gel instance 'my-instance'");
+///
+/// let instance = InstanceName::from_str("my-org/my-instance").unwrap();
+/// assert_eq!(format!("{}", instance), "my-org/my-instance");
+/// assert_eq!(format!("{:#}", instance), "Gel Cloud instance 'my-org/my-instance'");
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstanceName {
     /// Instance configured locally
     Local(String),
     /// Instance running on the Gel Cloud
     Cloud(CloudName),
+}
+
+/// Printing the instance name with the `alternate` flag will print the instance
+/// name in a human-readable format.
+impl fmt::Display for InstanceName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if f.alternate() {
+            match self {
+                InstanceName::Local(name) => write!(f, "{BRANDING} instance '{}'", name),
+                InstanceName::Cloud(cloud_name) => {
+                    write!(f, "{BRANDING_CLOUD} Cloud instance '{}'", cloud_name)
+                }
+            }
+        } else {
+            match self {
+                InstanceName::Local(name) => write!(f, "{}", name),
+                InstanceName::Cloud(cloud_name) => write!(f, "{}", cloud_name),
+            }
+        }
+    }
 }
 
 impl InstanceName {
