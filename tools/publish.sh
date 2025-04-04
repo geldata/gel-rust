@@ -142,8 +142,8 @@ if [ ${#NEEDS_PUBLISH[@]} -gt 0 ]; then
 
         # Wait for crate to be published. Parse "Version:" from `cargo info` and
         # wait until it matches CRATE_VERSION.
-        while ! cargo info $CRATE | grep -E "Version:\s+$CRATE_VERSION"; do
-            echo "Waiting for $CRATE to be published (this may take a while)..."
+        while ! cargo info $CRATE@$CRATE_VERSION; do
+            echo "Waiting for $CRATE@$CRATE_VERSION to be published (this may take a while)..."
             sleep 15
         done
 
