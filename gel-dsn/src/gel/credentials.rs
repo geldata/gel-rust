@@ -214,13 +214,15 @@ impl TryInto<CredentialsFile> for CredentialsFileCompat {
             }
 
             // Special case: don't allow database and branch to be set at the same time
-            if database.is_some() && branch.is_some() && database != branch {
-                return Err(ParseError::InvalidCredentialsFile(
-                    InvalidCredentialsFileError::ConflictingSettings(
-                        ("database".to_string(), database.unwrap().to_string()),
-                        ("branch".to_string(), branch.unwrap().to_string()),
-                    ),
-                ));
+            if let (Some(database), Some(branch)) = (&database, &branch) {
+                if database != branch {
+                    return Err(ParseError::InvalidCredentialsFile(
+                        InvalidCredentialsFileError::ConflictingSettings(
+                            ("database".to_string(), database.to_string()),
+                            ("branch".to_string(), branch.to_string()),
+                        ),
+                    ));
+                }
             }
 
             Ok(CredentialsFile {

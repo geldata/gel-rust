@@ -1,8 +1,4 @@
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{str::FromStr, sync::Arc};
 
 use super::{
     context_trace, error::ParseError, BuildContext, CredentialsFile, InstanceName,
@@ -27,10 +23,6 @@ impl<C: BuildContext> StoredInformation<C> {
     pub fn credentials(&self) -> StoredCredentials<C, Arc<C>> {
         StoredCredentials::new(self.context.clone())
     }
-
-    pub fn stash_path(&self, path: impl AsRef<Path>) -> Result<PathBuf, std::io::Error> {
-        unimplemented!()
-    }
 }
 
 /// The persistent collection of stored credentials.
@@ -44,7 +36,7 @@ pub struct StoredCredentials<CT: BuildContext, C: std::ops::Deref<Target = CT>> 
 impl<'a, CT: BuildContext> StoredCredentials<CT, &'a CT> {
     pub(crate) fn new_ref(context: &'a CT) -> Self {
         Self {
-            context: context,
+            context,
             _marker: std::marker::PhantomData,
         }
     }
@@ -63,7 +55,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
         let files = self.context.list_config_files("credentials/")?;
         let mut instances = Vec::new();
         for mut file in files {
-            if file.extension() != Some(&std::ffi::OsStr::new("json")) {
+            if file.extension() != Some(std::ffi::OsStr::new("json")) {
                 continue;
             }
             if !file.set_extension("") {
@@ -85,7 +77,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
                 );
                 continue;
             };
-            let Ok(instance) = InstanceName::from_str(&s) else {
+            let Ok(instance) = InstanceName::from_str(s) else {
                 context_trace!(
                     self.context,
                     "Skipping file with invalid instance name: {}",
@@ -119,7 +111,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
     }
 
     /// Write the credentials for the given instance.
-    fn write(
+    pub fn write(
         &self,
         instance: InstanceName,
         content: &CredentialsFile,

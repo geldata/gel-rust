@@ -340,7 +340,7 @@ impl Config {
     pub fn with_pem_certificates(&self, certs: &str) -> Result<Self, ParseError> {
         let certs = <Vec<CertificateDer<'static>> as FromParamStr>::from_param_str(
             certs,
-            &mut BuildContextImpl::default(),
+            &BuildContextImpl::default(),
         )?;
         Ok(Self {
             tls_ca: Some(certs),

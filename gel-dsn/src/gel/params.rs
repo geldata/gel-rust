@@ -16,8 +16,7 @@ use super::{
     stored::{StoredCredentials, StoredInformation},
     BuildContext, BuildContextImpl, ClientSecurity, CloudCerts, CloudCredentialsFile, Config,
     CredentialsFile, DatabaseBranch, FromParamStr, InstanceName, Logging, Param, ParamSource,
-    TcpKeepalive, TlsSecurity, UnixPath, DEFAULT_CONNECT_TIMEOUT, DEFAULT_HOST, DEFAULT_PORT,
-    DEFAULT_WAIT,
+    TcpKeepalive, TlsSecurity, UnixPath, DEFAULT_CONNECT_TIMEOUT, DEFAULT_PORT, DEFAULT_WAIT,
 };
 use crate::{
     env::SystemEnvVars,
@@ -699,7 +698,7 @@ impl<E: BuilderEnv, F: BuilderFs, U: BuilderUser, P: BuilderProject> BuilderPrep
 
         let mut context = BuildContextImpl::new_with_user_profile(self.env, self.fs, self.user);
         context.logging = self.logging;
-        compute(params, &mut context, self.project_dir)
+        compute(params, &context, self.project_dir)
     }
 
     /// Read and write stored credentials and project information.
@@ -717,7 +716,7 @@ impl<E: BuilderEnv, F: BuilderFs, U: BuilderUser, P: BuilderProject> BuilderPrep
 
         let mut context = BuildContextImpl::new_with_user_profile(self.env, self.fs, self.user);
         context.logging = self.logging;
-        parse(params, &mut context, self.project_dir)
+        parse(params, &context, self.project_dir)
     }
 }
 

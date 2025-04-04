@@ -26,8 +26,8 @@ pub struct ProjectSearchResult {
 impl ProjectSearchResult {
     /// Find a project in the given directory.
     pub fn find(dir: ProjectDir) -> std::io::Result<Option<Self>> {
-        let mut context = BuildContextImpl::new();
-        let project = find_project_file(&mut context, dir)?;
+        let context = BuildContextImpl::new();
+        let project = find_project_file(&context, dir)?;
         Ok(project)
     }
 }
@@ -259,7 +259,7 @@ mod tests {
         context.logging.tracing = Some(traces.clone().trace_fn());
         context.config_dir = Some(vec![PathBuf::from("/home/edgedb/.config/edgedb")]);
         let res = find_project_file(
-            &mut context,
+            &context,
             ProjectDir::Search(PathBuf::from("/home/edgedb/test")),
         );
 
@@ -296,7 +296,7 @@ mod tests {
 
         // Test gel.toml only
         fs::write(&gel_path, "test1").unwrap();
-        let found = find_project_file(&mut context, ProjectDir::Search(base.to_path_buf()))
+        let found = find_project_file(&context, ProjectDir::Search(base.to_path_buf()))
             .unwrap()
             .unwrap();
         assert_eq!(found.project_path, gel_path);
@@ -304,7 +304,7 @@ mod tests {
         // Test edgedb.toml only
         fs::remove_file(&gel_path).unwrap();
         fs::write(&edgedb_path, "test2").unwrap();
-        let found = find_project_file(&mut context, ProjectDir::Search(base.to_path_buf()))
+        let found = find_project_file(&context, ProjectDir::Search(base.to_path_buf()))
             .unwrap()
             .unwrap();
         assert_eq!(found.project_path, edgedb_path);
@@ -312,7 +312,7 @@ mod tests {
         // Test both files with same content
         fs::write(&gel_path, "test3").unwrap();
         fs::write(&edgedb_path, "test3").unwrap();
-        let found = find_project_file(&mut context, ProjectDir::Search(base.to_path_buf()))
+        let found = find_project_file(&context, ProjectDir::Search(base.to_path_buf()))
             .unwrap()
             .unwrap();
         assert_eq!(found.project_path, gel_path);
@@ -320,8 +320,7 @@ mod tests {
         // Test both files with different content
         fs::write(&gel_path, "test4").unwrap();
         fs::write(&edgedb_path, "test5").unwrap();
-        let err =
-            find_project_file(&mut context, ProjectDir::Search(base.to_path_buf())).unwrap_err();
+        let err = find_project_file(&context, ProjectDir::Search(base.to_path_buf())).unwrap_err();
         assert!(err.to_string().contains("but the contents are different"));
     }
 }

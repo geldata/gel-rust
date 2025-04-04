@@ -316,6 +316,9 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
         content: &str,
     ) -> Result<(), std::io::Error> {
         let path = path.as_ref();
+        // TODO: We need to be able to handle multiple config dirs. For now, just
+        // use the first one.
+        #[allow(clippy::never_loop)]
         for config_dir in self.config_dir.iter().flatten() {
             let path = config_dir.join(path);
             context_trace!(self, "Writing config file: {}", path.display());

@@ -219,10 +219,7 @@ mod tests {
         let mut context = BuildContextImpl::new_with(&map, ());
         let warnings = Warnings::default();
         context.logging.warning = Some(warnings.clone().warn_fn());
-        assert_eq!(
-            Env::host(&mut context).unwrap(),
-            Some("localhost".to_string())
-        );
+        assert_eq!(Env::host(&context).unwrap(), Some("localhost".to_string()));
         assert_eq!(
             warnings.into_vec(),
             vec![Warning::MultipleEnvironmentVariables(vec![

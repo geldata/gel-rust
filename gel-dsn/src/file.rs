@@ -192,12 +192,10 @@ impl FileAccess for SystemFileAccess {
 
     fn list_dir(&self, path: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
         let mut files = vec![];
-        for file in std::fs::read_dir(path)? {
-            if let Ok(file) = file {
-                let path = file.path();
-                if path.is_file() {
-                    files.push(path);
-                }
+        for file in std::fs::read_dir(path)?.flatten() {
+            let path = file.path();
+            if path.is_file() {
+                files.push(path);
             }
         }
         Ok(files)
@@ -248,14 +246,14 @@ mod tests {
         let found = files
             .exists_dir(&PathBuf::from("/home/edgedb/.config/edgedb/credentials/"))
             .unwrap();
-        assert_eq!(found, true);
+        assert!(found);
         let found = files
             .exists_dir(&PathBuf::from("/home/edgedb/.config/edgedb/"))
             .unwrap();
-        assert_eq!(found, true);
+        assert!(found);
         let found = files
             .exists_dir(&PathBuf::from("/home/edgedb/.config/"))
             .unwrap();
-        assert_eq!(found, true);
+        assert!(found);
     }
 }

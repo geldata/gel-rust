@@ -284,10 +284,9 @@ mod tests {
             "edgedb://username%25@password%25:[::1%25lo0]:5656/db/",
             "edgedb://user3@[fe80::1ff:fe23:4567:890a%25lo0]:3000/ab",
         ] {
-            let result = <Url as FromParamStr>::from_param_str(dsn, &mut BuildContextImpl::new());
+            let result = <Url as FromParamStr>::from_param_str(dsn, &BuildContextImpl::new());
             let dsn2 = dsn.replace("%25lo0", "");
-            let result2 =
-                <Url as FromParamStr>::from_param_str(&dsn2, &mut BuildContextImpl::new());
+            let result2 = <Url as FromParamStr>::from_param_str(&dsn2, &BuildContextImpl::new());
             eprintln!("{dsn} = {result:?}, {dsn2} = {result2:?}");
             assert_eq!(
                 result, result2,
