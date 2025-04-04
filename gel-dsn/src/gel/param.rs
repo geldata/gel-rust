@@ -10,11 +10,11 @@ use super::{
     duration, error::*, BuildContext, ClientSecurity, CloudCerts, CloudCredentialsFile,
     CredentialsFile, InstanceName, TcpKeepalive, TlsSecurity, UnixPath,
 };
-use crate::{gel::context_trace, host::HostType, EnvVar, FileAccess};
+use crate::{gel::context_trace, host::HostType, FileAccess};
 
 pub(crate) trait FromParamStr: Sized {
     type Err;
-    fn from_param_str(s: &str, context: &mut impl BuildContext) -> Result<Self, Self::Err>;
+    fn from_param_str(s: &str, context: &impl BuildContext) -> Result<Self, Self::Err>;
 }
 
 macro_rules! impl_from_param_str {
@@ -22,7 +22,7 @@ macro_rules! impl_from_param_str {
         $(
             impl FromParamStr for $t {
                 type Err = <$t as FromStr>::Err;
-                fn from_param_str(s: &str, _context: &mut impl BuildContext) -> Result<Self, Self::Err> {
+                fn from_param_str(s: &str, _context: &impl BuildContext) -> Result<Self, Self::Err> {
                     FromStr::from_str(s)
                 }
             }
@@ -49,7 +49,7 @@ impl_from_param_str!(
 
 impl FromParamStr for std::time::Duration {
     type Err = ParseError;
-    fn from_param_str(s: &str, _context: &mut impl BuildContext) -> Result<Self, Self::Err> {
+    fn from_param_str(s: &str, _context: &impl BuildContext) -> Result<Self, Self::Err> {
         duration::Duration::from_str(s)
             .map_err(|_| ParseError::InvalidDuration)
             .map(|d| std::time::Duration::from_micros(d.to_micros() as u64))
@@ -58,7 +58,7 @@ impl FromParamStr for std::time::Duration {
 
 impl FromParamStr for Url {
     type Err = ParseError;
-    fn from_param_str(s: &str, context: &mut impl BuildContext) -> Result<Self, Self::Err> {
+    fn from_param_str(s: &str, context: &impl BuildContext) -> Result<Self, Self::Err> {
         // Ensure the URL contains `://`
         if !s.starts_with("edgedb://") && !s.starts_with("gel://") {
             return Err(ParseError::InvalidDsn(InvalidDsnError::InvalidScheme));
@@ -126,7 +126,7 @@ impl FromParamStr for Url {
 
 impl FromParamStr for Vec<CertificateDer<'static>> {
     type Err = ParseError;
-    fn from_param_str(s: &str, _context: &mut impl BuildContext) -> Result<Self, Self::Err> {
+    fn from_param_str(s: &str, _context: &impl BuildContext) -> Result<Self, Self::Err> {
         let mut cursor = std::io::Cursor::new(s);
         let mut certs = Vec::new();
         for cert in rustls_pemfile::read_all(&mut cursor) {
@@ -215,7 +215,7 @@ where
         }
     }
 
-    pub fn get(&self, context: &mut impl BuildContext) -> Result<Option<T>, ParseError> {
+    pub fn get(&self, context: &impl BuildContext) -> Result<Option<T>, ParseError> {
         let value = match self {
             Self::None => {
                 return Ok(None);
@@ -224,8 +224,7 @@ where
             Self::Env(source, key) => {
                 context_trace!(context, "Reading env: {key} (from {source})");
                 context
-                    .env()
-                    .read(key)
+                    .read_env(key)
                     .map(|s| s.to_string())
                     .map_err(|_| ParseError::EnvNotFound(*source, key.to_string()))?
             }
@@ -242,14 +241,12 @@ where
             Self::EnvFile(source, key) => {
                 context_trace!(context, "Reading env for file: {key} (from {source})");
                 let env = context
-                    .env()
-                    .read(key)
-                    .map_err(|_| ParseError::EnvNotFound(*source, key.to_string()))?
-                    .to_string();
+                    .read_env(key)
+                    .map_err(|_| ParseError::EnvNotFound(*source, key.to_string()))?;
                 context_trace!(context, "Reading file: {env}");
                 let res = context
                     .files()
-                    .read(&PathBuf::from(env))
+                    .read(&PathBuf::from(env.as_ref()))
                     .map_err(|_| ParseError::FileNotFound);
                 context_trace!(context, "File content: {res:?}");
                 res?

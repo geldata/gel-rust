@@ -3,21 +3,21 @@ use std::{
     fmt::Debug,
     num::NonZeroU16,
     path::{Path, PathBuf},
-    str::FromStr,
     time::Duration,
 };
 
 use rustls_pki_types::CertificateDer;
-use serde::{Deserialize, Serialize};
 use url::Url;
 
 use super::{
     env::Env,
     error::*,
     project::{find_project_file, ProjectDir},
-    BuildContext, BuildContextImpl, ClientSecurity, CloudCerts, Config, DatabaseBranch,
-    FromParamStr, InstanceName, Logging, Param, ParamSource, TcpKeepalive, TlsSecurity, UnixPath,
-    DEFAULT_CONNECT_TIMEOUT, DEFAULT_HOST, DEFAULT_PORT, DEFAULT_WAIT,
+    stored::{StoredCredentials, StoredInformation},
+    BuildContext, BuildContextImpl, ClientSecurity, CloudCerts, CloudCredentialsFile, Config,
+    CredentialsFile, DatabaseBranch, FromParamStr, InstanceName, Logging, Param, ParamSource,
+    TcpKeepalive, TlsSecurity, UnixPath, DEFAULT_CONNECT_TIMEOUT, DEFAULT_HOST, DEFAULT_PORT,
+    DEFAULT_WAIT,
 };
 use crate::{
     env::SystemEnvVars,
@@ -93,7 +93,7 @@ macro_rules! define_params {
             }
 
             /// Compute the parameters.
-            fn into_computed(self, context: &mut impl BuildContext) -> (Computed, Vec<ParseError>) {
+            fn into_computed(self, context: &impl BuildContext) -> (Computed, Vec<ParseError>) {
                 let mut errors = Vec::new();
                 let computed = Computed {
                     $(
@@ -452,6 +452,13 @@ impl Builder {
     pub fn compute(self) -> Result<(Computed, Vec<ParseError>), ParseError> {
         self.with_system().compute()
     }
+
+    /// Read and write stored credentials and project information.
+    #[cfg(feature = "unstable")]
+    #[allow(private_interfaces)]
+    pub fn stored_info(self) -> StoredInformation<impl BuildContext> {
+        self.with_system().stored_info()
+    }
 }
 
 #[doc(hidden)]
@@ -695,6 +702,15 @@ impl<E: BuilderEnv, F: BuilderFs, U: BuilderUser, P: BuilderProject> BuilderPrep
         compute(params, &mut context, self.project_dir)
     }
 
+    /// Read and write stored credentials and project information.
+    #[cfg(feature = "unstable")]
+    #[allow(private_interfaces)]
+    pub fn stored_info(self) -> StoredInformation<impl BuildContext> {
+        let mut context = BuildContextImpl::new_with_user_profile(self.env, self.fs, self.user);
+        context.logging = self.logging;
+        StoredInformation::new(context)
+    }
+
     #[doc(hidden)]
     pub fn build_parse_error(self) -> Result<Config, ParseError> {
         let params = self.params;
@@ -730,7 +746,7 @@ impl Params {
 
     pub(crate) fn try_compute(
         &self,
-        context: &mut impl BuildContext,
+        context: &impl BuildContext,
         phase: BuildPhase,
     ) -> Result<(Computed, Vec<ParseError>), ParseError> {
         // Step 0: Check for compound option overlap. If there is, return an error.
@@ -831,7 +847,7 @@ impl Params {
     /// Try to build the config. Returns `None` if the config is incomplete.
     pub(crate) fn try_build(
         &self,
-        context: &mut impl BuildContext,
+        context: &impl BuildContext,
         phase: BuildPhase,
     ) -> Result<Option<Config>, ParseError> {
         let (computed, errors) = self.try_compute(context, phase)?;
@@ -957,7 +973,7 @@ impl Params {
     }
 }
 
-fn parse_dsn(dsn: &str, context: &mut impl BuildContext) -> Result<Params, ParseError> {
+fn parse_dsn(dsn: &str, context: &impl BuildContext) -> Result<Params, ParseError> {
     let mut explicit = Params::default();
 
     context_trace!(context, "Parsing DSN: {:?}", dsn);
@@ -1080,7 +1096,7 @@ fn parse_dsn(dsn: &str, context: &mut impl BuildContext) -> Result<Params, Parse
 
 fn parse_credentials(
     credentials: &CredentialsFile,
-    context: &mut impl BuildContext,
+    context: &impl BuildContext,
 ) -> Result<Params, ParseError> {
     for warning in credentials.warnings() {
         context.warn(warning.clone());
@@ -1089,25 +1105,25 @@ fn parse_credentials(
     Ok(credentials.into())
 }
 
-fn parse_env(context: &mut impl BuildContext) -> Result<Params, ParseError> {
+fn parse_env(context: &impl BuildContext) -> Result<Params, ParseError> {
     let mut explicit = Params {
-        dsn: Param::from_parsed(context.read_env(Env::dsn)?),
-        instance: Param::from_parsed(context.read_env(Env::instance)?),
-        credentials: Param::from_file(context.read_env(Env::credentials_file)?),
-        host: Param::from_parsed(context.read_env(Env::host)?),
-        port: Param::from_parsed(context.read_env(Env::port)?.map(|p| p.into())),
-        database: Param::from_parsed(context.read_env(Env::database)?),
-        branch: Param::from_parsed(context.read_env(Env::branch)?),
-        user: Param::from_parsed(context.read_env(Env::user)?),
-        password: Param::from_parsed(context.read_env(Env::password)?),
-        tls_security: Param::from_parsed(context.read_env(Env::client_tls_security)?),
-        tls_ca: Param::from_unparsed(context.read_env(Env::tls_ca)?),
-        tls_server_name: Param::from_parsed(context.read_env(Env::tls_server_name)?),
-        client_security: Param::from_parsed(context.read_env(Env::client_security)?),
-        secret_key: Param::from_parsed(context.read_env(Env::secret_key)?),
-        cloud_profile: Param::from_parsed(context.read_env(Env::cloud_profile)?),
-        wait_until_available: Param::from_parsed(context.read_env(Env::wait_until_available)?),
-        cloud_certs: Param::from_parsed(context.read_env(Env::_cloud_certs)?),
+        dsn: Param::from_parsed(Env::dsn(context)?),
+        instance: Param::from_parsed(Env::instance(context)?),
+        credentials: Param::from_file(Env::credentials_file(context)?),
+        host: Param::from_parsed(Env::host(context)?),
+        port: Param::from_parsed(Env::port(context)?.map(|p| p.into())),
+        database: Param::from_parsed(Env::database(context)?),
+        branch: Param::from_parsed(Env::branch(context)?),
+        user: Param::from_parsed(Env::user(context)?),
+        password: Param::from_parsed(Env::password(context)?),
+        tls_security: Param::from_parsed(Env::client_tls_security(context)?),
+        tls_ca: Param::from_unparsed(Env::tls_ca(context)?),
+        tls_server_name: Param::from_parsed(Env::tls_server_name(context)?),
+        client_security: Param::from_parsed(Env::client_security(context)?),
+        secret_key: Param::from_parsed(Env::secret_key(context)?),
+        cloud_profile: Param::from_parsed(Env::cloud_profile(context)?),
+        wait_until_available: Param::from_parsed(Env::wait_until_available(context)?),
+        cloud_certs: Param::from_parsed(Env::_cloud_certs(context)?),
         ..Default::default()
     };
 
@@ -1118,7 +1134,7 @@ fn parse_env(context: &mut impl BuildContext) -> Result<Params, ParseError> {
         ));
     }
 
-    let ca_file = Param::from_file(context.read_env(Env::tls_ca_file)?);
+    let ca_file = Param::from_file(Env::tls_ca_file(context)?);
     if explicit.tls_ca.is_none() {
         explicit.tls_ca = ca_file;
     } else if ca_file.is_some() {
@@ -1133,18 +1149,19 @@ fn parse_env(context: &mut impl BuildContext) -> Result<Params, ParseError> {
 
 /// Parse the early environment variables, ensuring that we always read the
 /// client security and cloud certs.
-fn parse_env_early(context: &mut impl BuildContext) -> Result<Params, ParseError> {
+fn parse_env_early(context: &impl BuildContext) -> Result<Params, ParseError> {
     let explicit = Params {
-        client_security: Param::from_parsed(context.read_env(Env::client_security)?),
-        cloud_certs: Param::from_parsed(context.read_env(Env::_cloud_certs)?),
+        client_security: Param::from_parsed(Env::client_security(context)?),
+        cloud_certs: Param::from_parsed(Env::_cloud_certs(context)?),
         ..Default::default()
     };
 
     Ok(explicit)
 }
 
-fn parse_instance(local: &str, context: &mut impl BuildContext) -> Result<Params, ParseError> {
-    let Some(credentials) = (match context.read_config_file(format!("credentials/{local}.json"))? {
+fn parse_instance(local: &str, context: &impl BuildContext) -> Result<Params, ParseError> {
+    let credentials = StoredCredentials::new_ref(context);
+    let Some(credentials) = (match credentials.read(InstanceName::Local(local.to_string()))? {
         Some(credentials) => Some(credentials),
         None => {
             return Err(ParseError::CredentialsFileNotFound);
@@ -1158,7 +1175,7 @@ fn parse_instance(local: &str, context: &mut impl BuildContext) -> Result<Params
     parse_credentials(&credentials, context)
 }
 
-fn parse_cloud(profile: &str, context: &mut impl BuildContext) -> Result<Params, ParseError> {
+fn parse_cloud(profile: &str, context: &impl BuildContext) -> Result<Params, ParseError> {
     let mut explicit = Params::default();
 
     let Some(cloud_credentials): Option<CloudCredentialsFile> =
@@ -1174,239 +1191,6 @@ fn parse_cloud(profile: &str, context: &mut impl BuildContext) -> Result<Params,
     Ok(explicit)
 }
 
-/// An opaque type representing a credentials file.
-///
-/// Use [`std::str::FromStr`] to parse a credentials file from a string.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct CredentialsFile {
-    pub user: Option<String>,
-    pub host: Option<String>,
-    pub port: Option<NonZeroU16>,
-    pub password: Option<String>,
-    pub secret_key: Option<String>,
-    pub database: Option<String>,
-    pub branch: Option<String>,
-    pub tls_ca: Option<String>,
-    #[serde(default)]
-    pub tls_security: TlsSecurity,
-    pub tls_server_name: Option<String>,
-
-    #[serde(skip)]
-    pub(crate) warnings: Vec<Warning>,
-}
-
-impl From<&CredentialsFile> for Params {
-    fn from(credentials: &CredentialsFile) -> Self {
-        let host = if let Some(host) = credentials.host.clone() {
-            Param::Unparsed(host)
-        } else {
-            Param::Parsed(DEFAULT_HOST.clone())
-        };
-        let port = if let Some(port) = credentials.port {
-            Param::Parsed(port.into())
-        } else {
-            Param::Parsed(DEFAULT_PORT)
-        };
-
-        Params {
-            host,
-            port,
-            user: Param::from_unparsed(credentials.user.clone()),
-            password: Param::from_unparsed(credentials.password.clone()),
-            secret_key: Param::from_unparsed(credentials.secret_key.clone()),
-            database: Param::from_unparsed(credentials.database.clone()),
-            branch: Param::from_unparsed(credentials.branch.clone()),
-            tls_ca: Param::from_unparsed(credentials.tls_ca.clone()),
-            tls_security: Param::Parsed(credentials.tls_security),
-            tls_server_name: Param::from_unparsed(credentials.tls_server_name.clone()),
-            ..Default::default()
-        }
-    }
-}
-
-impl From<CredentialsFile> for Params {
-    fn from(credentials: CredentialsFile) -> Self {
-        Self::from(&credentials)
-    }
-}
-
-impl CredentialsFile {
-    pub fn warnings(&self) -> &[Warning] {
-        &self.warnings
-    }
-}
-
-impl FromStr for CredentialsFile {
-    type Err = ParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Ok(res) = serde_json::from_str::<CredentialsFile>(s) {
-            // Special case: don't allow database and branch to be set at the same time
-            if let (Some(database), Some(branch)) = (&res.database, &res.branch) {
-                if database != branch {
-                    return Err(ParseError::InvalidCredentialsFile(
-                        InvalidCredentialsFileError::ConflictingSettings(
-                            ("database".to_string(), database.clone()),
-                            ("branch".to_string(), branch.clone()),
-                        ),
-                    ));
-                }
-            }
-
-            return Ok(res);
-        }
-
-        let res = serde_json::from_str::<CredentialsFileCompat>(s).map_err(|e| {
-            ParseError::InvalidCredentialsFile(InvalidCredentialsFileError::SerializationError(
-                e.to_string(),
-            ))
-        })?;
-
-        res.try_into()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct CredentialsFileCompat {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    host: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    port: Option<NonZeroU16>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    user: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    password: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    secret_key: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    database: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    branch: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tls_cert_data: Option<String>, // deprecated
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tls_ca: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tls_server_name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tls_verify_hostname: Option<bool>, // deprecated
-    tls_security: Option<TlsSecurity>,
-}
-
-impl CredentialsFileCompat {
-    fn validate(&self) -> Vec<Warning> {
-        let mut warnings = Vec::new();
-        if self.tls_verify_hostname.is_some() {
-            warnings.push(Warning::DeprecatedCredentialProperty(
-                "tls_verify_hostname".to_string(),
-            ));
-        }
-        if self.tls_cert_data.is_some() {
-            warnings.push(Warning::DeprecatedCredentialProperty(
-                "tls_cert_data".to_string(),
-            ));
-        }
-        warnings
-    }
-}
-
-impl TryInto<CredentialsFile> for CredentialsFileCompat {
-    type Error = ParseError;
-
-    fn try_into(self) -> Result<CredentialsFile, Self::Error> {
-        let expected_verify = match self.tls_security {
-            Some(TlsSecurity::Strict) => Some(true),
-            Some(TlsSecurity::NoHostVerification) => Some(false),
-            Some(TlsSecurity::Insecure) => Some(false),
-            _ => None,
-        };
-        if self.tls_verify_hostname.is_some()
-            && self.tls_security.is_some()
-            && expected_verify
-                .zip(self.tls_verify_hostname)
-                .map(|(actual, expected)| actual != expected)
-                .unwrap_or(false)
-        {
-            Err(ParseError::InvalidCredentialsFile(
-                InvalidCredentialsFileError::ConflictingSettings(
-                    (
-                        "tls_security".to_string(),
-                        self.tls_security.unwrap().to_string(),
-                    ),
-                    (
-                        "tls_verify_hostname".to_string(),
-                        self.tls_verify_hostname.unwrap().to_string(),
-                    ),
-                ),
-            ))
-        } else if self.tls_ca.is_some()
-            && self.tls_cert_data.is_some()
-            && self.tls_ca != self.tls_cert_data
-        {
-            return Err(ParseError::InvalidCredentialsFile(
-                InvalidCredentialsFileError::ConflictingSettings(
-                    ("tls_ca".to_string(), self.tls_ca.unwrap().to_string()),
-                    (
-                        "tls_cert_data".to_string(),
-                        self.tls_cert_data.unwrap().to_string(),
-                    ),
-                ),
-            ));
-        } else {
-            // Special case: don't allow database and branch to be set at the same time
-            if self.database.is_some() && self.branch.is_some() && self.database != self.branch {
-                return Err(ParseError::InvalidCredentialsFile(
-                    InvalidCredentialsFileError::ConflictingSettings(
-                        ("database".to_string(), self.database.unwrap().to_string()),
-                        ("branch".to_string(), self.branch.unwrap().to_string()),
-                    ),
-                ));
-            }
-
-            let warnings = self.validate();
-
-            Ok(CredentialsFile {
-                host: self.host,
-                port: self.port,
-                user: self.user,
-                password: self.password,
-                secret_key: self.secret_key,
-                database: self.database,
-                branch: self.branch,
-                tls_ca: self.tls_ca.or(self.tls_cert_data.clone()),
-                tls_server_name: self.tls_server_name,
-                tls_security: self.tls_security.unwrap_or(match self.tls_verify_hostname {
-                    None => TlsSecurity::Default,
-                    Some(true) => TlsSecurity::Strict,
-                    Some(false) => TlsSecurity::NoHostVerification,
-                }),
-                warnings,
-            })
-        }
-    }
-}
-
-/// An opaque type representing a cloud credentials file.
-///
-/// Use [`std::str::FromStr`] to parse a cloud credentials file from a string.
-#[derive(Debug, Clone, Deserialize)]
-pub struct CloudCredentialsFile {
-    pub(crate) secret_key: String,
-}
-
-impl FromStr for CloudCredentialsFile {
-    type Err = ParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        serde_json::from_str(s).map_err(|e| {
-            ParseError::InvalidCredentialsFile(InvalidCredentialsFileError::SerializationError(
-                e.to_string(),
-            ))
-        })
-    }
-}
-
 /// Parse the connection from the given sources given the following precedence:
 ///
 /// 1. Explicit options
@@ -1416,7 +1200,7 @@ impl FromStr for CloudCredentialsFile {
 ///
 pub(crate) fn parse(
     mut explicit: Params,
-    context: &mut impl BuildContext,
+    context: &impl BuildContext,
     project: Option<ProjectDir>,
 ) -> Result<Config, ParseError> {
     // We always want to read the early environment variables.
@@ -1459,7 +1243,7 @@ pub(crate) fn parse(
 
 pub(crate) fn compute(
     mut explicit: Params,
-    context: &mut impl BuildContext,
+    context: &impl BuildContext,
     project: Option<ProjectDir>,
 ) -> Result<(Computed, Vec<ParseError>), ParseError> {
     // We always want to read the early environment variables.
@@ -1581,7 +1365,7 @@ mod tests {
             }
         );
 
-        let mut credentials = CredentialsFile {
+        let credentials = CredentialsFile {
             password: Some("password".to_string()),
             ..Default::default()
         };

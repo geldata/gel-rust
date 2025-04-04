@@ -56,7 +56,7 @@ impl ProjectDir {
 
 /// Searches for a project file either from the current directory or from a
 pub fn find_project_file(
-    context: &mut impl BuildContext,
+    context: &impl BuildContext,
     start_path: ProjectDir,
 ) -> io::Result<Option<ProjectSearchResult>> {
     let project_path = if let ProjectDir::Exact(path) = start_path {
@@ -126,7 +126,7 @@ fn stash_name(path: &Path) -> OsString {
 
 /// Searches for project files in the given directory and optionally its parents.
 fn search_directory(
-    context: &mut impl BuildContext,
+    context: &impl BuildContext,
     base: &Path,
     search_parents: bool,
 ) -> io::Result<Option<PathBuf>> {
@@ -175,7 +175,7 @@ fn search_directory(
 }
 
 /// Computes the path to the project's stash file based on the canonical path.
-fn get_stash_path(context: &mut impl BuildContext, project_dir: &Path) -> io::Result<PathBuf> {
+fn get_stash_path(context: &impl BuildContext, project_dir: &Path) -> io::Result<PathBuf> {
     let canonical = context
         .files()
         .canonicalize(project_dir)
@@ -207,7 +207,7 @@ impl Project {
         }
     }
 
-    pub(crate) fn load(path: &Path, context: &mut impl BuildContext) -> Option<Self> {
+    pub(crate) fn load(path: &Path, context: &impl BuildContext) -> Option<Self> {
         let cloud_profile = context
             .read_config_file::<String>(&path.join("cloud-profile"))
             .unwrap_or_default();

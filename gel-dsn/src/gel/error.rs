@@ -200,6 +200,8 @@ pub enum Warning {
     MultipleEnvironmentVariables(Vec<String>),
     #[display("{_0} is ignored when using Docker TCP port")]
     DockerPortIgnored(String),
+    #[display("Database and branch are set to default values")]
+    DefaultDatabaseAndBranch,
 }
 
 #[derive(Debug, Default)]
