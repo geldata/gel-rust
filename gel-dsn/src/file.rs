@@ -201,6 +201,10 @@ impl FileAccess for SystemFileAccess {
         Ok(files)
     }
 
+    fn write(&self, path: &Path, content: &str) -> Result<(), std::io::Error> {
+        std::fs::write(path, content)
+    }
+
     fn all_files(&self) -> Option<Vec<PathBuf>> {
         None
     }
