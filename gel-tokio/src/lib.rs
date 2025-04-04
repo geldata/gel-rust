@@ -136,6 +136,7 @@ pub use gel_dsn::gel::{Builder, CloudName, Config, InstanceName, TlsSecurity};
 /// Gel data-source name (DSN) parser and builder.
 pub mod dsn {
     pub use gel_dsn::gel::*;
+    pub use gel_dsn::{Host, HostType};
 }
 
 mod client;
