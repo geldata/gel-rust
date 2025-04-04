@@ -28,6 +28,9 @@ pub const DEFAULT_PORT: u16 = 5656;
 pub const DEFAULT_USER: &str = crate::gel::branding::BRANDING_DEFAULT_USERNAME_LEGACY;
 pub const DEFAULT_BRANCH: DatabaseBranch = DatabaseBranch::Default;
 
+pub const DEFAULT_DATABASE_NAME: &str = "edgedb";
+pub const DEFAULT_BRANCH_NAME: &str = "__default__";
+
 /// The result of building a [`Config`].
 pub struct ConfigResult {
     pub(crate) result: Result<Config, gel_errors::Error>,
@@ -337,7 +340,7 @@ impl Config {
     pub fn with_pem_certificates(&self, certs: &str) -> Result<Self, ParseError> {
         let certs = <Vec<CertificateDer<'static>> as FromParamStr>::from_param_str(
             certs,
-            &mut BuildContextImpl::default(),
+            &BuildContextImpl::default(),
         )?;
         Ok(Self {
             tls_ca: Some(certs),
@@ -519,7 +522,7 @@ impl DatabaseBranch {
             // Special case: we return branch here
             Self::Branch(branch) => Some(branch),
             Self::Ambiguous(ambiguous) => Some(ambiguous),
-            Self::Default => Some("edgedb"),
+            Self::Default => Some(DEFAULT_DATABASE_NAME),
         }
     }
 
@@ -529,7 +532,7 @@ impl DatabaseBranch {
             // Special case: we return database here
             Self::Database(database) => Some(database),
             Self::Ambiguous(ambiguous) => Some(ambiguous),
-            Self::Default => Some("__default__"),
+            Self::Default => Some(DEFAULT_BRANCH_NAME),
         }
     }
 
@@ -728,6 +731,7 @@ enum UnixPathInner {
     Exact(PathBuf),
 }
 
+/// A path to a Unix socket.
 #[derive(Clone, PartialEq, Eq, derive_more::Debug)]
 pub struct UnixPath {
     #[debug("{:?}", inner)]

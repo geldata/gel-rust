@@ -44,13 +44,14 @@ gel-auth = { path = "../gel-auth", version = "0" }
 gel-errors = { path = "../gel-errors", version = "0" }
 
 [dev-dependencies]
+gel-dsn = { path = ".", features = ["gel", "postgres", "unstable"] }
+
 rstest = "0.24"
 pretty_assertions = "1"
 libc = "0.2"
 paste = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-gel-dsn = { path = ".", features = ["gel", "postgres"] }
 tempfile = "3"
 
 [package.metadata.docs.rs]

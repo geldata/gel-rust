@@ -2,6 +2,7 @@
 
 mod branding;
 mod config;
+mod credentials;
 mod duration;
 mod env;
 pub mod error;
@@ -9,6 +10,7 @@ mod instance_name;
 mod param;
 mod params;
 mod project;
+mod stored;
 
 use std::{
     path::{Path, PathBuf},
@@ -20,6 +22,7 @@ use crate::{
     UserProfile,
 };
 pub use config::*;
+pub use credentials::*;
 use error::Warning;
 pub use instance_name::*;
 pub use param::*;
@@ -30,6 +33,9 @@ pub use env::define_env;
 
 #[cfg(feature = "unstable")]
 pub use project::{Project, ProjectDir, ProjectSearchResult};
+
+#[cfg(feature = "unstable")]
+pub use stored::{StoredCredentials, StoredInformation};
 
 /// Internal helper to parse a duration string into a `std::time::Duration`.
 #[doc(hidden)]
@@ -67,7 +73,7 @@ type LoggingFn = Box<dyn Fn(&str) + 'static>;
 type WarningFn = Box<dyn Fn(Warning) + 'static>;
 
 #[derive(Default)]
-struct Logging {
+pub(crate) struct Logging {
     tracing: Option<LoggingFn>,
     warning: Option<WarningFn>,
     #[cfg(feature = "log")]
@@ -190,7 +196,7 @@ impl Traces {
     }
 }
 
-struct BuildContextImpl<E: EnvVar = SystemEnvVars, F: FileAccess = SystemFileAccess> {
+pub(crate) struct BuildContextImpl<E: EnvVar = SystemEnvVars, F: FileAccess = SystemFileAccess> {
     env: E,
     files: F,
     pub config_dir: Option<Vec<PathBuf>>,
@@ -248,33 +254,25 @@ macro_rules! context_trace {
 pub(crate) use context_trace;
 
 pub(crate) trait BuildContext {
-    type EnvVar: EnvVar;
-    fn env(&self) -> &impl EnvVar;
     fn cwd(&self) -> Option<PathBuf>;
     fn files(&self) -> &impl FileAccess;
-    fn warn(&mut self, warning: error::Warning);
+    fn warn(&self, warning: error::Warning);
     fn read_config_file<T: FromParamStr>(
-        &mut self,
+        &self,
         path: impl AsRef<Path>,
     ) -> Result<Option<T>, T::Err>;
+    fn write_config_file(
+        &self,
+        path: impl AsRef<Path>,
+        content: &str,
+    ) -> Result<(), std::io::Error>;
     fn find_config_path(&self, path: impl AsRef<Path>) -> std::io::Result<PathBuf>;
-    fn read_env<'a, 'b, 'c, T: FromParamStr>(
-        &'c mut self,
-        env: impl Fn(&'b mut Self) -> Result<Option<T>, error::ParseError>,
-    ) -> Result<Option<T>, error::ParseError>
-    where
-        Self::EnvVar: 'a,
-        'c: 'a,
-        'c: 'b;
+    fn list_config_files(&self, path: impl AsRef<Path>) -> Result<Vec<PathBuf>, std::io::Error>;
+    fn read_env(&self, name: &str) -> Result<std::borrow::Cow<str>, std::env::VarError>;
     fn trace(&self, message: impl Fn(&dyn Fn(&str)));
 }
 
 impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
-    type EnvVar = E;
-    fn env(&self) -> &impl EnvVar {
-        &self.env
-    }
-
     fn cwd(&self) -> Option<PathBuf> {
         self.files.cwd()
     }
@@ -283,12 +281,12 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
         &self.files
     }
 
-    fn warn(&mut self, warning: error::Warning) {
+    fn warn(&self, warning: error::Warning) {
         self.logging.warn(warning);
     }
 
     fn read_config_file<T: FromParamStr>(
-        &mut self,
+        &self,
         path: impl AsRef<Path>,
     ) -> Result<Option<T>, T::Err> {
         for config_dir in self.config_dir.iter().flatten() {
@@ -312,6 +310,41 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
         Ok(None)
     }
 
+    fn write_config_file(
+        &self,
+        path: impl AsRef<Path>,
+        content: &str,
+    ) -> Result<(), std::io::Error> {
+        let path = path.as_ref();
+        // TODO: We need to be able to handle multiple config dirs. For now, just
+        // use the first one.
+        #[allow(clippy::never_loop)]
+        for config_dir in self.config_dir.iter().flatten() {
+            let path = config_dir.join(path);
+            context_trace!(self, "Writing config file: {}", path.display());
+            self.files.write(&path, content)?;
+            return Ok(());
+        }
+        Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Config path not found",
+        ))
+    }
+
+    fn list_config_files(&self, path: impl AsRef<Path>) -> Result<Vec<PathBuf>, std::io::Error> {
+        let mut files = Vec::new();
+        for config_dir in self.config_dir.iter().flatten() {
+            let path = config_dir.join(path.as_ref());
+            context_trace!(self, "Checking config path: {}", path.display());
+            for file in self.files.list_dir(&path)? {
+                context_trace!(self, "Found config file: {}", file.display());
+                files.push(file);
+            }
+        }
+
+        Ok(files)
+    }
+
     fn find_config_path(&self, path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
         for config_dir in self.config_dir.iter().flatten() {
             context_trace!(self, "Checking config path: {}", config_dir.display());
@@ -331,21 +364,8 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
         ))
     }
 
-    fn read_env<'a, 'b, 'c, T: FromParamStr>(
-        &'c mut self,
-        env: impl Fn(&'b mut Self) -> Result<Option<T>, error::ParseError>,
-    ) -> Result<Option<T>, error::ParseError>
-    where
-        Self::EnvVar: 'a,
-        'c: 'a,
-        'c: 'b,
-    {
-        let res = env(self);
-        match res {
-            Ok(Some(value)) => Ok(Some(value)),
-            Ok(None) => Ok(None),
-            Err(e) => Err(e),
-        }
+    fn read_env(&self, name: &str) -> Result<std::borrow::Cow<str>, std::env::VarError> {
+        self.env.read(name)
     }
 
     fn trace(&self, message: impl Fn(&dyn Fn(&str))) {

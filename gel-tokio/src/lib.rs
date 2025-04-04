@@ -130,7 +130,13 @@ unstable_pub_mods! {
     mod server_params;
 }
 
+#[deprecated(note = "use `dsn` module instead")]
 pub use gel_dsn::gel::{Builder, CloudName, Config, InstanceName, TlsSecurity};
+
+/// Gel data-source name (DSN) parser and builder.
+pub mod dsn {
+    pub use gel_dsn::gel::*;
+}
 
 mod client;
 mod errors;

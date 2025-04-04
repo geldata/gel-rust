@@ -60,7 +60,7 @@ default = ["derive", "env"]
 derive = ["gel-derive"]
 env = ["fs"]
 admin_socket = ["dirs"]
-unstable = ["serde_json"] # features for CLI and Wasm
+unstable = ["serde_json", "gel-dsn/unstable"] # features for CLI and Wasm
 fs = ["tokio/fs", "dirs", "serde_json"]
 miette-errors = ["gel-errors/miette"]
 

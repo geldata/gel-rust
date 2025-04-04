@@ -3,7 +3,6 @@ use super::{
     TlsSecurity,
 };
 use crate::host::HostType;
-use crate::EnvVar;
 use std::{borrow::Cow, fmt::Debug, num::NonZeroU16, path::PathBuf, time::Duration};
 
 define_env!(
@@ -85,7 +84,7 @@ define_env!(
 
 fn ignore_docker_tcp_port(
     s: &str,
-    context: &mut impl BuildContext,
+    context: &impl BuildContext,
 ) -> Result<Option<String>, ParseError> {
     if s.starts_with("tcp://") {
         context.warn(Warning::DockerPortIgnored(
@@ -122,7 +121,7 @@ macro_rules! __UNEXPORTED_define_env {
         impl Env {
             $(
                 #[doc = $doc]
-                pub fn $name(context: &mut impl $crate::gel::BuildContext) -> ::std::result::Result<::std::option::Option<$type>, $error> {
+                pub fn $name(context: &impl $crate::gel::BuildContext) -> ::std::result::Result<::std::option::Option<$type>, $error> {
                     const ENV_NAMES: &[&str] = &[$(stringify!($env_name)),+];
                     let Some((_name, s)) = $crate::gel::env::get_envs(ENV_NAMES, context)? else {
                         return Ok(None);
@@ -154,10 +153,7 @@ macro_rules! __UNEXPORTED_define_env {
 
 #[inline(never)]
 #[doc(hidden)]
-pub fn parse<T: FromParamStr, E>(
-    s: impl AsRef<str>,
-    context: &mut impl BuildContext,
-) -> Result<T, E>
+pub fn parse<T: FromParamStr, E>(s: impl AsRef<str>, context: &impl BuildContext) -> Result<T, E>
 where
     <T as FromParamStr>::Err: Into<E>,
 {
@@ -171,13 +167,13 @@ where
 #[doc(hidden)]
 pub fn get_envs(
     names: &'static [&'static str],
-    context: &mut impl BuildContext,
+    context: &impl BuildContext,
 ) -> Result<Option<(&'static str, Cow<'static, str>)>, ParseError> {
     let mut value = None;
     let mut found_vars = Vec::new();
 
     for name in names {
-        match context.env().read(name) {
+        match context.read_env(name) {
             Ok(val) => {
                 found_vars.push(format!("{}={}", name, val));
                 if value.is_none() {
@@ -223,10 +219,7 @@ mod tests {
         let mut context = BuildContextImpl::new_with(&map, ());
         let warnings = Warnings::default();
         context.logging.warning = Some(warnings.clone().warn_fn());
-        assert_eq!(
-            Env::host(&mut context).unwrap(),
-            Some("localhost".to_string())
-        );
+        assert_eq!(Env::host(&context).unwrap(), Some("localhost".to_string()));
         assert_eq!(
             warnings.into_vec(),
             vec![Warning::MultipleEnvironmentVariables(vec![

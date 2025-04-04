@@ -26,8 +26,8 @@ pub struct ProjectSearchResult {
 impl ProjectSearchResult {
     /// Find a project in the given directory.
     pub fn find(dir: ProjectDir) -> std::io::Result<Option<Self>> {
-        let mut context = BuildContextImpl::new();
-        let project = find_project_file(&mut context, dir)?;
+        let context = BuildContextImpl::new();
+        let project = find_project_file(&context, dir)?;
         Ok(project)
     }
 }
@@ -56,7 +56,7 @@ impl ProjectDir {
 
 /// Searches for a project file either from the current directory or from a
 pub fn find_project_file(
-    context: &mut impl BuildContext,
+    context: &impl BuildContext,
     start_path: ProjectDir,
 ) -> io::Result<Option<ProjectSearchResult>> {
     let project_path = if let ProjectDir::Exact(path) = start_path {
@@ -126,7 +126,7 @@ fn stash_name(path: &Path) -> OsString {
 
 /// Searches for project files in the given directory and optionally its parents.
 fn search_directory(
-    context: &mut impl BuildContext,
+    context: &impl BuildContext,
     base: &Path,
     search_parents: bool,
 ) -> io::Result<Option<PathBuf>> {
@@ -175,7 +175,7 @@ fn search_directory(
 }
 
 /// Computes the path to the project's stash file based on the canonical path.
-fn get_stash_path(context: &mut impl BuildContext, project_dir: &Path) -> io::Result<PathBuf> {
+fn get_stash_path(context: &impl BuildContext, project_dir: &Path) -> io::Result<PathBuf> {
     let canonical = context
         .files()
         .canonicalize(project_dir)
@@ -207,7 +207,7 @@ impl Project {
         }
     }
 
-    pub(crate) fn load(path: &Path, context: &mut impl BuildContext) -> Option<Self> {
+    pub(crate) fn load(path: &Path, context: &impl BuildContext) -> Option<Self> {
         let cloud_profile = context
             .read_config_file::<String>(&path.join("cloud-profile"))
             .unwrap_or_default();
@@ -259,7 +259,7 @@ mod tests {
         context.logging.tracing = Some(traces.clone().trace_fn());
         context.config_dir = Some(vec![PathBuf::from("/home/edgedb/.config/edgedb")]);
         let res = find_project_file(
-            &mut context,
+            &context,
             ProjectDir::Search(PathBuf::from("/home/edgedb/test")),
         );
 
@@ -296,7 +296,7 @@ mod tests {
 
         // Test gel.toml only
         fs::write(&gel_path, "test1").unwrap();
-        let found = find_project_file(&mut context, ProjectDir::Search(base.to_path_buf()))
+        let found = find_project_file(&context, ProjectDir::Search(base.to_path_buf()))
             .unwrap()
             .unwrap();
         assert_eq!(found.project_path, gel_path);
@@ -304,7 +304,7 @@ mod tests {
         // Test edgedb.toml only
         fs::remove_file(&gel_path).unwrap();
         fs::write(&edgedb_path, "test2").unwrap();
-        let found = find_project_file(&mut context, ProjectDir::Search(base.to_path_buf()))
+        let found = find_project_file(&context, ProjectDir::Search(base.to_path_buf()))
             .unwrap()
             .unwrap();
         assert_eq!(found.project_path, edgedb_path);
@@ -312,7 +312,7 @@ mod tests {
         // Test both files with same content
         fs::write(&gel_path, "test3").unwrap();
         fs::write(&edgedb_path, "test3").unwrap();
-        let found = find_project_file(&mut context, ProjectDir::Search(base.to_path_buf()))
+        let found = find_project_file(&context, ProjectDir::Search(base.to_path_buf()))
             .unwrap()
             .unwrap();
         assert_eq!(found.project_path, gel_path);
@@ -320,8 +320,7 @@ mod tests {
         // Test both files with different content
         fs::write(&gel_path, "test4").unwrap();
         fs::write(&edgedb_path, "test5").unwrap();
-        let err =
-            find_project_file(&mut context, ProjectDir::Search(base.to_path_buf())).unwrap_err();
+        let err = find_project_file(&context, ProjectDir::Search(base.to_path_buf())).unwrap_err();
         assert!(err.to_string().contains("but the contents are different"));
     }
 }
