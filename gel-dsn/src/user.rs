@@ -1,4 +1,7 @@
-use std::{borrow::Cow, path::Path};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 
 pub struct SystemUserProfile;
 
@@ -34,15 +37,38 @@ impl UserProfile for &'static str {
     }
 
     fn homedir(&self) -> Option<Cow<Path>> {
-        Some(Cow::Borrowed(Path::new("/home/edgedb")))
+        Some(Cow::Owned(PathBuf::from(format!("/home/{self}"))))
     }
 
     fn config_dir(&self) -> Option<Cow<Path>> {
-        Some(Cow::Borrowed(Path::new("/home/edgedb/.config")))
+        Some(Cow::Owned(PathBuf::from(format!("/home/{self}/.config"))))
     }
 
     fn data_local_dir(&self) -> Option<Cow<Path>> {
-        Some(Cow::Borrowed(Path::new("/home/edgedb/.local")))
+        Some(Cow::Owned(PathBuf::from(format!("/home/{self}/.local"))))
+    }
+}
+
+impl UserProfile for PathBuf {
+    fn username(&self) -> Option<Cow<str>> {
+        Some(Cow::Borrowed(
+            self.file_name()
+                .expect("no file name to infer username")
+                .to_str()
+                .unwrap(),
+        ))
+    }
+
+    fn homedir(&self) -> Option<Cow<Path>> {
+        Some(Cow::Borrowed(self))
+    }
+
+    fn config_dir(&self) -> Option<Cow<Path>> {
+        Some(Cow::Owned(self.join(".config")))
+    }
+
+    fn data_local_dir(&self) -> Option<Cow<Path>> {
+        Some(Cow::Owned(self.join(".local")))
     }
 }
 
