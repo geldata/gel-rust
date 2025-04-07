@@ -204,4 +204,44 @@ mod tests {
             .unwrap();
         assert!(content.is_some());
     }
+
+    /// Ensure that read/write works with the real filesystem, starting with
+    /// empty config dirs.
+    #[test]
+    fn test_real_fs() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let userdir = tempdir.path().join("home").join("someuser");
+
+        let stored = Builder::default()
+            .without_system()
+            .with_fs()
+            .with_user_impl(userdir)
+            .with_warning(|w| println!("warning: {}", w))
+            .with_tracing(|s| println!("{}", s))
+            .stored_info();
+        let credentials = stored.credentials();
+
+        let instances = credentials.list().unwrap();
+        assert_eq!(instances.len(), 0);
+
+        let creds = credentials
+            .read(InstanceName::Local("doesnotexist".to_string()))
+            .unwrap();
+        assert!(creds.is_none());
+
+        credentials
+            .write(
+                InstanceName::Local("local".to_string()),
+                &CredentialsFile::default(),
+            )
+            .unwrap();
+        let instances = credentials.list().unwrap();
+        assert_eq!(instances.len(), 1);
+        assert_eq!(instances[0], InstanceName::Local("local".to_string()));
+
+        let creds = credentials
+            .read(InstanceName::Local("local".to_string()))
+            .unwrap();
+        assert!(creds.is_some());
+    }
 }

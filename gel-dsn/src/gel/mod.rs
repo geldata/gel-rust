@@ -317,19 +317,30 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
         content: &str,
     ) -> Result<(), std::io::Error> {
         let path = path.as_ref();
-        // TODO: We need to be able to handle multiple config dirs. For now, just
-        // use the first one.
-        #[allow(clippy::never_loop)]
+
+        // Attempt to write to the first existing config directory.
         for config_dir in self.config_dir.iter().flatten() {
+            if !self.files.exists_dir(config_dir)? {
+                continue;
+            }
             let path = config_dir.join(path);
             context_trace!(self, "Writing config file: {}", path.display());
             self.files.write(&path, content)?;
             return Ok(());
         }
-        Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "Config path not found",
-        ))
+
+        // If we couldn't find an existing one, use the first config dir
+        if let Some(config_dir) = self.config_dir.iter().flatten().next() {
+            context_trace!(self, "Writing config file: {}", path.display());
+            let path = config_dir.join(path);
+            self.files.write(&path, content)?;
+            Ok(())
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Config path not found",
+            ))
+        }
     }
 
     /// Delete a configuration file. If the file does not exist, this is a no-op.
@@ -359,9 +370,15 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
         for config_dir in self.config_dir.iter().flatten() {
             let path = config_dir.join(path.as_ref());
             context_trace!(self, "Checking config path: {}", path.display());
-            for file in self.files.list_dir(&path)? {
-                context_trace!(self, "Found config file: {}", file.display());
-                files.push(file);
+            match self.files.list_dir(&path) {
+                Ok(file_list) => {
+                    for file in file_list {
+                        context_trace!(self, "Found config file: {}", file.display());
+                        files.push(file);
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e),
             }
         }
 

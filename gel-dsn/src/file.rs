@@ -74,7 +74,7 @@ pub trait FileAccess {
             .collect())
     }
 
-    /// Atomic write of a file.
+    /// Atomic write of a file. Creates all necessary parent directories.
     fn write(&self, _: &Path, _: &str) -> Result<(), std::io::Error> {
         Err(std::io::Error::new(
             std::io::ErrorKind::Unsupported,
@@ -204,7 +204,11 @@ impl FileAccess for SystemFileAccess {
     }
 
     fn exists_dir(&self, path: &Path) -> Result<bool, std::io::Error> {
-        std::fs::metadata(path).map(|metadata| metadata.is_dir())
+        match std::fs::metadata(path).map(|metadata| metadata.is_dir()) {
+            Ok(exists) => Ok(exists),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(e) => Err(e),
+        }
     }
 
     fn canonicalize(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
@@ -215,6 +219,12 @@ impl FileAccess for SystemFileAccess {
         let mut files = vec![];
         for file in std::fs::read_dir(path)?.flatten() {
             let path = file.path();
+            if let Some(filename) = path.file_name() {
+                let bytes = filename.as_encoded_bytes();
+                if bytes.starts_with(b".") && bytes.ends_with(b".tmp") {
+                    continue;
+                }
+            }
             if path.is_file() {
                 files.push(path);
             }
@@ -229,7 +239,18 @@ impl FileAccess for SystemFileAccess {
             temp_filename.push(filename);
             temp_filename.push(".tmp");
             let tempfile = path.with_file_name(temp_filename);
-            std::fs::write(&tempfile, content)?;
+            match std::fs::write(&tempfile, content) {
+                Ok(_) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    if let Some(parent) = tempfile.parent() {
+                        std::fs::create_dir_all(parent)?;
+                        std::fs::write(&tempfile, content)?;
+                    } else {
+                        return Err(e);
+                    }
+                }
+                Err(e) => return Err(e),
+            }
             match std::fs::rename(&tempfile, path) {
                 Ok(_) => {}
                 Err(e) => {

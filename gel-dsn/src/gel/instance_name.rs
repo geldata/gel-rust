@@ -23,7 +23,7 @@ impl From<&CloudName> for InstanceName {
 ///
 /// This is a convenience type that combines an organization name and an
 /// instance name.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CloudName {
     /// Organization name
@@ -120,7 +120,7 @@ impl CloudName {
 /// assert_eq!(format!("{}", instance), "my-org/my-instance");
 /// assert_eq!(format!("{:#}", instance), "Gel Cloud instance 'my-org/my-instance'");
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub enum InstanceName {
     /// Instance configured locally
     Local(String),
