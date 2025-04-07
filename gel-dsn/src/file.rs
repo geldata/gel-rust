@@ -231,7 +231,7 @@ impl FileAccess for SystemFileAccess {
             let tempfile = path.with_file_name(temp_filename);
             std::fs::write(&tempfile, content)?;
             match std::fs::rename(&tempfile, path) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => {
                     let _ = std::fs::remove_file(&tempfile);
                     return Err(e);
