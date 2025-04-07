@@ -230,7 +230,13 @@ impl FileAccess for SystemFileAccess {
             temp_filename.push(".tmp");
             let tempfile = path.with_file_name(temp_filename);
             std::fs::write(&tempfile, content)?;
-            std::fs::rename(tempfile, path)?;
+            match std::fs::rename(&tempfile, path) {
+                Ok(_) => {},
+                Err(e) => {
+                    let _ = std::fs::remove_file(&tempfile);
+                    return Err(e);
+                }
+            }
         } else {
             // No filename, which means this will fail -- let the operation
             // return a result
