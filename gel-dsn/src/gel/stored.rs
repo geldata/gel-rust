@@ -2,7 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use super::{
     context_trace, error::ParseError, BuildContext, CredentialsFile, InstanceName,
-    DEFAULT_BRANCH_NAME, DEFAULT_DATABASE_NAME,
+    DEFAULT_BRANCH_NAME_CONNECT, DEFAULT_DATABASE_NAME,
 };
 
 /// Read and write stored information such as [`CredentialsFile`] and [`Project`].
@@ -51,6 +51,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
         }
     }
 
+    /// List all stored credentials.
     pub fn list(&self) -> Result<Vec<InstanceName>, std::io::Error> {
         let files = self.context.list_config_files("credentials/")?;
         let mut instances = Vec::new();
@@ -119,7 +120,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
         let mut content = content.clone();
         // Special case: treat database=__default__ and branch=edgedb as not set
         if content.database.as_deref() == Some(DEFAULT_DATABASE_NAME)
-            && content.branch.as_deref() == Some(DEFAULT_BRANCH_NAME)
+            && content.branch.as_deref() == Some(DEFAULT_BRANCH_NAME_CONNECT)
         {
             content.database = None;
             content.branch = None;
@@ -127,6 +128,13 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
         let path = format!("credentials/{instance}.json");
         self.context
             .write_config_file(path, &serde_json::to_string(&content)?)
+    }
+
+    /// Delete the credentials for the given instance. If the credentials
+    /// do not exist, this is a no-op.
+    pub fn delete(&self, instance: InstanceName) -> Result<(), std::io::Error> {
+        let path = format!("credentials/{instance}.json");
+        self.context.delete_config_file(&path)
     }
 }
 

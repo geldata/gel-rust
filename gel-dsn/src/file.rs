@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    ffi::OsString,
     path::{Path, PathBuf},
     sync::Mutex,
 };
@@ -73,10 +74,19 @@ pub trait FileAccess {
             .collect())
     }
 
+    /// Atomic write of a file.
     fn write(&self, _: &Path, _: &str) -> Result<(), std::io::Error> {
         Err(std::io::Error::new(
             std::io::ErrorKind::Unsupported,
             "FileAccess::write_file is not implemented",
+        ))
+    }
+
+    /// Atomic deletion of a file.
+    fn delete(&self, _: &Path) -> Result<(), std::io::Error> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "FileAccess::delete_file is not implemented",
         ))
     }
 }
@@ -146,6 +156,17 @@ where
                 .collect(),
         )
     }
+
+    fn delete(&self, path: &Path) -> Result<(), std::io::Error> {
+        if self.lock().unwrap().remove(path).is_none() {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "File not found",
+            ))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl FileAccess for () {
@@ -202,7 +223,24 @@ impl FileAccess for SystemFileAccess {
     }
 
     fn write(&self, path: &Path, content: &str) -> Result<(), std::io::Error> {
-        std::fs::write(path, content)
+        if let Some(filename) = path.file_name() {
+            let mut temp_filename = OsString::default();
+            temp_filename.push(".");
+            temp_filename.push(filename);
+            temp_filename.push(".tmp");
+            let tempfile = path.with_file_name(temp_filename);
+            std::fs::write(&tempfile, content)?;
+            std::fs::rename(tempfile, path)?;
+        } else {
+            // No filename, which means this will fail -- let the operation
+            // return a result
+            std::fs::write(path, content)?;
+        }
+        Ok(())
+    }
+
+    fn delete(&self, path: &Path) -> Result<(), std::io::Error> {
+        std::fs::remove_file(path)
     }
 
     fn all_files(&self) -> Option<Vec<PathBuf>> {

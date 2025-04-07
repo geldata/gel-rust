@@ -266,6 +266,7 @@ pub(crate) trait BuildContext {
         path: impl AsRef<Path>,
         content: &str,
     ) -> Result<(), std::io::Error>;
+    fn delete_config_file(&self, path: impl AsRef<Path>) -> Result<(), std::io::Error>;
     fn find_config_path(&self, path: impl AsRef<Path>) -> std::io::Result<PathBuf>;
     fn list_config_files(&self, path: impl AsRef<Path>) -> Result<Vec<PathBuf>, std::io::Error>;
     fn read_env(&self, name: &str) -> Result<std::borrow::Cow<str>, std::env::VarError>;
@@ -329,6 +330,28 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
             std::io::ErrorKind::NotFound,
             "Config path not found",
         ))
+    }
+
+    /// Delete a configuration file. If the file does not exist, this is a no-op.
+    fn delete_config_file(&self, path: impl AsRef<Path>) -> Result<(), std::io::Error> {
+        let path = path.as_ref();
+        let mut res = Ok(());
+
+        // Attempt to delete from all configuration directories, ignoring
+        // non-existent files.
+        for config_dir in self.config_dir.iter().flatten() {
+            let path = config_dir.join(path);
+            context_trace!(self, "Deleting config file: {}", path.display());
+            if let Err(e) = self.files.delete(&path) {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    continue;
+                }
+                context_trace!(self, "Failed to delete config file: {}", e);
+                res = Err(e);
+            }
+        }
+
+        res
     }
 
     fn list_config_files(&self, path: impl AsRef<Path>) -> Result<Vec<PathBuf>, std::io::Error> {

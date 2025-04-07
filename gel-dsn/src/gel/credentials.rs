@@ -3,8 +3,8 @@ use std::{num::NonZeroU16, str::FromStr};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    error::*, Param, Params, TlsSecurity, DEFAULT_BRANCH_NAME, DEFAULT_DATABASE_NAME, DEFAULT_HOST,
-    DEFAULT_PORT,
+    error::*, Param, Params, TlsSecurity, DEFAULT_BRANCH_NAME_CONNECT, DEFAULT_DATABASE_NAME,
+    DEFAULT_HOST, DEFAULT_PORT,
 };
 
 /// An opaque type representing a credentials file.
@@ -76,8 +76,10 @@ impl FromStr for CredentialsFile {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Ok(mut res) = serde_json::from_str::<CredentialsFile>(s) {
             // Special case: treat database=__default__ and branch=edgedb as not set
-            if (Some(DEFAULT_DATABASE_NAME), Some(DEFAULT_BRANCH_NAME))
-                == (res.database.as_deref(), res.branch.as_deref())
+            if (
+                Some(DEFAULT_DATABASE_NAME),
+                Some(DEFAULT_BRANCH_NAME_CONNECT),
+            ) == (res.database.as_deref(), res.branch.as_deref())
             {
                 res.database = None;
                 res.branch = None;
@@ -139,7 +141,7 @@ impl CredentialsFileCompat {
     fn validate(&self) -> Vec<Warning> {
         let mut warnings = Vec::new();
         if self.database.as_deref() == Some(DEFAULT_DATABASE_NAME)
-            && self.branch.as_deref() == Some(DEFAULT_BRANCH_NAME)
+            && self.branch.as_deref() == Some(DEFAULT_BRANCH_NAME_CONNECT)
         {
             warnings.push(Warning::DefaultDatabaseAndBranch);
         }
@@ -206,8 +208,10 @@ impl TryInto<CredentialsFile> for CredentialsFileCompat {
             let mut branch = self.branch;
 
             // Special case: treat database=__default__ and branch=edgedb as not set
-            if (Some(DEFAULT_DATABASE_NAME), Some(DEFAULT_BRANCH_NAME))
-                == (database.as_deref(), branch.as_deref())
+            if (
+                Some(DEFAULT_DATABASE_NAME),
+                Some(DEFAULT_BRANCH_NAME_CONNECT),
+            ) == (database.as_deref(), branch.as_deref())
             {
                 database = None;
                 branch = None;
