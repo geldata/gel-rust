@@ -253,25 +253,34 @@ macro_rules! context_trace {
 
 pub(crate) use context_trace;
 
-pub(crate) trait BuildContext {
-    fn cwd(&self) -> Option<PathBuf>;
-    fn files(&self) -> &impl FileAccess;
-    fn warn(&self, warning: error::Warning);
-    fn read_config_file<T: FromParamStr>(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> Result<Option<T>, T::Err>;
-    fn write_config_file(
-        &self,
-        path: impl AsRef<Path>,
-        content: &str,
-    ) -> Result<(), std::io::Error>;
-    fn delete_config_file(&self, path: impl AsRef<Path>) -> Result<(), std::io::Error>;
-    fn find_config_path(&self, path: impl AsRef<Path>) -> std::io::Result<PathBuf>;
-    fn list_config_files(&self, path: impl AsRef<Path>) -> Result<Vec<PathBuf>, std::io::Error>;
-    fn read_env(&self, name: &str) -> Result<std::borrow::Cow<str>, std::env::VarError>;
-    fn trace(&self, message: impl Fn(&dyn Fn(&str)));
+mod sealed {
+    #![allow(private_interfaces, private_bounds)]
+
+    use super::{FileAccess, FromParamStr, Warning};
+    use std::path::{Path, PathBuf};
+    pub trait BuildContext {
+        fn cwd(&self) -> Option<PathBuf>;
+        fn files(&self) -> &impl FileAccess;
+        fn warn(&self, warning: Warning);
+        fn read_config_file<T: FromParamStr>(
+            &self,
+            path: impl AsRef<Path>,
+        ) -> Result<Option<T>, T::Err>;
+        fn write_config_file(
+            &self,
+            path: impl AsRef<Path>,
+            content: &str,
+        ) -> Result<(), std::io::Error>;
+        fn delete_config_file(&self, path: impl AsRef<Path>) -> Result<(), std::io::Error>;
+        fn find_config_path(&self, path: impl AsRef<Path>) -> std::io::Result<PathBuf>;
+        fn list_config_files(&self, path: impl AsRef<Path>)
+            -> Result<Vec<PathBuf>, std::io::Error>;
+        fn read_env(&self, name: &str) -> Result<std::borrow::Cow<str>, std::env::VarError>;
+        fn trace(&self, message: impl Fn(&dyn Fn(&str)));
+    }
 }
+
+use sealed::BuildContext;
 
 impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
     fn cwd(&self) -> Option<PathBuf> {
