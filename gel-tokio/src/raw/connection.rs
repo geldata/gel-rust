@@ -367,7 +367,7 @@ async fn connect4(cfg: &Config, mut stream: gel_stream::RawStream, cert_check: O
     if let Some(database) = cfg.db.database() {
         params.insert(String::from("database"), database.to_string());
     }
-    if let Some(branch) = cfg.db.branch() {
+    if let Some(branch) = cfg.db.branch_for_connect() {
         params.insert(String::from("branch"), branch.to_string());
     }
     if let Some(secret_key) = cfg.authentication.secret_key() {

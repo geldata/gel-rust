@@ -29,7 +29,12 @@ pub const DEFAULT_USER: &str = crate::gel::branding::BRANDING_DEFAULT_USERNAME_L
 pub const DEFAULT_BRANCH: DatabaseBranch = DatabaseBranch::Default;
 
 pub const DEFAULT_DATABASE_NAME: &str = "edgedb";
-pub const DEFAULT_BRANCH_NAME: &str = "__default__";
+
+/// The branch name used when connecting to an existing instance to request
+/// the default branch.
+pub const DEFAULT_BRANCH_NAME_CONNECT: &str = "__default__";
+/// The default branch name used when creating a new instance.
+pub const DEFAULT_BRANCH_NAME_CREATE: &str = "main";
 
 /// The result of building a [`Config`].
 pub struct ConfigResult {
@@ -184,14 +189,6 @@ impl Config {
         self.host.to_string()
     }
 
-    pub fn database(&self) -> Option<&str> {
-        self.db.database()
-    }
-
-    pub fn branch(&self) -> Option<&str> {
-        self.db.branch()
-    }
-
     pub fn secret_key(&self) -> Option<&str> {
         self.authentication.secret_key()
     }
@@ -236,7 +233,7 @@ impl Config {
                 url.set_path(database);
             }
 
-            if let Some(branch) = self.db.branch() {
+            if let Some(branch) = self.db.branch_for_connect() {
                 url.set_path(branch);
             }
         }
@@ -377,7 +374,7 @@ impl Config {
 
         ConfigJson {
             address: (self.host.0.to_string(), self.host.1 as usize),
-            branch: self.db.branch().map(|s| s.to_string()),
+            branch: self.db.branch_for_connect().map(|s| s.to_string()),
             database: self.db.database().map(|s| s.to_string()),
             password: self.authentication.password().map(|s| s.to_string()),
             secretKey: self.authentication.secret_key().map(|s| s.to_string()),
@@ -406,8 +403,8 @@ impl Config {
             port: Some(NonZero::new(tcp.1).expect("invalid zero port")),
             password: self.authentication.password().map(|s| s.to_string()),
             secret_key: self.authentication.secret_key().map(|s| s.to_string()),
-            database: self.db.name().map(|s| s.to_string()),
-            branch: self.db.branch().map(|s| s.to_string()),
+            database: self.db.database().map(|s| s.to_string()),
+            branch: self.db.branch_for_connect().map(|s| s.to_string()),
             tls_ca: self.tls_ca_pem(),
             tls_security: self.tls_security,
             tls_server_name: self.tls_server_name.clone(),
@@ -526,13 +523,23 @@ impl DatabaseBranch {
         }
     }
 
-    pub fn branch(&self) -> Option<&str> {
+    pub fn branch_for_connect(&self) -> Option<&str> {
         match self {
             Self::Branch(branch) => Some(branch),
             // Special case: we return database here
             Self::Database(database) => Some(database),
             Self::Ambiguous(ambiguous) => Some(ambiguous),
-            Self::Default => Some(DEFAULT_BRANCH_NAME),
+            Self::Default => Some(DEFAULT_BRANCH_NAME_CONNECT),
+        }
+    }
+
+    pub fn branch_for_create(&self) -> Option<&str> {
+        match self {
+            Self::Branch(branch) => Some(branch),
+            // Special case: we return database here
+            Self::Database(database) => Some(database),
+            Self::Ambiguous(ambiguous) => Some(ambiguous),
+            Self::Default => Some(DEFAULT_BRANCH_NAME_CREATE),
         }
     }
 
