@@ -1,4 +1,5 @@
-use std::{str::FromStr, sync::Arc};
+use crate::gel::error::Warning;
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use super::{
     context_trace, error::ParseError, BuildContext, CredentialsFile, InstanceName,
@@ -20,10 +21,96 @@ impl<C: BuildContext> StoredInformation<C> {
         Self { context }
     }
 
+    pub fn paths(&self) -> Paths<C, Arc<C>> {
+        Paths::new(self.context.clone())
+    }
+
     pub fn credentials(&self) -> StoredCredentials<C, Arc<C>> {
         StoredCredentials::new(self.context.clone())
     }
 }
+
+pub struct Paths<CT: BuildContext, C: std::ops::Deref<Target = CT>> {
+    context: C,
+    _marker: std::marker::PhantomData<CT>,
+}
+
+impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> Paths<CT, C> {
+    pub fn new(context: C) -> Self {
+        Self {
+            context,
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    pub fn for_system(&self) -> SystemPaths {
+        let paths = self.context.paths();
+        SystemPaths {
+            home_dir: paths.homedir.clone(),
+            config_dir: paths.config_dirs.first().cloned(),
+            data_local_dir: paths.data_local_dir.clone(),
+            data_dir: paths.data_dir.clone(),
+            cache_dir: paths.cache_dir.clone(),
+        }
+    }
+
+    pub fn for_instance(&self, local_name: &str) -> Option<InstancePaths> {
+        if let (Some(data_dir), Some(config_dir)) = (
+            &self.context.paths().data_dir,
+            &self.context.paths().config_dir,
+        ) {
+            Some(InstancePaths {
+                data_dir: data_dir.join("data").join(local_name),
+                credentials_path: config_dir
+                    .join("credentials")
+                    .join(format!("{}.json", local_name)),
+            })
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SystemPaths {
+    /// The user's home directory.
+    pub home_dir: Option<PathBuf>,
+
+    /// The resolved system configuration directory, including the branding name.
+    ///
+    /// Configuration data should be stored in this directory.
+    pub config_dir: Option<PathBuf>,
+
+    /// The resolved system data directory, including the branding name.
+    ///
+    /// Data files expected to be shared between machines should be stored in
+    /// this directory.
+    pub data_dir: Option<PathBuf>,
+
+    /// The resolved system local data directory, including the branding name.
+    ///
+    /// Data files expected to be local to a single machine should be stored in
+    /// this directory. Not all platforms may support this.
+    pub data_local_dir: Option<PathBuf>,
+
+    /// The resolved system cache directory, including the branding name.
+    ///
+    /// Cache files should be stored in this directory, and will not be
+    /// guaranteed to survive between invocations of the program.
+    pub cache_dir: Option<PathBuf>,
+}
+
+impl SystemPaths {}
+
+#[derive(Debug)]
+pub struct InstancePaths {
+    /// The base data path for an instance.
+    pub data_dir: PathBuf,
+    /// The path to the credentials file for an instance.
+    pub credentials_path: PathBuf,
+}
+
+impl InstancePaths {}
 
 /// The persistent collection of stored credentials.
 #[allow(private_bounds)]
@@ -98,10 +185,14 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
         if let Some(content) = &content {
             if !content.warnings().is_empty() {
                 if let Ok(s) = serde_json::to_string(content) {
-                    if self.context.write_config_file(path, &s).is_ok() {
-                        context_trace!(self.context, "Updated out-of-date credentials");
+                    self.context.warn(Warning::UpdatedOutdatedCredentials);
+                    if self.context.write_config_file(&path, &s).is_ok() {
+                        context_trace!(
+                            self.context,
+                            "Updated out-of-date credentials file: {path}"
+                        );
                     } else {
-                        context_trace!(self.context, "Failed to update credentials");
+                        context_trace!(self.context, "Failed to update credentials file: {path}");
                     }
                 } else {
                     context_trace!(self.context, "Failed to serialize credentials");
@@ -243,5 +334,48 @@ mod tests {
             .read(InstanceName::Local("local".to_string()))
             .unwrap();
         assert!(creds.is_some());
+    }
+
+    #[test]
+    fn test_system_paths() {
+        let stored = Builder::default().with_system().stored_info();
+        let paths = stored.paths();
+
+        let system = paths.for_system();
+        eprintln!("system: {:?}", system);
+        assert!(system.home_dir.is_some());
+        assert!(system.config_dir.is_some());
+        assert!(system.data_dir.is_some());
+        assert!(system.data_local_dir.is_some());
+        assert!(system.cache_dir.is_some());
+
+        let instance = paths.for_instance("local").unwrap();
+        eprintln!("instance: {:?}", instance);
+
+        if cfg!(unix) {
+            assert_eq!(
+                instance.data_dir,
+                dirs::data_dir().unwrap().join("edgedb/data/local")
+            );
+            assert_eq!(
+                instance.credentials_path,
+                dirs::config_dir()
+                    .unwrap()
+                    .join("edgedb/credentials/local.json")
+            );
+        } else if cfg!(windows) {
+            assert_eq!(
+                instance.data_dir,
+                dirs::data_local_dir().unwrap().join("EdgeDB/data/local")
+            );
+            assert_eq!(
+                instance.credentials_path,
+                dirs::config_dir()
+                    .unwrap()
+                    .join("EdgeDB/credentials/local.json")
+            );
+        } else {
+            unreachable!("Unsupported platform");
+        }
     }
 }

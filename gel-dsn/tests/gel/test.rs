@@ -171,9 +171,13 @@ impl UserProfile for &ConnectionTestcase {
     }
 
     fn data_local_dir(&self) -> Option<Cow<Path>> {
-        Some(Cow::Borrowed(Path::new(
-            "/home/edgedb/Library/Application Support/edgedb",
-        )))
+        // Unused for DSN tests
+        None
+    }
+
+    fn data_dir(&self) -> Option<Cow<Path>> {
+        // Unused for DSN tests
+        None
     }
 
     fn homedir(&self) -> Option<Cow<Path>> {
@@ -182,6 +186,26 @@ impl UserProfile for &ConnectionTestcase {
 
     fn username(&self) -> Option<Cow<str>> {
         Some(Cow::Borrowed("edgedb"))
+    }
+
+    fn cache_dir(&self) -> Option<Cow<Path>> {
+        // Unused for DSN tests
+        None
+    }
+
+    fn config_dirs(&self) -> Vec<Cow<Path>> {
+        if self.platform.as_deref() == Some("windows") {
+            let root = Path::new(r#"C:\Users\edgedb\AppData\Local"#);
+            vec![
+                Cow::Owned(root.join("Gel").join("config")),
+                Cow::Owned(root.join("EdgeDB").join("config")),
+            ]
+        } else {
+            vec![
+                Cow::Owned(self.config_dir().unwrap().join("gel")),
+                Cow::Owned(self.config_dir().unwrap().join("edgedb")),
+            ]
+        }
     }
 }
 
