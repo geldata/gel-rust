@@ -1,5 +1,5 @@
-use std::{path::PathBuf, str::FromStr, sync::Arc};
 use crate::gel::error::Warning;
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use super::{
     context_trace, error::ParseError, BuildContext, CredentialsFile, InstanceName,
@@ -192,10 +192,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
                             "Updated out-of-date credentials file: {path}"
                         );
                     } else {
-                        context_trace!(
-                            self.context,
-                            "Failed to update credentials file: {path}"
-                        );
+                        context_trace!(self.context, "Failed to update credentials file: {path}");
                     }
                 } else {
                     context_trace!(self.context, "Failed to serialize credentials");
