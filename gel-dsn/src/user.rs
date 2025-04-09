@@ -10,7 +10,10 @@ pub trait UserProfile {
     fn username(&self) -> Option<Cow<str>>;
     fn homedir(&self) -> Option<Cow<Path>>;
     fn config_dir(&self) -> Option<Cow<Path>>;
+    fn data_dir(&self) -> Option<Cow<Path>>;
     fn data_local_dir(&self) -> Option<Cow<Path>>;
+    fn config_dirs(&self) -> Vec<Cow<Path>>;
+    fn cache_dir(&self) -> Option<Cow<Path>>;
 }
 
 impl UserProfile for () {
@@ -26,8 +29,20 @@ impl UserProfile for () {
         None
     }
 
+    fn data_dir(&self) -> Option<Cow<Path>> {
+        None
+    }
+
     fn data_local_dir(&self) -> Option<Cow<Path>> {
         None
+    }
+
+    fn cache_dir(&self) -> Option<Cow<Path>> {
+        None
+    }
+
+    fn config_dirs(&self) -> Vec<Cow<Path>> {
+        vec![]
     }
 }
 
@@ -44,8 +59,25 @@ impl UserProfile for &'static str {
         Some(Cow::Owned(PathBuf::from(format!("/home/{self}/.config"))))
     }
 
+    fn data_dir(&self) -> Option<Cow<Path>> {
+        Some(Cow::Owned(PathBuf::from(format!("/home/{self}/.local"))))
+    }
+
     fn data_local_dir(&self) -> Option<Cow<Path>> {
         Some(Cow::Owned(PathBuf::from(format!("/home/{self}/.local"))))
+    }
+
+    fn cache_dir(&self) -> Option<Cow<Path>> {
+        Some(Cow::Owned(PathBuf::from(format!(
+            "/home/{self}/.cache/edgedb"
+        ))))
+    }
+
+    fn config_dirs(&self) -> Vec<Cow<Path>> {
+        vec![
+            Cow::Owned(PathBuf::from(format!("/home/{self}/.config/gel"))),
+            Cow::Owned(PathBuf::from(format!("/home/{self}/.config/edgedb"))),
+        ]
     }
 }
 
@@ -70,6 +102,21 @@ impl UserProfile for PathBuf {
     fn data_local_dir(&self) -> Option<Cow<Path>> {
         Some(Cow::Owned(self.join(".local")))
     }
+
+    fn data_dir(&self) -> Option<Cow<Path>> {
+        Some(Cow::Owned(self.join(".local")))
+    }
+
+    fn cache_dir(&self) -> Option<Cow<Path>> {
+        Some(Cow::Owned(self.join(".cache").join("edgedb")))
+    }
+
+    fn config_dirs(&self) -> Vec<Cow<Path>> {
+        vec![
+            Cow::Owned(self.join(".config").join("gel")),
+            Cow::Owned(self.join(".config").join("edgedb")),
+        ]
+    }
 }
 
 impl UserProfile for SystemUserProfile {
@@ -86,6 +133,49 @@ impl UserProfile for SystemUserProfile {
     }
 
     fn data_local_dir(&self) -> Option<Cow<Path>> {
-        dirs::data_local_dir().map(Cow::Owned)
+        if cfg!(windows) {
+            dirs::data_local_dir().map(|p| Cow::Owned(p.join("EdgeDB")))
+        } else if cfg!(unix) {
+            dirs::data_local_dir().map(|p| Cow::Owned(p.join("edgedb")))
+        } else {
+            None
+        }
+    }
+
+    fn data_dir(&self) -> Option<Cow<Path>> {
+        if cfg!(windows) {
+            dirs::data_dir().map(|p| Cow::Owned(p.join("EdgeDB")))
+        } else if cfg!(unix) {
+            dirs::data_dir().map(|p| Cow::Owned(p.join("edgedb")))
+        } else {
+            None
+        }
+    }
+
+    fn cache_dir(&self) -> Option<Cow<Path>> {
+        if cfg!(windows) {
+            dirs::data_local_dir().map(|p| Cow::Owned(p.join("EdgeDB").join("cache")))
+        } else if cfg!(unix) {
+            dirs::cache_dir().map(|p| Cow::Owned(p.join("edgedb")))
+        } else {
+            None
+        }
+    }
+
+    fn config_dirs(&self) -> Vec<Cow<Path>> {
+        let mut dirs = Vec::new();
+        if cfg!(unix) {
+            if let Some(dir) = self.config_dir() {
+                dirs.push(Cow::Owned(dir.join("edgedb")));
+                dirs.push(Cow::Owned(dir.join("gel")));
+            }
+        }
+        if cfg!(windows) {
+            if let Some(dir) = dirs::data_local_dir() {
+                dirs.push(Cow::Owned(dir.join("EdgeDB").join("config")));
+                dirs.push(Cow::Owned(dir.join("Gel").join("config")));
+            }
+        }
+        dirs
     }
 }

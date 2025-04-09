@@ -202,6 +202,8 @@ pub enum Warning {
     DockerPortIgnored(String),
     #[display("Database and branch are set to default values")]
     DefaultDatabaseAndBranch,
+    #[display("Updated out-of-date credentials file")]
+    UpdatedOutdatedCredentials,
 }
 
 #[derive(Debug, Default)]

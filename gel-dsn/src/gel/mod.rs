@@ -35,7 +35,7 @@ pub use env::define_env;
 pub use project::{Project, ProjectDir, ProjectSearchResult};
 
 #[cfg(feature = "unstable")]
-pub use stored::{StoredCredentials, StoredInformation};
+pub use stored::{InstancePaths, StoredCredentials, StoredInformation, SystemPaths};
 
 /// Internal helper to parse a duration string into a `std::time::Duration`.
 #[doc(hidden)]
@@ -50,23 +50,6 @@ pub fn parse_duration(s: &str) -> Result<std::time::Duration, Box<dyn std::error
 #[doc(hidden)]
 pub fn format_duration(d: &std::time::Duration) -> String {
     duration::Duration::from_micros(d.as_micros() as i64).to_string()
-}
-
-fn config_dirs<U: UserProfile>(user: &U) -> Vec<PathBuf> {
-    let mut dirs = Vec::new();
-    if cfg!(unix) {
-        if let Some(dir) = user.config_dir() {
-            dirs.push(dir.join("edgedb"));
-            dirs.push(dir.join("gel"));
-        }
-    }
-    if cfg!(windows) {
-        if let Some(dir) = user.data_local_dir() {
-            dirs.push(dir.join("EdgeDB").join("config"));
-            dirs.push(dir.join("Gel").join("config"));
-        }
-    }
-    dirs
 }
 
 type LoggingFn = Box<dyn Fn(&str) + 'static>;
@@ -199,7 +182,7 @@ impl Traces {
 pub(crate) struct BuildContextImpl<E: EnvVar = SystemEnvVars, F: FileAccess = SystemFileAccess> {
     env: E,
     files: F,
-    pub config_dir: Option<Vec<PathBuf>>,
+    paths: ResolvedPaths,
     pub(crate) logging: Logging,
 }
 
@@ -215,7 +198,7 @@ impl BuildContextImpl<SystemEnvVars, SystemFileAccess> {
         Self {
             env: SystemEnvVars,
             files: SystemFileAccess,
-            config_dir: Some(config_dirs(&SystemUserProfile)),
+            paths: ResolvedPaths::new(SystemUserProfile),
             logging: Logging::default(),
         }
     }
@@ -224,11 +207,10 @@ impl BuildContextImpl<SystemEnvVars, SystemFileAccess> {
 impl<E: EnvVar, F: FileAccess> BuildContextImpl<E, F> {
     /// Create a new build context with default values.
     pub fn new_with_user_profile<U: UserProfile>(env: E, files: F, user: U) -> Self {
-        let config_dir = config_dirs(&user);
         Self {
             env,
             files,
-            config_dir: Some(config_dir),
+            paths: ResolvedPaths::new(user),
             logging: Logging::default(),
         }
     }
@@ -239,7 +221,7 @@ impl<E: EnvVar, F: FileAccess> BuildContextImpl<E, F> {
         Self {
             env,
             files,
-            config_dir: None,
+            paths: ResolvedPaths::default(),
             logging: Logging::default(),
         }
     }
@@ -256,11 +238,42 @@ pub(crate) use context_trace;
 mod sealed {
     #![allow(private_interfaces, private_bounds)]
 
-    use super::{FileAccess, FromParamStr, Warning};
+    use super::{FileAccess, FromParamStr, UserProfile, Warning};
     use std::path::{Path, PathBuf};
+
+    #[derive(Debug, Clone, Default)]
+    pub struct ResolvedPaths {
+        pub username: Option<String>,
+        pub homedir: Option<PathBuf>,
+        pub cache_dir: Option<PathBuf>,
+        pub config_dir: Option<PathBuf>,
+        pub data_dir: Option<PathBuf>,
+        pub data_local_dir: Option<PathBuf>,
+        pub config_dirs: Vec<PathBuf>,
+    }
+
+    impl ResolvedPaths {
+        pub fn new<U: UserProfile>(user: U) -> Self {
+            Self {
+                username: user.username().map(|s| s.to_string()),
+                homedir: user.homedir().map(|p| p.to_path_buf()),
+                cache_dir: user.cache_dir().map(|p| p.to_path_buf()),
+                config_dir: user.config_dirs().first().map(|p| p.to_path_buf()),
+                data_dir: user.data_dir().map(|p| p.to_path_buf()),
+                data_local_dir: user.data_local_dir().map(|p| p.to_path_buf()),
+                config_dirs: user
+                    .config_dirs()
+                    .into_iter()
+                    .map(|p| p.to_path_buf())
+                    .collect(),
+            }
+        }
+    }
+
     pub trait BuildContext {
         fn cwd(&self) -> Option<PathBuf>;
         fn files(&self) -> &impl FileAccess;
+        fn paths(&self) -> &ResolvedPaths;
         fn warn(&self, warning: Warning);
         fn read_config_file<T: FromParamStr>(
             &self,
@@ -280,7 +293,7 @@ mod sealed {
     }
 }
 
-use sealed::BuildContext;
+use sealed::{BuildContext, ResolvedPaths};
 
 impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
     fn cwd(&self) -> Option<PathBuf> {
@@ -291,6 +304,10 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
         &self.files
     }
 
+    fn paths(&self) -> &ResolvedPaths {
+        &self.paths
+    }
+
     fn warn(&self, warning: error::Warning) {
         self.logging.warn(warning);
     }
@@ -299,7 +316,7 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
         &self,
         path: impl AsRef<Path>,
     ) -> Result<Option<T>, T::Err> {
-        for config_dir in self.config_dir.iter().flatten() {
+        for config_dir in &self.paths.config_dirs {
             let path = config_dir.join(path.as_ref());
             context_trace!(self, "Reading config file: {}", path.display());
             if let Ok(file) = self.files.read(&path) {
@@ -328,7 +345,7 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
         let path = path.as_ref();
 
         // Attempt to write to the first existing config directory.
-        for config_dir in self.config_dir.iter().flatten() {
+        for config_dir in &self.paths.config_dirs {
             if !self.files.exists_dir(config_dir)? {
                 continue;
             }
@@ -339,7 +356,7 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
         }
 
         // If we couldn't find an existing one, use the first config dir
-        if let Some(config_dir) = self.config_dir.iter().flatten().next() {
+        if let Some(config_dir) = self.paths.config_dirs.first() {
             context_trace!(self, "Writing config file: {}", path.display());
             let path = config_dir.join(path);
             self.files.write(&path, content)?;
@@ -359,7 +376,7 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
 
         // Attempt to delete from all configuration directories, ignoring
         // non-existent files.
-        for config_dir in self.config_dir.iter().flatten() {
+        for config_dir in &self.paths.config_dirs {
             let path = config_dir.join(path);
             context_trace!(self, "Deleting config file: {}", path.display());
             if let Err(e) = self.files.delete(&path) {
@@ -376,7 +393,7 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
 
     fn list_config_files(&self, path: impl AsRef<Path>) -> Result<Vec<PathBuf>, std::io::Error> {
         let mut files = Vec::new();
-        for config_dir in self.config_dir.iter().flatten() {
+        for config_dir in &self.paths.config_dirs {
             let path = config_dir.join(path.as_ref());
             context_trace!(self, "Checking config path: {}", path.display());
             match self.files.list_dir(&path) {
@@ -395,7 +412,7 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
     }
 
     fn find_config_path(&self, path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
-        for config_dir in self.config_dir.iter().flatten() {
+        for config_dir in &self.paths.config_dirs {
             context_trace!(self, "Checking config path: {}", config_dir.display());
             if matches!(self.files.exists_dir(config_dir), Ok(true)) {
                 return Ok(config_dir.join(path));
@@ -403,7 +420,7 @@ impl<E: EnvVar, F: FileAccess> BuildContext for BuildContextImpl<E, F> {
         }
 
         // If we couldn't find an existing one, use the first config dir
-        if let Some(config_dir) = self.config_dir.iter().flatten().next() {
+        if let Some(config_dir) = self.paths.config_dirs.first() {
             return Ok(config_dir.join(path));
         }
 

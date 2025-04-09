@@ -257,7 +257,7 @@ mod tests {
 
         let mut context = BuildContextImpl::new_with((), files);
         context.logging.tracing = Some(traces.clone().trace_fn());
-        context.config_dir = Some(vec![PathBuf::from("/home/edgedb/.config/edgedb")]);
+        context.paths.config_dirs = vec![PathBuf::from("/home/edgedb/.config/edgedb")];
         let res = find_project_file(
             &context,
             ProjectDir::Search(PathBuf::from("/home/edgedb/test")),
@@ -292,7 +292,7 @@ mod tests {
         std::fs::create_dir_all(config_dir.join("projects")).unwrap();
 
         let mut context = BuildContextImpl::new_with((), SystemFileAccess);
-        context.config_dir = Some(vec![config_dir]);
+        context.paths.config_dirs = vec![config_dir];
 
         // Test gel.toml only
         fs::write(&gel_path, "test1").unwrap();
