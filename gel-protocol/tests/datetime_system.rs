@@ -48,6 +48,7 @@ use test_case::test_case;
     /*formatted*/ "1997-07-05T01:02:03Z"
     ; "negative postgres timestamp, round down"
 )]
+#[cfg(not(windows))] // relies on nanosecond, but windows is 100ns
 #[test_case(
     /*input*/ "1997-07-05T01:02:03.000000501Z",
     /*micros*/ -78620276999999,
@@ -90,6 +91,7 @@ use test_case::test_case;
     /*formatted*/ "2022-02-24T05:43:03.000002000Z"
     ; "positive timestamp, round down"
 )]
+#[cfg(not(windows))] // relies on nanosecond, but windows is 100ns
 #[test_case(
     /*input*/ "2022-02-24T05:43:03.000002501Z",
     /*micros*/ 698996583000003,
@@ -145,6 +147,7 @@ fn datetime(input: &str, micros: i64, formatted: &str) {
     /*output*/ StdDuration::new(4917106676, 999994000)
     ; "negative unix timestamp, 5501"
 )]
+#[cfg(not(windows))] // relies on nanosecond, but windows is 100ns
 #[test_case(
     /*input: "1814-03-09T01:02:03.000005499Z",*/
         StdDuration::new(4917106676, 999994501),
