@@ -250,6 +250,7 @@ mod sealed {
         pub data_dir: Option<PathBuf>,
         pub data_local_dir: Option<PathBuf>,
         pub config_dirs: Vec<PathBuf>,
+        pub runstate_dir: Option<PathBuf>,
     }
 
     impl ResolvedPaths {
@@ -266,6 +267,7 @@ mod sealed {
                     .into_iter()
                     .map(|p| p.to_path_buf())
                     .collect(),
+                runstate_dir: user.runstate_dir().map(|p| p.to_path_buf()),
             }
         }
     }
@@ -508,6 +510,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_unix_path() {
         // Test unix path without a port

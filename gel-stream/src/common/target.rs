@@ -568,8 +568,11 @@ mod tests {
         )));
         assert_eq!(format!("{target:?}"), "[fe80::1ff:fe23:4567:890a%2]:5432");
 
-        let target = TargetName::new_unix_path("/tmp/test.sock").unwrap();
-        assert_eq!(format!("{target:?}"), "/tmp/test.sock");
+        #[cfg(unix)]
+        {
+            let target = TargetName::new_unix_path("/tmp/test.sock").unwrap();
+            assert_eq!(format!("{target:?}"), "/tmp/test.sock");
+        }
 
         #[cfg(any(target_os = "linux", target_os = "android"))]
         {
