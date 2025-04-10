@@ -1180,8 +1180,8 @@ fn parse_instance(local: &str, context: &impl BuildContext) -> Result<Params, Pa
 fn parse_cloud(profile: &str, context: &impl BuildContext) -> Result<Params, ParseError> {
     let mut explicit = Params::default();
 
-    let Some(cloud_credentials): Option<CloudCredentialsFile> =
-        context.read_config_file(format!("cloud-credentials/{profile}.json"))?
+    let Some(cloud_credentials): Option<CloudCredentialsFile> = context
+        .read_config_file(Path::new("cloud-credentials").join(format!("{}.json", profile)))?
     else {
         return {
             let value = Params::default();
@@ -1304,6 +1304,7 @@ mod tests {
         // let params = Builder::default().with_env().project_dir(Path::new("."));
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_with_unix_socket() {
         let params = Builder::default()

@@ -156,6 +156,7 @@ macro_rules! tls_test (
             )*
         }
 
+        #[cfg(not(windows))]
         mod rustls_server {
             use super::*;
             $(
@@ -169,6 +170,7 @@ macro_rules! tls_test (
             )*
         }
 
+        #[cfg(not(windows))]
         mod openssl {
             use super::*;
 
@@ -183,6 +185,7 @@ macro_rules! tls_test (
             )*
         }
 
+        #[cfg(not(windows))]
         mod openssl_server {
             use super::*;
             $(
@@ -620,6 +623,7 @@ macro_rules! tls_client_test (
             )*
         }
 
+        #[cfg(not(windows))]
         mod openssl_client {
             use super::*;
 
