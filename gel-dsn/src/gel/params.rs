@@ -827,7 +827,10 @@ impl Params {
                             }
                         }
                     } else {
-                        return Err(ParseError::SecretKeyNotFound);
+                        // Special case: we ignore the secret key error until the final phase
+                        if phase == BuildPhase::Project {
+                            return Err(ParseError::SecretKeyNotFound);
+                        }
                     }
                 }
             }
