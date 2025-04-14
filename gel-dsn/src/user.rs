@@ -14,6 +14,9 @@ pub trait UserProfile {
     fn data_local_dir(&self) -> Option<Cow<Path>>;
     fn config_dirs(&self) -> Vec<Cow<Path>>;
     fn cache_dir(&self) -> Option<Cow<Path>>;
+    /// The directory for storing runstate files. The instance name is
+    /// substituted for `{}`.
+    fn runstate_dir(&self) -> Option<Cow<Path>>;
 }
 
 impl UserProfile for () {
@@ -43,6 +46,10 @@ impl UserProfile for () {
 
     fn config_dirs(&self) -> Vec<Cow<Path>> {
         vec![]
+    }
+
+    fn runstate_dir(&self) -> Option<Cow<Path>> {
+        None
     }
 }
 
@@ -78,6 +85,12 @@ impl UserProfile for &'static str {
             Cow::Owned(PathBuf::from(format!("/home/{self}/.config/gel"))),
             Cow::Owned(PathBuf::from(format!("/home/{self}/.config/edgedb"))),
         ]
+    }
+
+    fn runstate_dir(&self) -> Option<Cow<Path>> {
+        Some(Cow::Owned(PathBuf::from(format!(
+            "/home/{self}/.cache/edgedb/run/{{}}"
+        ))))
     }
 }
 
@@ -116,6 +129,12 @@ impl UserProfile for PathBuf {
             Cow::Owned(self.join(".config").join("gel")),
             Cow::Owned(self.join(".config").join("edgedb")),
         ]
+    }
+
+    fn runstate_dir(&self) -> Option<Cow<Path>> {
+        Some(Cow::Owned(
+            self.join(".cache").join("edgedb").join("run").join("{}"),
+        ))
     }
 }
 
@@ -171,11 +190,27 @@ impl UserProfile for SystemUserProfile {
             }
         }
         if cfg!(windows) {
-            if let Some(dir) = dirs::data_local_dir() {
+            if let Some(dir) = dirs::config_dir() {
                 dirs.push(Cow::Owned(dir.join("EdgeDB").join("config")));
                 dirs.push(Cow::Owned(dir.join("Gel").join("config")));
             }
         }
         dirs
+    }
+
+    fn runstate_dir(&self) -> Option<Cow<Path>> {
+        if cfg!(windows) {
+            dirs::cache_dir().map(|p| Cow::Owned(p.join("EdgeDB").join("run").join("{}")))
+        } else if cfg!(unix) {
+            if let Some(runtime_dir) = dirs::runtime_dir() {
+                // On Linux, use /run/user/$uid/edgedb-XXX
+                Some(Cow::Owned(runtime_dir.join("edgedb-{}")))
+            } else {
+                // On other platforms, use ~/.cache/edgedb/run/XXX
+                dirs::cache_dir().map(|p| Cow::Owned(p.join("edgedb").join("run").join("{}")))
+            }
+        } else {
+            None
+        }
     }
 }

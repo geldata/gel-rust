@@ -207,6 +207,10 @@ impl UserProfile for &ConnectionTestcase {
             ]
         }
     }
+
+    fn runstate_dir(&self) -> Option<Cow<Path>> {
+        None
+    }
 }
 
 fn main() {
@@ -229,7 +233,7 @@ fn main() {
         }
 
         #[cfg(not(unix))]
-        if testcase.platform.as_deref() == Some("macos") || testcast.platform.is_none() {
+        if testcase.platform.as_deref() == Some("macos") || testcase.platform.is_none() {
             println!("Skipping Unix-only testcase: {}", testcase.name);
             continue;
         }
