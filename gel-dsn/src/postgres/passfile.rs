@@ -125,15 +125,23 @@ impl Password {
 
 impl Password {
     /// Attempt to resolve a password against the given homedir.
+    ///
+    /// `home` is the path to the PostgreSQL home directory. On Unix, it's actually
+    /// the user's home directory.  On Windows it should be the PostgreSQL-specific
+    /// application data folder.  See also: `pqGetHomeDirectory` in `libpq`.
     pub fn resolve(
         &mut self,
-        home: &Path,
+        home: Option<&Path>,
         hosts: &[Host],
         database: &str,
         user: &str,
     ) -> Result<Option<PasswordWarning>, std::io::Error> {
         let passfile = match self {
             Password::Unspecified => {
+                let Some(home) = home else {
+                    *self = Password::Unspecified;
+                    return Ok(None);
+                };
                 let passfile = home.join(PGPASSFILE);
                 // Don't warn about implicit missing or inaccessible files
                 if !matches!(passfile.try_exists(), Ok(true)) {
