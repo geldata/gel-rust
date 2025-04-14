@@ -1,5 +1,9 @@
 use crate::gel::error::Warning;
-use std::{path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+};
 
 use super::{
     context_trace, error::ParseError, BuildContext, CredentialsFile, InstanceName,
@@ -55,15 +59,25 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> Paths<CT, C> {
     }
 
     pub fn for_instance(&self, local_name: &str) -> Option<InstancePaths> {
-        if let (Some(data_dir), Some(config_dir)) = (
+        if let (Some(data_dir), Some(config_dir), Some(runstate_dir)) = (
             &self.context.paths().data_dir,
             &self.context.paths().config_dir,
+            &self.context.paths().runstate_dir,
         ) {
+            let mut runstate_path = runstate_dir.clone();
+            runstate_path.set_file_name(
+                runstate_path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace("{}", local_name),
+            );
             Some(InstancePaths {
                 data_dir: data_dir.join("data").join(local_name),
                 credentials_path: config_dir
                     .join("credentials")
                     .join(format!("{}.json", local_name)),
+                runstate_path,
             })
         } else {
             None
@@ -90,7 +104,8 @@ pub struct SystemPaths {
     /// The resolved system local data directory, including the branding name.
     ///
     /// Data files expected to be local to a single machine should be stored in
-    /// this directory. Not all platforms may support this.
+    /// this directory. Not all platforms may support this and it will otherwise
+    /// point to the same directory as `data_dir`.
     pub data_local_dir: Option<PathBuf>,
 
     /// The resolved system cache directory, including the branding name.
@@ -108,6 +123,8 @@ pub struct InstancePaths {
     pub data_dir: PathBuf,
     /// The path to the credentials file for an instance.
     pub credentials_path: PathBuf,
+    /// The path to the runstate file for an instance.
+    pub runstate_path: PathBuf,
 }
 
 impl InstancePaths {}
@@ -180,7 +197,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
 
     /// Read the credentials for the given instance.
     pub fn read(&self, instance: InstanceName) -> Result<Option<CredentialsFile>, ParseError> {
-        let path = format!("credentials/{instance}.json");
+        let path = Path::new("credentials").join(format!("{}.json", instance));
         let content = self.context.read_config_file::<CredentialsFile>(&path)?;
         if let Some(content) = &content {
             if !content.warnings().is_empty() {
@@ -189,10 +206,15 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
                     if self.context.write_config_file(&path, &s).is_ok() {
                         context_trace!(
                             self.context,
-                            "Updated out-of-date credentials file: {path}"
+                            "Updated out-of-date credentials file: {}",
+                            path.display()
                         );
                     } else {
-                        context_trace!(self.context, "Failed to update credentials file: {path}");
+                        context_trace!(
+                            self.context,
+                            "Failed to update credentials file: {}",
+                            path.display()
+                        );
                     }
                 } else {
                     context_trace!(self.context, "Failed to serialize credentials");
@@ -216,7 +238,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
             content.database = None;
             content.branch = None;
         }
-        let path = format!("credentials/{instance}.json");
+        let path = Path::new("credentials").join(format!("{}.json", instance));
         self.context
             .write_config_file(path, &serde_json::to_string(&content)?)
     }
@@ -224,7 +246,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
     /// Delete the credentials for the given instance. If the credentials
     /// do not exist, this is a no-op.
     pub fn delete(&self, instance: InstanceName) -> Result<(), std::io::Error> {
-        let path = format!("credentials/{instance}.json");
+        let path = Path::new("credentials").join(format!("{}.json", instance));
         self.context.delete_config_file(&path)
     }
 }
@@ -232,8 +254,8 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
 #[cfg(test)]
 mod tests {
     use crate::gel::{Builder, CredentialsFile, InstanceName};
-    use crate::FileAccess;
-    use std::path::{Path, PathBuf};
+    use crate::{FileAccess, UserProfile};
+    use std::path::PathBuf;
     use std::{collections::HashMap, sync::Mutex};
 
     #[test]
@@ -274,17 +296,18 @@ mod tests {
     #[test]
     fn test_read_outdated() {
         let files = Mutex::new(HashMap::<PathBuf, String>::new());
+        let user = "edgedb";
+        let config_dir = user.config_dirs().first().unwrap().to_path_buf();
+        let file = config_dir.join("credentials").join("local.json");
+        println!("Writing to: {file:?}");
         files
-            .write(
-                Path::new("/home/edgedb/.config/edgedb/credentials/local.json"),
-                "{\"tls_verify_hostname\": true}",
-            )
+            .write(&file, "{\"tls_verify_hostname\": true}")
             .unwrap();
         let stored = Builder::default()
             .without_system()
             .with_env_impl(())
             .with_fs_impl(files)
-            .with_user_impl("edgedb")
+            .with_user_impl(user)
             .with_warning(|w| println!("warning: {}", w))
             .with_tracing(|s| println!("{}", s))
             .stored_info();
@@ -336,6 +359,7 @@ mod tests {
         assert!(creds.is_some());
     }
 
+    /// Sanity check that the system paths are correct.
     #[test]
     fn test_system_paths() {
         let stored = Builder::default().with_system().stored_info();
@@ -343,11 +367,47 @@ mod tests {
 
         let system = paths.for_system();
         eprintln!("system: {:?}", system);
-        assert!(system.home_dir.is_some());
-        assert!(system.config_dir.is_some());
-        assert!(system.data_dir.is_some());
-        assert!(system.data_local_dir.is_some());
-        assert!(system.cache_dir.is_some());
+        let Some(home_dir) = system.home_dir else {
+            panic!("home_dir is None");
+        };
+        let Some(config_dir) = system.config_dir else {
+            panic!("config_dir is None");
+        };
+        let Some(data_dir) = system.data_dir else {
+            panic!("data_dir is None");
+        };
+        let Some(data_local_dir) = system.data_local_dir else {
+            panic!("data_local_dir is None");
+        };
+        let Some(cache_dir) = system.cache_dir else {
+            panic!("cache_dir is None");
+        };
+
+        if cfg!(windows) {
+            assert!(home_dir.starts_with(dirs::home_dir().unwrap()));
+
+            assert!(data_dir.starts_with(dirs::data_dir().unwrap()));
+            assert!(data_dir.ends_with("EdgeDB"));
+            assert!(data_local_dir.starts_with(dirs::data_local_dir().unwrap()));
+            assert!(data_local_dir.ends_with("EdgeDB"));
+
+            // On windows, config dir lives under data_dir and cache dir lives
+            // under data_local_dir
+            assert!(config_dir.starts_with(dirs::data_dir().unwrap()));
+            assert!(config_dir.ends_with("EdgeDB\\config"));
+            assert!(cache_dir.starts_with(dirs::data_local_dir().unwrap()));
+            assert!(cache_dir.ends_with("EdgeDB\\cache"));
+        } else {
+            // On unix, each dir lives under an $XDG_SOME_DIR/edgedb
+            assert!(config_dir.starts_with(dirs::config_dir().unwrap()));
+            assert!(config_dir.ends_with("edgedb"));
+            assert!(data_dir.starts_with(dirs::data_dir().unwrap()));
+            assert!(data_dir.ends_with("edgedb"));
+            assert!(data_local_dir.starts_with(dirs::data_local_dir().unwrap()));
+            assert!(data_local_dir.ends_with("edgedb"));
+            assert!(cache_dir.starts_with(dirs::cache_dir().unwrap()));
+            assert!(cache_dir.ends_with("edgedb"));
+        }
 
         let instance = paths.for_instance("local").unwrap();
         eprintln!("instance: {:?}", instance);
@@ -363,16 +423,44 @@ mod tests {
                     .unwrap()
                     .join("edgedb/credentials/local.json")
             );
+            if cfg!(target_os = "linux") {
+                assert_eq!(
+                    instance.runstate_path,
+                    dirs::runtime_dir().unwrap().join("edgedb-local")
+                );
+            } else {
+                assert_eq!(
+                    instance.runstate_path,
+                    dirs::cache_dir().unwrap().join("edgedb/run/local")
+                );
+            }
         } else if cfg!(windows) {
+            // Windows puts everything into the roaming profile (data_dir)
+            // _except_ for the cache.
             assert_eq!(
                 instance.data_dir,
-                dirs::data_local_dir().unwrap().join("EdgeDB/data/local")
+                dirs::data_dir()
+                    .unwrap()
+                    .join("EdgeDB")
+                    .join("data")
+                    .join("local")
             );
             assert_eq!(
                 instance.credentials_path,
-                dirs::config_dir()
+                dirs::data_dir()
                     .unwrap()
-                    .join("EdgeDB/credentials/local.json")
+                    .join("EdgeDB")
+                    .join("config")
+                    .join("credentials")
+                    .join("local.json")
+            );
+            assert_eq!(
+                instance.runstate_path,
+                dirs::data_local_dir()
+                    .unwrap()
+                    .join("EdgeDB")
+                    .join("run")
+                    .join("local")
             );
         } else {
             unreachable!("Unsupported platform");
