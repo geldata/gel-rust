@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "gel-auth",
+    "gel-db-proto",
     "gel-derive",
     "gel-dsn",
     "gel-errors",
