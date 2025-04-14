@@ -85,8 +85,8 @@ pub use __message_group as message_group;
 /// Perform a match on a message.
 ///
 /// ```rust
-/// use db_proto::*;
-/// use db_proto::test_protocol::data::*;
+/// use gel_db_proto::*;
+/// use gel_db_proto::test_protocol::data::*;
 ///
 /// let buf = [b'?', 0, 0, 0, 4];
 /// match_message!(Message::new(&buf), Backend {
