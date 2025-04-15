@@ -1,6 +1,5 @@
 use ephemeral_port::EphemeralPort;
 use gel_auth::AuthType;
-use openssl::ssl::{Ssl, SslContext, SslMethod};
 use std::io::{BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::num::NonZeroUsize;
@@ -543,13 +542,6 @@ pub enum Mode {
     Tcp,
     TcpSsl,
     Unix,
-}
-
-pub fn create_ssl_client() -> Result<Ssl, Box<dyn std::error::Error>> {
-    let ssl_context = SslContext::builder(SslMethod::tls_client())?.build();
-    let mut ssl = Ssl::new(&ssl_context)?;
-    ssl.set_connect_state();
-    Ok(ssl)
 }
 
 /// The signal to send to the server to shut it down.

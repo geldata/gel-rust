@@ -12,8 +12,8 @@ workspace = true
 
 [dependencies]
 gel-auth = { path = "../gel-auth" }
+gel-stream = { path = "../gel-stream" }
 
-openssl = "0.10.72"
 tempfile = "3"
 socket2 = { version = "0.5", features = ["all"] }
 nix = { version = "0.29", features = ["signal"] }
