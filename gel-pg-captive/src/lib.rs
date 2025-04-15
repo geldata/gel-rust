@@ -4,7 +4,6 @@ use openssl::ssl::{Ssl, SslContext, SslMethod};
 use std::io::{BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::num::NonZeroUsize;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -263,10 +262,15 @@ fn spawn(command: &mut Command) -> std::io::Result<()> {
     eprintln!("{program} command:\n  {:?}", command);
     let command = command.spawn()?;
     let output = std::thread::scope(|s| {
-        use nix::sys::signal::{self, Signal};
-        use nix::unistd::Pid;
+        #[cfg(unix)]
+        use nix::{
+            sys::signal::{self, Signal},
+            unistd::Pid,
+        };
 
+        #[cfg(unix)]
         let pid = Pid::from_raw(command.id() as _);
+
         let handle = s.spawn(|| command.wait_with_output());
         let start = Instant::now();
         while start.elapsed() < Duration::from_secs(30) {
@@ -278,8 +282,12 @@ fn spawn(command: &mut Command) -> std::io::Result<()> {
             }
             std::thread::sleep(HOT_LOOP_INTERVAL);
         }
-        eprintln!("Command timed out after 30 seconds. Sending SIGKILL.");
-        signal::kill(pid, Signal::SIGKILL)?;
+
+        #[cfg(unix)]
+        {
+            eprintln!("Command timed out after 30 seconds. Sending SIGKILL.");
+            signal::kill(pid, Signal::SIGKILL)?;
+        }
         handle
             .join()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{e:?}")))?
@@ -391,6 +399,7 @@ fn run_postgres(
 
         #[cfg(unix)]
         {
+            use std::os::unix::fs::PermissionsExt;
             // Set permissions for the certificate and key files
             std::fs::set_permissions(&postgres_cert_path, std::fs::Permissions::from_mode(0o600))?;
             std::fs::set_permissions(&postgres_key_path, std::fs::Permissions::from_mode(0o600))?;
