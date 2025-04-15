@@ -1,7 +1,7 @@
 [package]
 name = "gel-tokio"
 license = "MIT/Apache-2.0"
-version = "0.10.11"
+version = "0.10.12"
 authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2021"
 description = """
@@ -12,13 +12,13 @@ readme = "README.md"
 rust-version.workspace = true
 
 [dependencies]
-gel-protocol = { path = "../gel-protocol", version = "^0.8.2", features = [
+gel-protocol = { path = "../gel-protocol", version = "^0.8.3", features = [
     "with-serde",
 ] }
 gel-errors = { path = "../gel-errors", version = "^0.5.2" }
 gel-derive = { path = "../gel-derive", version = "^0.7.2", optional = true }
-gel-stream = { path = "../gel-stream", version = "^0.3.1", features = ["client", "tokio", "rustls", "hickory", "keepalive"] }
-gel-dsn = { path = "../gel-dsn", version = "^0.2.12", features = ["gel", "log", "auto-log-trace", "auto-log-warning"] }
+gel-stream = { path = "../gel-stream", version = "^0.3.2", features = ["client", "tokio", "rustls", "hickory", "keepalive"] }
+gel-dsn = { path = "../gel-dsn", version = "^0.2.13", features = ["gel", "log", "auto-log-trace", "auto-log-warning"] }
 gel-auth = { path = "../gel-auth", version = "^0.1.5" }
 tokio = { workspace = true, features = ["net", "time", "sync", "macros"] }
 bytes = "1.5.0"
