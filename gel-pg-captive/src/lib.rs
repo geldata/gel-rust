@@ -673,6 +673,7 @@ impl PostgresProcess {
     }
 }
 
+#[cfg(unix)]
 impl Drop for PostgresProcess {
     fn drop(&mut self) {
         use nix::sys::signal::{self, Signal};
