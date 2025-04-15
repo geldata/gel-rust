@@ -190,7 +190,9 @@ impl UserProfile for SystemUserProfile {
             }
         }
         if cfg!(windows) {
-            if let Some(dir) = dirs::config_dir() {
+            // Windows config files are stored locally, not in the roaming
+            // profile directory.
+            if let Some(dir) = dirs::data_local_dir() {
                 dirs.push(Cow::Owned(dir.join("EdgeDB").join("config")));
                 dirs.push(Cow::Owned(dir.join("Gel").join("config")));
             }
@@ -200,7 +202,8 @@ impl UserProfile for SystemUserProfile {
 
     fn runstate_dir(&self) -> Option<Cow<Path>> {
         if cfg!(windows) {
-            dirs::cache_dir().map(|p| Cow::Owned(p.join("EdgeDB").join("run").join("{}")))
+            self.cache_dir()
+                .map(|p| Cow::Owned(p.join("run").join("{}")))
         } else if cfg!(unix) {
             if let Some(runtime_dir) = dirs::runtime_dir() {
                 // On Linux, use /run/user/$uid/edgedb-XXX
