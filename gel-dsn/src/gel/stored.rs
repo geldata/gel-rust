@@ -459,6 +459,7 @@ mod tests {
                 dirs::data_local_dir()
                     .unwrap()
                     .join("EdgeDB")
+                    .join("cache")
                     .join("run")
                     .join("local")
             );
