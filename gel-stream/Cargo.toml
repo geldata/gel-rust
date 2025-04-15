@@ -60,6 +60,9 @@ webpki-root-certs = { version = "0.26.8", optional = true }
 # feature = serde
 serde = { version = "1.0", optional = true }
 
+[target.'cfg(windows)'.dependencies]
+openssl-sys = { version = "0.9", optional = true, default-features = false, features = ["vendored"] }
+
 [dev-dependencies]
 # Run tests with all features enabled
 gel-stream = { path = ".", features = ["full"] }

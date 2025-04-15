@@ -1,0 +1,67 @@
+on: [pull_request]
+
+name: CI
+
+jobs:
+  build_and_test:
+    name: Tests (Windows)
+    runs-on: windows-2025
+    strategy:
+      matrix:
+        rust_version: [default]
+      fail-fast: false
+    timeout-minutes: 30
+    permissions:
+      id-token: "write"
+      contents: "read"
+    steps:
+      - name: checkout and env setup
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Setup WSL
+        run: |
+          wsl --install --distribution Debian --name EdgeDB.WSL.1 --version 1
+
+      - name: Install Gel CLI
+        run: |
+          bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) -y
+        shell: bash
+
+      - name: Set PATH
+        run: |
+          Write-Host "Adding install path to PATH:"
+          Write-Host "$env:USERPROFILE\AppData\Roaming\edgedb\bin"
+          Add-Content $env:GITHUB_PATH "$env:USERPROFILE\AppData\Roaming\edgedb\bin"
+
+      # - name: Install Gel server
+      #   run: |
+      #     gel server install --nightly
+
+      # - name: Show binaries
+      #   run: |
+      #     ls -l ~/.local/bin
+      #     edgedb-server --version
+
+      # https://github.com/sfackler/rust-openssl/issues/2149
+      - name: Set Perl environment variables
+        if: runner.os == 'Windows'
+        run: |
+          echo "PERL=$((where.exe perl)[0])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          echo "OPENSSL_SRC_PERL=$((where.exe perl)[0])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust_version == 'default' && 'stable' || matrix.rust_version }}
+          components: rustfmt, clippy
+
+      - name: setup rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install just
+        run: cargo install just
+
+      - name: Test all features
+        run: just test
