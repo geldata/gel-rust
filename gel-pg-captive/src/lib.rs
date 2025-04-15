@@ -495,6 +495,7 @@ fn run_postgres(
         eprintln!("TCP socket at {tcp_socket_addr:?} binding failed");
     }
 
+    #[cfg(unix)]
     if let Some(unix_socket_path) = &unix_socket_path {
         if unix_socket.is_some() {
             eprintln!("Unix socket at {unix_socket_path:?} connected successfully");
