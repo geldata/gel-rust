@@ -250,7 +250,6 @@ impl PostgresBuilder {
 #[derive(Debug, Clone)]
 pub enum ListenAddress {
     Tcp(SocketAddr),
-    #[cfg(unix)]
     Unix(PathBuf),
 }
 
@@ -389,9 +388,13 @@ fn run_postgres(
         let postgres_key_path = data_dir.join("server.key");
         std::fs::copy(cert_path, &postgres_cert_path)?;
         std::fs::copy(key_path, &postgres_key_path)?;
-        // Set permissions for the certificate and key files
-        std::fs::set_permissions(&postgres_cert_path, std::fs::Permissions::from_mode(0o600))?;
-        std::fs::set_permissions(&postgres_key_path, std::fs::Permissions::from_mode(0o600))?;
+
+        #[cfg(unix)]
+        {
+            // Set permissions for the certificate and key files
+            std::fs::set_permissions(&postgres_cert_path, std::fs::Permissions::from_mode(0o600))?;
+            std::fs::set_permissions(&postgres_key_path, std::fs::Permissions::from_mode(0o600))?;
+        }
 
         // Edit pg_hba.conf to change all "host" line prefixes to "hostssl"
         let pg_hba_path = data_dir.join("pg_hba.conf");
@@ -425,8 +428,9 @@ fn run_postgres(
     let start_time = Instant::now();
 
     let mut tcp_socket: Option<std::net::TcpStream> = None;
+    #[cfg(unix)]
     let mut unix_socket: Option<std::os::unix::net::UnixStream> = None;
-
+    #[cfg(unix)]
     let unix_socket_path = socket_path.map(|path| get_unix_socket_path(path, port));
     let tcp_socket_addr = std::net::SocketAddr::from((Ipv4Addr::LOCALHOST, port));
 
@@ -451,6 +455,7 @@ fn run_postgres(
         } else {
             continue;
         }
+        #[cfg(unix)]
         if let Some(unix_socket_path) = &unix_socket_path {
             if unix_socket.is_none() {
                 unix_socket = std::os::unix::net::UnixStream::connect(unix_socket_path).ok();
@@ -460,8 +465,15 @@ fn run_postgres(
             tcp_socket = std::net::TcpStream::connect(tcp_socket_addr).ok();
         }
 
-        network_ready =
-            (unix_socket_path.is_none() || unix_socket.is_some()) && tcp_socket.is_some();
+        #[cfg(unix)]
+        {
+            network_ready =
+                (unix_socket_path.is_none() || unix_socket.is_some()) && tcp_socket.is_some();
+        }
+        #[cfg(not(unix))]
+        {
+            network_ready = tcp_socket.is_some();
+        }
     }
 
     // Print status for TCP/unix sockets

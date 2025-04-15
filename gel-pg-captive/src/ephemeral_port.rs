@@ -17,6 +17,7 @@ impl EphemeralPort {
     pub fn allocate() -> std::io::Result<Self> {
         let socket = socket2::Socket::new(socket2::Domain::IPV4, socket2::Type::STREAM, None)?;
         socket.set_reuse_address(true)?;
+        #[cfg(unix)]
         socket.set_reuse_port(true)?;
         socket.set_linger(Some(LINGER_DURATION))?;
         socket.bind(&std::net::SocketAddr::from((Ipv4Addr::LOCALHOST, 0)).into())?;
