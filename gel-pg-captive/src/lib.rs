@@ -588,6 +588,7 @@ pub struct PostgresCluster {
 }
 
 impl PostgresCluster {
+    #[cfg(unix)]
     pub fn shutdown_timeout(
         self,
         timeout: Duration,
@@ -628,6 +629,7 @@ impl PostgresProcess {
         self.child.as_mut().unwrap()
     }
 
+    #[cfg(unix)]
     pub fn notify_shutdown(&mut self, signal: ShutdownSignal) -> std::io::Result<()> {
         use nix::sys::signal::{self, Signal};
         use nix::unistd::Pid;
@@ -648,6 +650,7 @@ impl PostgresProcess {
     }
 
     /// Try to shut down, waiting up to `timeout` for the process to exit.
+    #[cfg(unix)]
     pub fn shutdown_timeout(
         mut self,
         timeout: Duration,
@@ -806,6 +809,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_create_cluster() {
         let Some(cluster) = create_cluster(AuthType::Md5, NonZeroUsize::new(2).unwrap()).unwrap()
         else {
