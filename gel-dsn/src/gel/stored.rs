@@ -391,9 +391,8 @@ mod tests {
             assert!(data_local_dir.starts_with(dirs::data_local_dir().unwrap()));
             assert!(data_local_dir.ends_with("EdgeDB"));
 
-            // On windows, config dir lives under data_dir and cache dir lives
-            // under data_local_dir
-            assert!(config_dir.starts_with(dirs::data_dir().unwrap()));
+            // On windows, config dir and cache dir live under data_local_dir
+            assert!(config_dir.starts_with(dirs::data_local_dir().unwrap()));
             assert!(config_dir.ends_with("EdgeDB\\config"));
             assert!(cache_dir.starts_with(dirs::data_local_dir().unwrap()));
             assert!(cache_dir.ends_with("EdgeDB\\cache"));
