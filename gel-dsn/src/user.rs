@@ -202,7 +202,8 @@ impl UserProfile for SystemUserProfile {
 
     fn runstate_dir(&self) -> Option<Cow<Path>> {
         if cfg!(windows) {
-            dirs::cache_dir().map(|p| Cow::Owned(p.join("EdgeDB").join("run").join("{}")))
+            self.cache_dir()
+                .map(|p| Cow::Owned(p.join("run").join("{}")))
         } else if cfg!(unix) {
             if let Some(runtime_dir) = dirs::runtime_dir() {
                 // On Linux, use /run/user/$uid/edgedb-XXX
