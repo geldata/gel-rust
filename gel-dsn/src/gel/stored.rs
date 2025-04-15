@@ -447,7 +447,7 @@ mod tests {
             );
             assert_eq!(
                 instance.credentials_path,
-                dirs::data_dir()
+                dirs::data_local_dir()
                     .unwrap()
                     .join("EdgeDB")
                     .join("config")
