@@ -190,7 +190,9 @@ impl UserProfile for SystemUserProfile {
             }
         }
         if cfg!(windows) {
-            if let Some(dir) = dirs::config_dir() {
+            // Windows config files are stored locally, not in the roaming
+            // profile directory.
+            if let Some(dir) = dirs::data_local_dir() {
                 dirs.push(Cow::Owned(dir.join("EdgeDB").join("config")));
                 dirs.push(Cow::Owned(dir.join("Gel").join("config")));
             }
