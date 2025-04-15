@@ -1,10 +1,10 @@
 [package]
-name = "gel-db-proto"
+name = "gel-pg-protocol"
 license = "MIT/Apache-2.0"
 version = "0.7.2"
 authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2021"
-description = "A crate that makes parsing and serializing of PostgreSQL-like protocols easier"
+description = "The Gel implementation of the PostgreSQL wire protocol"
 readme = "README.md"
 rust-version.workspace = true
 
@@ -12,10 +12,11 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-thiserror = "2"
+gel-db-protocol = { path = "../gel-db-protocol" }
 paste = "1"
-derive_more = { version = "2", features = ["full"] }
-uuid = "1"
+derive_more = { version = "2", features = ["try_from"] }
 
 [dev-dependencies]
 pretty_assertions = "1.2.0"
+
+[lib]
