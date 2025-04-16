@@ -1,0 +1,21 @@
+[package]
+name = "gel-db-protocol"
+license = "MIT/Apache-2.0"
+version = "0.7.2"
+authors = ["MagicStack Inc. <hello@magic.io>"]
+edition = "2021"
+description = "A crate that makes parsing and serializing of PostgreSQL-like protocols easier"
+readme = "README.md"
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror = "2"
+paste = "1"
+derive_more = { version = "2", features = ["full"] }
+uuid = "1"
+
+[dev-dependencies]
+pretty_assertions = "1.2.0"
