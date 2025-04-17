@@ -53,6 +53,15 @@ pub struct OpensslDriver;
 
 pub struct TlsStream(tokio_openssl::SslStream<TcpStream>);
 
+impl Stream for TlsStream {
+    fn with_socket2(
+        &self,
+        f: &mut dyn for<'a> FnMut(socket2::SockRef<'a>) -> Result<(), std::io::Error>,
+    ) -> Result<(), std::io::Error> {
+        f(socket2::SockRef::from(&self.0.get_ref()))
+    }
+}
+
 impl AsyncRead for TlsStream {
     #[inline(always)]
     fn poll_read(
