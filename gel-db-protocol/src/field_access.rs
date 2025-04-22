@@ -56,7 +56,6 @@ macro_rules! declare_field_access {
     ) => {
         impl Enliven for $meta {
             type WithLifetime<'a> = $inflated;
-            type ForMeasure<'a> = $measured;
             type ForBuilder<'a> = $builder;
         }
 
@@ -116,7 +115,6 @@ macro_rules! declare_field_access_fixed_size {
     ) => {
         impl Enliven for $meta {
             type WithLifetime<'a> = $inflated;
-            type ForMeasure<'a> = $measured;
             type ForBuilder<'a> = $builder;
         }
 
@@ -171,7 +169,6 @@ macro_rules! declare_field_access_fixed_size {
 
         impl<const S: usize> Enliven for $crate::meta::FixedArray<S, $meta> {
             type WithLifetime<'a> = [$inflated; S];
-            type ForMeasure<'a> = [$measured; S];
             type ForBuilder<'a> = [$builder; S];
         }
 
@@ -355,7 +352,7 @@ macro_rules! array_access {
                 }
             }
             #[inline(always)]
-            pub const fn measure<'a>(buffer: &'a[<$ty as $crate::Enliven>::ForMeasure<'a>]) -> usize {
+            pub const fn measure<'a>(buffer: &'a[<$ty as $crate::Enliven>::ForBuilder<'a>]) -> usize {
                 buffer.len() * std::mem::size_of::<$ty>() + std::mem::size_of::<$len>()
             }
             #[inline(always)]
@@ -405,7 +402,7 @@ macro_rules! array_access {
                 Ok($crate::ZTArray::new(buf))
             }
             #[inline]
-            pub const fn measure<'a>(buffer: &'a[<$ty as $crate::Enliven>::ForMeasure<'a>]) -> usize {
+            pub const fn measure<'a>(buffer: &'a[<$ty as $crate::Enliven>::ForBuilder<'a>]) -> usize {
                 let mut size = 1;
                 let mut index = 0;
                 loop {
@@ -473,7 +470,7 @@ macro_rules! array_access {
                 }
             }
             #[inline]
-            pub const fn measure<'a>(buffer: &'a[<$ty as $crate::Enliven>::ForMeasure<'a>]) -> usize {
+            pub const fn measure<'a>(buffer: &'a[<$ty as $crate::Enliven>::ForBuilder<'a>]) -> usize {
                 let mut size = std::mem::size_of::<$len>();
                 let mut index = 0;
                 loop {
@@ -529,7 +526,7 @@ macro_rules! array_access {
                 Ok($crate::ZTArray::new(buf))
             }
             #[inline]
-            pub const fn measure<'a>(buffer: &'a[<$ty as $crate::Enliven>::ForMeasure<'a>]) -> usize {
+            pub const fn measure<'a>(buffer: &'a[<$ty as $crate::Enliven>::ForBuilder<'a>]) -> usize {
                 let mut size = 1;
                 let mut index = 0;
                 loop {

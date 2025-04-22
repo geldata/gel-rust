@@ -208,7 +208,6 @@ macro_rules! __protocol {
                     use super::meta::*;
                     $crate::struct_elaborate!(protocol_builder(__struct__) => $( #[ $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );
                     $crate::struct_elaborate!(protocol_builder(__meta__) => $( #[ $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );
-                    $crate::struct_elaborate!(protocol_builder(__measure__) => $( #[ $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );
                     $crate::struct_elaborate!(protocol_builder(__builder__) => $( #[ $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );
                 }
             );
@@ -235,14 +234,6 @@ macro_rules! __protocol {
             $(
                 $crate::paste!(
                     pub use super::[<__ $name:lower>]::[<$name Builder>] as $name;
-                );
-            )+
-        }
-        pub mod measure {
-            #![allow(unused_imports)]
-            $(
-                $crate::paste!(
-                    pub use super::[<__ $name:lower>]::[<$name Measure>] as $name;
                 );
             )+
         }
@@ -288,8 +279,6 @@ macro_rules! protocol_builder {
             type S<'a> = $name<'a>;
             /// The meta-struct for the struct we are building.
             type Meta = [<$name Meta>];
-            /// The measurement struct (used for `measure`).
-            type M<'a> = [<$name Measure>]<'a>;
             /// The builder struct (used for `to_vec` and other build operations)
             type B<'a> = [<$name Builder>]<'a>;
             /// The fields ordinal enum.
@@ -490,7 +479,6 @@ macro_rules! protocol_builder {
 
             impl $crate::Enliven for Meta {
                 type WithLifetime<'a> = S<'a>;
-                type ForMeasure<'a> = M<'a>;
                 type ForBuilder<'a> = B<'a>;
             }
 
@@ -505,8 +493,8 @@ macro_rules! protocol_builder {
                     $name::new(buf)
                 }
                 #[inline(always)]
-                pub const fn measure(measure: &M) -> usize {
-                    measure.measure()
+                pub const fn measure(builder: &B) -> usize {
+                    builder.measure()
                 }
                 #[inline(always)]
                 pub fn copy_to_buf(buf: &mut $crate::BufWriter, builder: &B) {
@@ -517,53 +505,6 @@ macro_rules! protocol_builder {
             use super::access::FieldAccess as FieldAccess;
             $crate::field_access!{self::FieldAccess, [<$name Meta>]}
             $crate::array_access!{variable, self::FieldAccess, [<$name Meta>]}
-        );
-    };
-
-    (__measure__, struct $name:ident {
-        super($($super:ident)?),
-        docs($($sdoc:meta),*),
-        fields($({
-            name($field:ident),
-            type($type:ty),
-            size( $( fixed=$fixed_marker:ident )? $( variable=$variable_marker:ident )? ),
-            value($(value = ($value:expr))? $(no_value = $no_value:ident)? $(auto = $auto:ident)?),
-            docs($fdoc:expr),
-            $($rest:tt)*
-        },)*),
-    }) => {
-        $crate::paste!(
-            $crate::r#if!(__is_empty__ [$($($variable_marker)?)*] {
-                $( #[$sdoc] )?
-                // No variable-sized fields
-                #[derive(Default, Eq, PartialEq)]
-                pub struct [<$name Measure>]<'a> {
-                    __no_fields_use_default: std::marker::PhantomData<&'a ()>
-                }
-            } else {
-                $( #[$sdoc] )?
-                pub struct [<$name Measure>]<'a> {
-                    // Because of how macros may expand in the context of struct
-                    // fields, we need to do a * repeat, then a ? repeat and
-                    // somehow use $variable_marker in the remainder of the
-                    // pattern.
-                    $($(
-                        #[doc = $fdoc]
-                        pub $field: $crate::r#if!(__has__ [$variable_marker] {<$type as $crate::Enliven>::ForMeasure<'a>}),
-                    )?)*
-                }
-            });
-
-            impl M<'_> {
-                pub const fn measure(&self) -> usize {
-                    let mut size = 0;
-                    $(
-                        $crate::r#if!(__has__ [$($variable_marker)?] { size += super::access::FieldAccess::<$type>::measure(&self.$field); });
-                        $crate::r#if!(__has__ [$($fixed_marker)?] { size += std::mem::size_of::<<$type as $crate::Enliven>::ForBuilder<'static>>(); });
-                    )*
-                    size
-                }
-            }
         );
     };
 
@@ -648,6 +589,26 @@ macro_rules! protocol_builder {
                             vec
                         }
                     }
+                }
+
+                #[allow(unused)]
+                pub const fn measure(&self) -> usize {
+                    let mut size = 0;
+
+                    $(
+                        $crate::r#if!(__is_empty__ [$($value)?] {
+                            $crate::r#if!(__is_empty__ [$($auto)?] {
+                                let field_size = super::access::FieldAccess::<$type>::measure(&self.$field);
+                            } else {
+                                let field_size = super::access::FieldAccess::<$type>::measure(&0);
+                            });
+                        } else {
+                            let field_size = super::access::FieldAccess::<$type>::measure(&0);
+                        });
+
+                        size += field_size;
+                    )*
+                    size
                 }
             }
         );

@@ -35,7 +35,6 @@ where
     T: FieldAccessArray,
 {
     type WithLifetime<'a> = ZTArray<'a, T>;
-    type ForMeasure<'a> = &'a [<T as Enliven>::ForMeasure<'a>];
     type ForBuilder<'a> = &'a [<T as Enliven>::ForBuilder<'a>];
 }
 
@@ -149,7 +148,6 @@ where
     T: FieldAccessArray + Enliven,
 {
     type WithLifetime<'a> = Array<'a, L, T>;
-    type ForMeasure<'a> = &'a [<T as Enliven>::ForMeasure<'a>];
     type ForBuilder<'a> = &'a [<T as Enliven>::ForBuilder<'a>];
 }
 

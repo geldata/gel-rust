@@ -715,7 +715,7 @@ struct Terminate: Message {
 
 #[cfg(test)]
 mod tests {
-    use super::{builder, data::*, measure, meta};
+    use super::{builder, data::*, meta};
     use gel_db_protocol::{match_message, Encoded, StructBuffer, StructMeta};
     use rand::Rng;
 
@@ -885,7 +885,7 @@ mod tests {
 
     #[test]
     fn test_sasl_response_measure() {
-        let measure = measure::SASLResponse {
+        let measure = builder::SASLResponse {
             response: &[1, 2, 3, 4, 5],
         };
         assert_eq!(measure.measure(), 10)
@@ -977,10 +977,16 @@ mod tests {
 
     #[test]
     fn test_row_description_measure() {
-        let measure = measure::RowDescription {
+        let measure = builder::RowDescription {
             fields: &[
-                measure::RowField { name: "F1" },
-                measure::RowField { name: "F2" },
+                builder::RowField {
+                    name: "F1",
+                    ..Default::default()
+                },
+                builder::RowField {
+                    name: "F2",
+                    ..Default::default()
+                },
             ],
         };
         assert_eq!(49, measure.measure())

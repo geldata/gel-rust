@@ -60,7 +60,6 @@ pub trait StructLength: StructMeta {
 /// and the `WithLifetime` type.
 pub trait Enliven {
     type WithLifetime<'a>;
-    type ForMeasure<'a>: 'a;
     type ForBuilder<'a>: 'a;
 }
 
@@ -109,7 +108,7 @@ macro_rules! field_access_copy {
                 panic!("Constants unsupported for this data type")
             }
             #[inline(always)]
-            pub const fn measure(value: &[<$ty as $crate::Enliven>::ForMeasure<'_>; S]) -> usize {
+            pub const fn measure(value: &[<$ty as $crate::Enliven>::ForBuilder<'_>; S]) -> usize {
                 $acc1::FieldAccess::<$crate::meta::FixedArray<S, $ty>>::measure(value)
             }
             #[inline(always)]
@@ -134,7 +133,7 @@ macro_rules! field_access_copy {
                 $acc1::FieldAccess::<$ty>::constant(value)
             }
             #[inline(always)]
-            pub const fn measure(value: &<$ty as $crate::Enliven>::ForMeasure<'_>) -> usize {
+            pub const fn measure(value: &<$ty as $crate::Enliven>::ForBuilder<'_>) -> usize {
                 $acc1::FieldAccess::<$ty>::measure(value)
             }
             #[inline(always)]
