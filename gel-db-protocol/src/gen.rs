@@ -2,34 +2,25 @@
 /// metadata that makes the jobs of further macro passes much simpler.
 ///
 /// This macro takes a `next` parameter which allows you to funnel the
-/// structured data from the macro into the next macro. The complex parsing
-/// happens in here using a "push-down automation" technique.
+/// structured data from the macro into the next macro.
 ///
-/// The term "push-down automation" here refers to how metadata and parsed
+/// This is a "push-down automation" and refers to how metadata and parsed
 /// information are "pushed down" through the macro’s recursive structure. Each
 /// level of the macro adds its own layer of processing and metadata
 /// accumulation, eventually leading to the final output.
 ///
-/// The `$crate::struct_elaborate!` macro is a tool designed to perform an initial
-/// parsing pass on a Rust `struct`, enriching it with metadata to facilitate
-/// further macro processing. It begins by extracting and analyzing the fields
-/// of the `struct`, capturing associated metadata such as attributes and types.
-/// This macro takes a `next` parameter, which is another macro to be invoked
-/// after the current one completes its task, allowing for a seamless chaining
-/// of macros where each one builds upon the results of the previous.
+/// It begins by extracting and analyzing the fields of the `struct`, capturing
+/// associated metadata such as attributes and types. This macro takes a `next`
+/// parameter, which is another macro to be invoked after the current one
+/// completes its task, allowing for a seamless chaining of macros where each
+/// one builds upon the results of the previous.
 ///
-/// The macro first classifies each field based on its type, distinguishing
-/// between fixed-size types (like `u8`, `i16`, and arrays) and variable-sized
-/// types. It also tracks whether a field has a default value, ensuring that
-/// this information is passed along. To handle repetitive or complex patterns,
-/// especially when dealing with type information, the macro utilizes the
-/// `paste!` macro for duplication and transformation.
+/// The macro first makes some initial classifications of the fields based on
+/// their types, then processes presence or absence of values, and finally
+/// handles missing documentation.
 ///
 /// As it processes each field, the macro recursively calls itself, accumulating
-/// metadata and updating the state. This recursive approach is structured into
-/// different stages, such as `__builder_type__`, `__builder_value__`, and
-/// `__finalize__`, each responsible for handling specific aspects of the
-/// parsing process.
+/// metadata and updating the state.
 ///
 /// Once all fields have been processed, the macro enters the final stage, where
 /// it reconstructs an enriched `struct`-like data blob using the accumulated
@@ -75,14 +66,15 @@ macro_rules! struct_elaborate {
         $crate::struct_elaborate!(__finalize__ accum($($faccum)*) original($($original)*));
     };
 
-    // Skip __builder_value__ for 'len'
+    // Translate 'len' to Length (with auto value).
     (__builder_type__ fields([type(len)(len), value(), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
         $crate::struct_elaborate!(__builder_docs__ fields([type($crate::meta::Length), value(auto=auto), $($rest)*] $($frest)*) $($srest)*);
     };
+    // Translate 'len' to Length (with a value present).
     (__builder_type__ fields([type(len)(len), value($($value:tt)+), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
         $crate::struct_elaborate!(__builder_docs__ fields([type($crate::meta::Length), value(value=($($value)*)), $($rest)*] $($frest)*) $($srest)*);
     };
-    // Pattern match on known fixed-sized types and mark them as `size(fixed=fixed)`
+    // Translate fixed-size arrays to FixedArray.
     (__builder_type__ fields([type([$elem:ty; $len:literal])($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
         $crate::struct_elaborate!(__builder_value__ fields([type($crate::meta::FixedArray<$len, $elem>), $($rest)*] $($frest)*) $($srest)*);
     };
@@ -104,7 +96,7 @@ macro_rules! struct_elaborate {
         $crate::struct_elaborate!(__builder_docs__ fields([type($ty), value(value=($($value)*)), $($rest)*] $($frest)*) $($srest)*);
     };
 
-    // Next, handle missing docs
+    // Next, handle missing docs by generating a stand-in.
     (__builder_docs__ fields([
         type($ty:ty), value($($value:tt)*), docs(), name($field:ident), $($rest:tt)*
     ] $($frest:tt)*) $($srest:tt)*) => {
@@ -132,7 +124,7 @@ macro_rules! struct_elaborate {
         ) original($($original)*));
     };
 
-    // Write the final struct
+    // Write the final "elaborated" struct into a call to the `next` macro.
     (__finalize__ accum($($accum:tt)*) original($next:ident $( ($($next_args:tt)*) )?=> $( #[ $sdoc:meta ] )* struct $name:ident $(: $super:ident)? {})) => {
         $next ! (
             $( $($next_args)* , )?
@@ -149,16 +141,29 @@ macro_rules! struct_elaborate {
 
 /// Generates a protocol definition from a Rust-like DSL.
 ///
-/// ```
+/// LIMITATION: Enums must appear after structs.
+///
+/// ```nocompile
 /// struct Foo {
 ///     bar: u8,
-///     baz: u16,
+///     baz: u16 = 123,
+/// }
+///
+/// #[repr(u8)]
+/// enum MyEnum {
+///     A = 1,
+///     B = 2,
 /// }
 /// ```
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __protocol {
-    ($( $( #[ $sdoc:meta ] )* struct $name:ident $(: $super:ident)? { $($struct:tt)+ } )+) => {
+    (
+        $( $( #[ doc = $sdoc:literal ] )*
+            struct $name:ident $(: $super:ident)? { $($struct:tt)+ }
+        )+
+        $(  #[repr($repr:ty)] $( #[ doc = $edoc:literal ] )* enum $ename:ident { $($(#[$default:meta])? $emname:ident = $emvalue:literal),+ $(,)? } )*
+    ) => {
         mod access {
             #![allow(unused)]
 
@@ -187,12 +192,76 @@ macro_rules! __protocol {
                 pub(crate) mod [<__ $name:lower>] {
                     use $crate::{meta::*, protocol_builder};
                     use super::meta::*;
-                    $crate::struct_elaborate!(protocol_builder(__struct__) => $( #[ $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );
-                    $crate::struct_elaborate!(protocol_builder(__meta__) => $( #[ $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );
-                    $crate::struct_elaborate!(protocol_builder(__builder__) => $( #[ $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );
+                    $crate::struct_elaborate!(protocol_builder(__struct__) => $( #[ doc = $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );
+                    $crate::struct_elaborate!(protocol_builder(__meta__) => $( #[ doc = $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );
+                    $crate::struct_elaborate!(protocol_builder(__builder__) => $( #[ doc = $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );
                 }
             );
         )+
+
+        $(
+            $crate::paste!(
+                pub(crate) mod [<__ $ename:lower>] {
+                    $(#[doc = $edoc])*
+                    #[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
+                    #[repr($repr)]
+                    pub enum $ename {
+                        $($(#[$default])? $emname = $emvalue),+
+                    }
+
+                    use super::access::FieldAccess as FieldAccess;
+
+                    $crate::field_access!{self::FieldAccess, $ename}
+                    $crate::array_access!{variable, self::FieldAccess, $ename}
+
+                    impl $crate::Enliven for $ename {
+                        type WithLifetime<'a> = $ename;
+                        type ForBuilder<'a> = $ename;
+                    }
+
+                    impl $crate::gen2::HasStructFieldMeta for $ename {
+                        const META: $crate::gen2::StructFieldMeta = $crate::gen2::StructFieldMeta {
+                            type_name: stringify!($ename),
+                            constant_size: Some(std::mem::size_of::<$repr>()),
+                            is_length: false,
+                        };
+                    }
+
+                    impl super::access::FieldAccess<$ename> {
+                        #[inline]
+                        pub fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
+                            if buf.len() < std::mem::size_of::<$repr>() {
+                                return Err($crate::ParseError::TooShort);
+                            }
+                            Self::extract(buf).map(|_| std::mem::size_of::<$ename>())
+                        }
+
+                        #[inline]
+                        pub const fn extract(buf: &[u8]) -> Result<$ename, $crate::ParseError> {
+                            let repr = match $crate::FieldAccess::<$repr>::extract(buf) {
+                                Ok(repr) => repr,
+                                Err(e) => return Err(e),
+                            };
+                            match repr {
+                                $($emvalue => Ok($ename::$emname),)*
+                                _ => Err($crate::ParseError::InvalidData),
+                            }
+                        }
+
+                        #[inline]
+                        pub const fn measure(_builder: &$ename) -> usize {
+                            std::mem::size_of::<$ename>()
+                        }
+
+                        #[inline]
+                        pub fn copy_to_buf(buf: &mut $crate::BufWriter, builder: &$ename) {
+                            let repr = *builder as $repr;
+                            buf.write(&<$repr>::to_be_bytes(repr))
+                        }
+                    }
+                }
+            );
+        )*
 
         pub mod data {
             #![allow(unused_imports)]
@@ -201,6 +270,12 @@ macro_rules! __protocol {
                     pub use super::[<__ $name:lower>]::$name;
                 );
             )+
+
+            $(
+                $crate::paste!(
+                    pub use super::[<__ $ename:lower>]::$ename;
+                );
+            )*
         }
         pub mod meta {
             #![allow(unused_imports)]
@@ -209,6 +284,12 @@ macro_rules! __protocol {
                     pub use super::[<__ $name:lower>]::[<$name Meta>] as $name;
                 );
             )+
+
+            $(
+                $crate::paste!(
+                    pub use super::[<__ $ename:lower>]::$ename;
+                );
+            )*
         }
         pub mod builder {
             #![allow(unused_imports)]
@@ -224,6 +305,7 @@ macro_rules! __protocol {
 #[doc(inline)]
 pub use __protocol as protocol;
 
+/// Simple conditional macro to check whether values are present.
 #[macro_export]
 #[doc(hidden)]
 macro_rules! r#if {
@@ -272,17 +354,12 @@ macro_rules! protocol_builder {
             )* )]
             #[derive(Copy, Clone)]
             pub struct $name<'a> {
-                /// Our zero-copy buffer.
-                #[doc(hidden)]
-                pub(crate) __buf: &'a [u8],
-                /// The calculated field offsets.
-                #[doc(hidden)]
-                __field_offsets: [usize; Meta::FIELD_COUNT + 1]
+                pub(crate) buf: $crate::gen2::StructDemarcatedBuffer<'a, Meta, {Meta::FIELD_COUNT}>,
             }
 
             impl PartialEq for $name<'_> {
                 fn eq(&self, other: &Self) -> bool {
-                    self.__buf.eq(other.__buf)
+                    self.buf.eq(&other.buf)
                 }
             }
 
@@ -298,7 +375,7 @@ macro_rules! protocol_builder {
 
             impl AsRef<[u8]> for $name<'_> {
                 fn as_ref(&self) -> &[u8] {
-                    self.__buf
+                    self.buf.as_ref()
                 }
             }
 
@@ -308,34 +385,19 @@ macro_rules! protocol_builder {
                 /// this message matches.
                 #[inline]
                 pub const fn is_buffer(buf: &'a [u8]) -> bool {
-                    let mut offset = 0;
-
-                    // NOTE! This only works for fixed-sized fields and assumes
-                    // that they all exist before variable-sized fields.
-
-                    $(
-                        $(
-                            let Ok(val) = super::access::FieldAccess::<$type>::extract(buf.split_at(offset).1) else {
-                                return false;
-                            };
-                            if val as usize != $value as usize { return false; }
-                        )?
-                        offset += std::mem::size_of::<<$type as $crate::Enliven>::ForBuilder<'static>>();
-                    )*
-
-                    true
+                    <Meta as $crate::gen2::StructMeta>::FIELDS.matches_field_constants(buf)
                 }
 
                 $(
                     pub const fn can_cast(parent: &<super::meta::$super as $crate::Enliven>::WithLifetime<'a>) -> bool {
-                        Self::is_buffer(parent.__buf)
+                        Self::is_buffer(parent.buf.as_ref())
                     }
 
                     pub fn try_new(parent: &<super::meta::$super as $crate::Enliven>::WithLifetime<'a>) -> Option<Self> {
                         if Self::can_cast(parent) {
                             // TODO
-                            let Ok(value) = Self::new(parent.__buf) else {
-                                panic!();
+                            let Ok(value) = Self::new(parent.buf.as_ref()) else {
+                                panic!("Invalid cast");
                             };
                             Some(value)
                         } else {
@@ -347,27 +409,13 @@ macro_rules! protocol_builder {
                 /// Creates a new instance of this struct from a given buffer.
                 #[inline]
                 pub fn new(mut buf: &'a [u8]) -> Result<Self, $crate::ParseError> {
-                    let mut __field_offsets = [0; Meta::FIELD_COUNT + 1];
-                    let mut offset = 0;
-                    let mut index = 0;
-                    $(
-                        __field_offsets[index] = offset;
-                        offset += match super::access::FieldAccess::<$type>::size_of_field_at(buf.split_at(offset).1) {
-                            Ok(n) => n,
-                            Err(e) => return Err(e),
-                        };
-                        index += 1;
-                    )*
-                    __field_offsets[index] = offset;
-
                     Ok(Self {
-                        __buf: buf,
-                        __field_offsets,
+                        buf: $crate::gen2::StructDemarcatedBuffer::new(buf)?,
                     })
                 }
 
                 pub fn to_vec(self) -> Vec<u8> {
-                    self.__buf.to_vec()
+                    self.buf.to_vec()
                 }
 
                 $(
@@ -376,13 +424,10 @@ macro_rules! protocol_builder {
                     #[inline]
                     pub const fn $field<'s>(&'s self) -> <$type as $crate::Enliven>::WithLifetime<'a> where 's : 'a {
                         // Perform a const buffer extraction operation
-                        let offset1 = self.__field_offsets[F::$field as usize];
-                        let offset2 = self.__field_offsets[F::$field as usize + 1];
-                        let (_, buf) = self.__buf.split_at(offset1);
-                        let (buf, _) = buf.split_at(offset2 - offset1);
+                        let buf = self.buf.extract_field(F::$field as usize);
                         // This will not panic: we've confirmed the validity of the buffer when sizing
                         let Ok(value) = super::access::FieldAccess::<$type>::extract(buf) else {
-                            panic!();
+                            panic!("Invalid value");
                         };
                         value
                     }
@@ -405,7 +450,7 @@ macro_rules! protocol_builder {
         $crate::paste!(
             $( #[$sdoc] )?
             #[allow(unused)]
-            #[derive(Debug, Default)]
+            #[derive(Debug, Default, Copy, Clone)]
             pub struct [<$name Meta>] {
             }
 
@@ -442,18 +487,29 @@ macro_rules! protocol_builder {
                             name: stringify!($field),
                             meta: &<$type as $crate::gen2::HasStructFieldMeta>::META,
                             size_of_field_at: <$type as $crate::FieldAccessArray>::size_of_field_at,
+                            value: $crate::r#if!(__is_empty__ [$($value)?] { None } else { Some($($value)? as usize) }),
                         },
                     )*
                 ]));
 
+            /// Implements a trait containing the fields of the struct, allowing
+            /// us to compute some useful things.
             impl $crate::gen2::StructMeta for Meta {
                 const FIELDS: $crate::gen2::StructFields = FIELDS;
             }
 
+            /// Implements a trait indicating that the struct has a fixed size.
+            /// This needs to be a trait-generic rather than and associated
+            /// constant for us to use elsewhere.
             impl $crate::gen2::StructAttributeFixedSize<{<Meta as $crate::gen2::StructMeta>::IS_FIXED_SIZE}> for Meta {
             }
 
+            /// Implements a trait indicating that the struct has a length field.
             impl $crate::gen2::StructAttributeHasLengthField<{<Meta as $crate::gen2::StructMeta>::HAS_LENGTH_FIELD}> for Meta {
+            }
+
+            /// Implements a trait indicating that the struct has a field count.
+            impl $crate::gen2::StructAttributeFieldCount<{<Meta as $crate::gen2::StructMeta>::FIELD_COUNT}> for Meta {
             }
 
             impl $crate::Enliven for Meta {
@@ -527,12 +583,15 @@ macro_rules! protocol_builder {
                     $(
                         $crate::r#if!(__is_empty__ [$($value)?] {
                             $crate::r#if!(__is_empty__ [$($auto)?] {
+                                // value is no_value (present in builder)
                                <$type as $crate::FieldAccessArray>::copy_to_buf(buf, &self.$field);
                             } else {
+                                // value is auto (not present in builder)
                                 let auto_offset = buf.size();
                                 <$type as $crate::FieldAccessArray>::copy_to_buf(buf, &0);
                             });
                         } else {
+                            // value is set, not present in builder
                             <$type as $crate::FieldAccessArray>::copy_to_buf(buf, &($($value)? as usize as _));
                         });
                     )*
@@ -656,6 +715,21 @@ mod tests {
         crate::protocol!(
             struct HasLString {
                 s: LString,
+            }
+        );
+    }
+
+    mod has_enum {
+        crate::protocol!(
+            struct HasEnum {
+                e: MyEnum,
+            }
+
+            #[repr(u8)]
+            enum MyEnum {
+                #[default]
+                A = 1,
+                B = 2,
             }
         );
     }

@@ -41,7 +41,7 @@ protocol!(
 
     struct QueryType {
         /// The type of the query parameter.
-        typ: u8,
+        typ: QueryParameterType,
         /// The length of the query parameter.
         len: u32,
         /// The metadata of the query parameter.
@@ -68,6 +68,15 @@ protocol!(
         /// The UUIDs.
         uuids: Array<u32, Uuid>,
     }
+
+    #[repr(u8)]
+    enum QueryParameterType {
+        #[default]
+        Int = 1,
+        Float = 2,
+        String = 3,
+        Uuid = 4,
+    }
 );
 
 #[cfg(test)]
@@ -81,7 +90,7 @@ mod tests {
         let buf = builder::Query {
             query: "SELECT * from foo",
             types: &[builder::QueryType {
-                typ: 1,
+                typ: data::QueryParameterType::Float,
                 len: 4,
                 meta: &[1, 2, 3, 4],
             }],
@@ -92,11 +101,11 @@ mod tests {
         let types = query.types();
         assert_eq!(1, types.len());
         assert_eq!(
-            r#"QueryType { typ: 1, len: 4, meta: [1, 2, 3, 4] }"#,
+            r#"QueryType { typ: Float, len: 4, meta: [1, 2, 3, 4] }"#,
             format!("{:?}", types.into_iter().next().unwrap())
         );
         assert_eq!(
-            r#"Query { mtype: 81, mlen: 37, query: "SELECT * from foo", types: [QueryType { typ: 1, len: 4, meta: [1, 2, 3, 4] }] }"#,
+            r#"Query { mtype: 81, mlen: 37, query: "SELECT * from foo", types: [QueryType { typ: Float, len: 4, meta: [1, 2, 3, 4] }] }"#,
             format!("{query:?}")
         );
     }

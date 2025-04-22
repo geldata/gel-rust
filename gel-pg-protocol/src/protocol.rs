@@ -282,7 +282,7 @@ struct Close: Message {
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// 'S' to close a prepared statement; 'P' to close a portal.
-    ctype: u8,
+    ctype: CloseType,
     /// The name of the prepared statement or portal to close.
     name: ZTString,
 }
@@ -339,8 +339,8 @@ struct CopyInResponse: Message {
     mtype: u8 = 'G',
     /// Length of message contents in bytes, including self.
     mlen: len,
-    /// 0 for textual, 1 for binary.
-    format: u8,
+    /// The format of the data.
+    format: CopyFormat,
     /// The format codes for each column.
     format_codes: Array<i16, i16>,
 }
@@ -351,8 +351,8 @@ struct CopyOutResponse: Message {
     mtype: u8 = 'H',
     /// Length of message contents in bytes, including self.
     mlen: len,
-    /// 0 for textual, 1 for binary.
-    format: u8,
+    /// The format of the data.
+    format: CopyFormat,
     /// The format codes for each column.
     format_codes: Array<i16, i16>,
 }
@@ -363,8 +363,8 @@ struct CopyBothResponse: Message {
     mtype: u8 = 'W',
     /// Length of message contents in bytes, including self.
     mlen: len,
-    /// 0 for textual, 1 for binary.
-    format: u8,
+    /// The format of the data.
+    format: CopyFormat,
     /// The format codes for each column.
     format_codes: Array<i16, i16>,
 }
@@ -386,7 +386,7 @@ struct Describe: Message {
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// 'S' to describe a prepared statement; 'P' to describe a portal.
-    dtype: u8,
+    dtype: DescribeType,
     /// The name of the prepared statement or portal.
     name: ZTString,
 }
@@ -446,11 +446,11 @@ struct FunctionCall: Message {
     /// OID of the function to execute.
     function_id: i32,
     /// The parameter format codes.
-    format_codes: Array<i16, i16>,
+    format_codes: Array<i16, FormatCode>,
     /// Array of args and their lengths.
     args: Array<i16, Encoded>,
     /// The format code for the result.
-    result_format_code: i16,
+    result_format_code: FormatCode,
 }
 
 /// The `FunctionCallResponse` struct represents a message containing the result of a function call.
@@ -640,7 +640,7 @@ struct RowField {
     /// The type modifier
     type_modifier: i32,
     /// The format code being used for the field (0 for text, 1 for binary)
-    format_code: i16,
+    format_code: FormatCode,
 }
 
 /// The `SASLInitialResponse` struct represents a message containing a SASL initial response.
@@ -711,6 +711,39 @@ struct Terminate: Message {
     /// Length of message contents in bytes, including self.
     mlen: len = 4,
 }
+
+#[repr(u8)]
+/// The type of object to close.
+enum CloseType {
+    #[default]
+    Portal = b'P',
+    Statement = b'S',
+}
+
+#[repr(u8)]
+/// The type of object to describe.
+enum DescribeType {
+    #[default]
+    Portal = b'P',
+    Statement = b'S',
+}
+
+#[repr(u8)]
+/// The data format for a copy operation.
+enum CopyFormat {
+    #[default]
+    Text = 0,
+    Binary = 1,
+}
+
+#[repr(u16)]
+/// The format code for an input or output value.
+enum FormatCode {
+    #[default]
+    Text = 0,
+    Binary = 1,
+}
+
 );
 
 #[cfg(test)]
@@ -1004,7 +1037,7 @@ mod tests {
                 builder::RowField {
                     name: "F2",
                     data_type_oid: 1234,
-                    format_code: 1,
+                    format_code: FormatCode::Binary,
                     ..Default::default()
                 },
             ],
@@ -1024,7 +1057,7 @@ mod tests {
         let f2 = iter.next().unwrap();
         assert_eq!(f2.name(), "F2");
         assert_eq!(f2.data_type_oid(), 1234);
-        assert_eq!(f2.format_code(), 1);
+        assert_eq!(f2.format_code(), FormatCode::Binary);
         assert_eq!(None, iter.next());
 
         fuzz_test::<meta::RowDescription>(message);
@@ -1090,7 +1123,7 @@ mod tests {
                     let field = row.fields().into_iter().next().unwrap();
                     assert_eq!(field.name(), "?column?");
                     assert_eq!(field.data_type_oid(), 23);
-                    assert_eq!(field.format_code(), 0);
+                    assert_eq!(field.format_code(), FormatCode::Text);
                     eprintln!("{row:?}");
                     fuzz_test::<meta::RowDescription>(row);
                 },
@@ -1149,9 +1182,9 @@ mod tests {
     fn test_function_call() {
         let buf = builder::FunctionCall {
             function_id: 100,
-            format_codes: &[0],
+            format_codes: &[FormatCode::Text],
             args: &[Encoded::Value(b"123")],
-            result_format_code: 0,
+            result_format_code: FormatCode::Text,
         }
         .to_vec();
 
@@ -1159,13 +1192,16 @@ mod tests {
         let message = FunctionCall::new(&buf).unwrap();
         assert_eq!(message.function_id(), 100);
         assert_eq!(message.format_codes().len(), 1);
-        assert_eq!(message.format_codes().get(0).unwrap(), 0);
+        assert_eq!(
+            message.format_codes().into_iter().next().unwrap(),
+            FormatCode::Text
+        );
         assert_eq!(message.args().len(), 1);
         assert_eq!(
             message.args().into_iter().next().unwrap(),
-            b"123".as_slice()
+            Encoded::Value(b"123")
         );
-        assert_eq!(message.result_format_code(), 0);
+        assert_eq!(message.result_format_code(), FormatCode::Text);
 
         fuzz_test::<meta::FunctionCall>(message);
     }
