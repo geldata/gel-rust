@@ -18,5 +18,6 @@ derive_more = { version = "2", features = ["try_from"] }
 
 [dev-dependencies]
 pretty_assertions = "1.2.0"
+rand = "0.9"
 
 [lib]

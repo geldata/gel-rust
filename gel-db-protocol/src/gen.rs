@@ -53,10 +53,6 @@ macro_rules! struct_elaborate {
         // paste! is necessary here because it allows us to re-interpret a "ty"
         // as an explicit type pattern below.
         $crate::struct_elaborate!(__builder_type__
-            // Pass down a "fixed offset" flag that indicates whether the
-            // current field is at a fixed offset. This gets reset to
-            // `no_fixed_offset` when we hit a variable-sized field.
-            fixed(fixed_offset (0))
             fields($(
                 [
                     // Note that we double the type so we can re-use some output
@@ -75,75 +71,75 @@ macro_rules! struct_elaborate {
     };
 
     // End of push-down automation - jumps to `__finalize__`
-    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields() accum($($faccum:tt)*) original($($original:tt)*)) => {
+    (__builder_type__ fields() accum($($faccum:tt)*) original($($original:tt)*)) => {
         $crate::struct_elaborate!(__finalize__ accum($($faccum)*) original($($original)*));
     };
 
     // Skip __builder_value__ for 'len'
-    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(len)(len), value(), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_docs__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+4)) fields([type($crate::meta::Length), size(fixed=fixed), value(auto=auto), $($rest)*] $($frest)*) $($srest)*);
+    (__builder_type__ fields([type(len)(len), value(), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        $crate::struct_elaborate!(__builder_docs__ fields([type($crate::meta::Length), size(fixed=fixed), value(auto=auto), $($rest)*] $($frest)*) $($srest)*);
     };
-    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(len)(len), value($($value:tt)+), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_docs__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+4)) fields([type($crate::meta::Length), size(fixed=fixed), value(value=($($value)*)), $($rest)*] $($frest)*) $($srest)*);
+    (__builder_type__ fields([type(len)(len), value($($value:tt)+), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        $crate::struct_elaborate!(__builder_docs__ fields([type($crate::meta::Length), size(fixed=fixed), value(value=($($value)*)), $($rest)*] $($frest)*) $($srest)*);
     };
     // Pattern match on known fixed-sized types and mark them as `size(fixed=fixed)`
-    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type([$elem:ty; $len:literal])($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($crate::meta::FixedArray<$len, $elem>), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+    (__builder_type__ fields([type([$elem:ty; $len:literal])($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        $crate::struct_elaborate!(__builder_value__ fields([type($crate::meta::FixedArray<$len, $elem>), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
     };
-    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(u8)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+    (__builder_type__ fields([type(u8)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
     };
-    (__builder_type__ fixed($fixed:ident $fixed_expr:expr)fields([type(i16)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+    (__builder_type__ fields([type(i16)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
     };
-    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(i32)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+    (__builder_type__ fields([type(i32)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
     };
-    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(u32)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+    (__builder_type__ fields([type(u32)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
     };
-    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(u64)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+    (__builder_type__ fields([type(u64)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
     };
-    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(Uuid)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+    (__builder_type__ fields([type(Uuid)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
     };
 
     // Fallback for other types - variable sized
-    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type($ty:ty)($ty2:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fixed($fixed=>no_fixed_offset $fixed_expr=>(0)) fields([type($ty), size(variable=variable), $($rest)*] $($frest)*) $($srest)*);
+    (__builder_type__ fields([type($ty:ty)($ty2:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(variable=variable), $($rest)*] $($frest)*) $($srest)*);
     };
 
     // Next, mark the presence or absence of a value
-    (__builder_value__ fixed($fixed:ident=>$fixed_new:ident $fixed_expr:expr=>$fixed_expr_new:expr) fields([
+    (__builder_value__ fields([
         type($ty:ty), size($($size:tt)*), value(), $($rest:tt)*
     ] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_docs__ fixed($fixed=>$fixed_new $fixed_expr=>$fixed_expr_new) fields([type($ty), size($($size)*), value(no_value=no_value), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder_docs__ fields([type($ty), size($($size)*), value(no_value=no_value), $($rest)*] $($frest)*) $($srest)*);
     };
-    (__builder_value__ fixed($fixed:ident=>$fixed_new:ident $fixed_expr:expr=>$fixed_expr_new:expr) fields([
+    (__builder_value__ fields([
         type($ty:ty), size($($size:tt)*), value($($value:tt)+), $($rest:tt)*
     ] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_docs__ fixed($fixed=>$fixed_new $fixed_expr=>$fixed_expr_new) fields([type($ty), size($($size)*), value(value=($($value)*)), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder_docs__ fields([type($ty), size($($size)*), value(value=($($value)*)), $($rest)*] $($frest)*) $($srest)*);
     };
 
     // Next, handle missing docs
-    (__builder_docs__ fixed($fixed:ident=>$fixed_new:ident $fixed_expr:expr=>$fixed_expr_new:expr) fields([
+    (__builder_docs__ fields([
         type($ty:ty), size($($size:tt)*), value($($value:tt)*), docs(), name($field:ident), $($rest:tt)*
     ] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder__ fixed($fixed=>$fixed_new $fixed_expr=>$fixed_expr_new) fields([type($ty), size($($size)*), value($($value)*), docs(concat!("`", stringify!($field), "` field.")), name($field), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder__ fields([type($ty), size($($size)*), value($($value)*), docs(concat!("`", stringify!($field), "` field.")), name($field), $($rest)*] $($frest)*) $($srest)*);
     };
-    (__builder_docs__ fixed($fixed:ident=>$fixed_new:ident $fixed_expr:expr=>$fixed_expr_new:expr) fields([
+    (__builder_docs__ fields([
         type($ty:ty), size($($size:tt)*), value($($value:tt)*), docs($($fdoc:literal)+), $($rest:tt)*
     ] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder__ fixed($fixed=>$fixed_new $fixed_expr=>$fixed_expr_new) fields([type($ty), size($($size)*), value($($value)*), docs(concat!($($fdoc)+)), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder__ fields([type($ty), size($($size)*), value($($value)*), docs(concat!($($fdoc)+)), $($rest)*] $($frest)*) $($srest)*);
     };
 
 
     // Push down the field to the accumulator
-    (__builder__ fixed($fixed:ident=>$fixed_new:ident $fixed_expr:expr=>$fixed_expr_new:expr) fields([
+    (__builder__ fields([
         type($ty:ty), size($($size:tt)*), value($($value:tt)*), docs($fdoc:expr), name($field:ident), $($rest:tt)*
     ] $($frest:tt)*) accum($($faccum:tt)*) original($($original:tt)*)) => {
-        $crate::struct_elaborate!(__builder_type__ fixed($fixed_new $fixed_expr_new) fields($($frest)*) accum(
+        $crate::struct_elaborate!(__builder_type__ fields($($frest)*) accum(
             $($faccum)*
             {
                 name($field),
@@ -151,7 +147,6 @@ macro_rules! struct_elaborate {
                 size($($size)*),
                 value($($value)*),
                 docs($fdoc),
-                fixed($fixed=$fixed, $fixed_expr),
             },
         ) original($($original)*));
     };
@@ -285,7 +280,6 @@ macro_rules! protocol_builder {
             size($($size:tt)*),
             value($(value = ($value:expr))? $(no_value = $no_value:ident)? $(auto = $auto:ident)?),
             docs($fdoc:expr),
-            fixed($fixed:ident=$fixed2:ident, $fixed_expr:expr),
             $($rest:tt)*
         },)*),
     }) => {
@@ -437,7 +431,6 @@ macro_rules! protocol_builder {
             size($($size:tt)*),
             value($(value = ($value:expr))? $(no_value = $no_value:ident)? $(auto = $auto:ident)?),
             docs($fdoc:expr),
-            fixed($fixed:ident=$fixed2:ident, $fixed_expr:expr),
             $($rest:tt)*
         },)*),
     }) => {
@@ -463,10 +456,6 @@ macro_rules! protocol_builder {
                 pub const FIELD_COUNT: usize = [$(stringify!($field)),*].len();
                 $($(pub const [<$field:upper _VALUE>]: <$type as $crate::Enliven>::WithLifetime<'static> = super::access::FieldAccess::<$type>::constant($value as usize);)?)*
             }
-
-            $(
-                protocol_builder!(__meta__, $fixed($fixed_expr) $field $type);
-            )*
 
             impl $crate::StructMeta for Meta {
                 type Struct<'a> = S<'a>;
@@ -529,8 +518,6 @@ macro_rules! protocol_builder {
             $crate::field_access!{self::FieldAccess, [<$name Meta>]}
             $crate::array_access!{variable, self::FieldAccess, [<$name Meta>]}
         );
-    };
-    (__meta__, $fixed:ident($fixed_expr:expr) $field:ident $any:ty) => {
     };
 
     (__measure__, struct $name:ident {
@@ -763,12 +750,10 @@ mod tests {
             fields({
                 name(a), type (u8), size(fixed = fixed), value(no_value = no_value),
                 docs(concat!("`", stringify! (a), "` field.")),
-                fixed(fixed_offset = fixed_offset, (0)),
             },
             {
                 name(b), type (u8), size(fixed = fixed), value(no_value = no_value),
                 docs(concat!("`", stringify! (b), "` field.")),
-                fixed(fixed_offset = fixed_offset, ((0) + std::mem::size_of::<u8>())),
             },),
         }));
     }
@@ -789,37 +774,29 @@ mod tests {
             fields({
                 name(a), type (u8), size(fixed = fixed), value(no_value = no_value),
                 docs(concat!("`", stringify! (a), "` field.")),
-                fixed(fixed_offset = fixed_offset, (0)),
             },
             {
                 name(l), type ($crate::meta::Length), size(fixed = fixed),
                 value(auto = auto), docs(concat!("`", stringify! (l), "` field.")),
-                fixed(fixed_offset = fixed_offset, ((0) + std::mem::size_of::<u8>())),
             },
             {
                 name(s), type (ZTString), size(variable = variable),
                 value(no_value = no_value),
                 docs(concat!("`", stringify! (s), "` field.")),
-                fixed(fixed_offset = fixed_offset, (((0) + std::mem::size_of::<u8>()) + 4)),
             },
             {
                 name(c), type (i16), size(fixed = fixed), value(no_value = no_value),
                 docs(concat!("`", stringify! (c), "` field.")),
-                fixed(no_fixed_offset = no_fixed_offset, (0)),
             },
             {
                 name(d), type ($crate::meta::FixedArray<4, u8>), size(fixed = fixed),
                 value(no_value = no_value),
                 docs(concat!("`", stringify! (d), "` field.")),
-                fixed(no_fixed_offset = no_fixed_offset, ((0) + std::mem::size_of::<i16>())),
             },
             {
                 name(e), type (ZTArray<ZTString>), size(variable = variable),
                 value(no_value = no_value),
                 docs(concat!("`", stringify! (e), "` field.")),
-                fixed(no_fixed_offset = no_fixed_offset,
-                    (((0) + std::mem::size_of::<i16>()) +
-                    std::mem::size_of::<[u8; 4]>())),
             },
         ),
         }));
