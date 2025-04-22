@@ -3,6 +3,7 @@ mod buffer;
 mod datatypes;
 mod field_access;
 mod gen;
+pub mod gen2;
 mod message_group;
 mod writer;
 
@@ -49,20 +50,7 @@ pub trait StructMeta {
 
 /// Implemented for all generated structs that have a [`meta::Length`] field at a fixed offset.
 pub trait StructLength: StructMeta {
-    fn length_field_of(of: &Self::Struct<'_>) -> usize;
-    fn length_field_offset() -> usize;
-    fn length_of_buf(buf: &[u8]) -> Option<usize> {
-        if buf.len() < Self::length_field_offset() + std::mem::size_of::<u32>() {
-            None
-        } else {
-            let len = FieldAccess::<datatypes::LengthMeta>::extract(
-                &buf[Self::length_field_offset()
-                    ..Self::length_field_offset() + std::mem::size_of::<u32>()],
-            )
-            .ok()?;
-            Some(Self::length_field_offset() + len)
-        }
-    }
+    fn length_of_buf(buf: &[u8]) -> Option<usize>;
 }
 
 /// For a given metaclass, returns the inflated type, a measurement type and a
@@ -74,65 +62,6 @@ pub trait Enliven {
     type WithLifetime<'a>;
     type ForMeasure<'a>: 'a;
     type ForBuilder<'a>: 'a;
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub enum MetaRelation {
-    Parent,
-    Length,
-    Item,
-    Field(&'static str),
-}
-
-pub trait Meta {
-    fn name(&self) -> &'static str {
-        std::any::type_name::<Self>()
-    }
-    fn relations(&self) -> &'static [(MetaRelation, &'static dyn Meta)] {
-        &[]
-    }
-    fn fixed_length(&self) -> Option<usize> {
-        None
-    }
-    fn field(&self, name: &'static str) -> Option<&'static dyn Meta> {
-        for (relation, meta) in self.relations() {
-            if relation == &MetaRelation::Field(name) {
-                return Some(*meta);
-            }
-        }
-        None
-    }
-    fn parent(&self) -> Option<&'static dyn Meta> {
-        for (relation, meta) in self.relations() {
-            if relation == &MetaRelation::Parent {
-                return Some(*meta);
-            }
-        }
-        None
-    }
-}
-
-impl<T: Meta> PartialEq<T> for dyn Meta {
-    fn eq(&self, other: &T) -> bool {
-        other.name() == self.name()
-    }
-}
-
-impl std::fmt::Debug for dyn Meta {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut s = f.debug_struct(self.name());
-        if let Some(length) = self.fixed_length() {
-            s.field("Length", &length);
-        }
-        for (relation, meta) in self.relations() {
-            if relation == &MetaRelation::Parent {
-                s.field(&format!("{relation:?}"), &meta.name());
-            } else {
-                s.field(&format!("{relation:?}"), meta);
-            }
-        }
-        s.finish()
-    }
 }
 
 /// Used internally by the `protocol!` macro to copy from `FieldAccess` in this crate to
@@ -169,10 +98,6 @@ macro_rules! field_access_copy {
 
         impl <const S: usize> $acc2 :: FieldAccess<$crate::meta::FixedArray<S, $ty>> {
             #[inline(always)]
-            pub const fn meta() -> &'static dyn $crate::Meta {
-                $acc1::FieldAccess::<$crate::meta::FixedArray<S, $ty>>::meta()
-            }
-            #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
                 $acc1::FieldAccess::<$crate::meta::FixedArray<S, $ty>>::size_of_field_at(buf)
             }
@@ -187,6 +112,10 @@ macro_rules! field_access_copy {
             pub const fn measure(value: &[<$ty as $crate::Enliven>::ForMeasure<'_>; S]) -> usize {
                 $acc1::FieldAccess::<$crate::meta::FixedArray<S, $ty>>::measure(value)
             }
+            #[inline(always)]
+            pub const fn constant_size() -> Option<usize> {
+                $acc1::FieldAccess::<$crate::meta::FixedArray<S, $ty>>::constant_size()
+            }
         }
         )*
     };
@@ -194,11 +123,7 @@ macro_rules! field_access_copy {
         $(
         impl $acc2 :: FieldAccess<$ty> {
             #[inline(always)]
-            pub const fn meta() -> &'static dyn $crate::Meta {
-                $acc1::FieldAccess::<$ty>::meta()
-            }
-            #[inline(always)]
-            pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
+            pub fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
                 $acc1::FieldAccess::<$ty>::size_of_field_at(buf)
             }
             #[inline(always)]
@@ -211,6 +136,10 @@ macro_rules! field_access_copy {
             #[inline(always)]
             pub const fn measure(value: &<$ty as $crate::Enliven>::ForMeasure<'_>) -> usize {
                 $acc1::FieldAccess::<$ty>::measure(value)
+            }
+            #[inline(always)]
+            pub const fn constant_size() -> Option<usize> {
+                $acc1::FieldAccess::<$ty>::constant_size()
             }
         }
         )*

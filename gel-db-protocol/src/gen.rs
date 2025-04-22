@@ -234,15 +234,6 @@ macro_rules! __protocol {
                     pub use super::[<__ $name:lower>]::[<$name Meta>] as $name;
                 );
             )+
-
-            /// A slice containing the metadata references for all structs in
-            /// this definition.
-            #[allow(unused)]
-            pub const ALL: &'static [&'static dyn $crate::Meta] = &[
-                $(
-                    &$name {}
-                ),*
-            ];
         }
         pub mod builder {
             #![allow(unused_imports)]
@@ -377,7 +368,7 @@ macro_rules! protocol_builder {
                         Self::is_buffer(parent.__buf)
                     }
 
-                    pub const fn try_new(parent: &<super::meta::$super as $crate::Enliven>::WithLifetime<'a>) -> Option<Self> {
+                    pub fn try_new(parent: &<super::meta::$super as $crate::Enliven>::WithLifetime<'a>) -> Option<Self> {
                         if Self::can_cast(parent) {
                             // TODO
                             let Ok(value) = Self::new(parent.__buf) else {
@@ -392,7 +383,7 @@ macro_rules! protocol_builder {
 
                 /// Creates a new instance of this struct from a given buffer.
                 #[inline]
-                pub const fn new(mut buf: &'a [u8]) -> Result<Self, $crate::ParseError> {
+                pub fn new(mut buf: &'a [u8]) -> Result<Self, $crate::ParseError> {
                     let mut __field_offsets = [0; Meta::FIELD_COUNT + 1];
                     let mut offset = 0;
                     let mut index = 0;
@@ -473,29 +464,6 @@ macro_rules! protocol_builder {
                 $($(pub const [<$field:upper _VALUE>]: <$type as $crate::Enliven>::WithLifetime<'static> = super::access::FieldAccess::<$type>::constant($value as usize);)?)*
             }
 
-            impl $crate::Meta for Meta {
-                fn name(&self) -> &'static str {
-                    stringify!($name)
-                }
-                fn relations(&self) -> &'static [($crate::MetaRelation, &'static dyn $crate::Meta)] {
-                    $crate::r#if!(__is_empty__ [$($super)?] {
-                        const RELATIONS: &'static [($crate::MetaRelation, &'static dyn $crate::Meta)] = &[
-                            $(
-                                ($crate::MetaRelation::Field(stringify!($field)), super::access::FieldAccess::<$type>::meta())
-                            ),*
-                        ];
-                    } else {
-                        const RELATIONS: &'static [($crate::MetaRelation, &'static dyn $crate::Meta)] = &[
-                            ($crate::MetaRelation::Parent, super::access::FieldAccess::<super::meta::$($super)?>::meta()),
-                            $(
-                                ($crate::MetaRelation::Field(stringify!($field)), super::access::FieldAccess::<$type>::meta())
-                            ),*
-                        ];
-                    });
-                    RELATIONS
-                }
-            }
-
             $(
                 protocol_builder!(__meta__, $fixed($fixed_expr) $field $type);
             )*
@@ -510,6 +478,27 @@ macro_rules! protocol_builder {
                 }
             }
 
+            const FIELDS: $crate::gen2::StructFields = $crate::gen2::StructFields::new(&
+                $crate::gen2::StructFieldComputed::new([
+                    $(
+                        $crate::gen2::StructField {
+                            name: stringify!($field),
+                            meta: &<$type as $crate::gen2::HasStructFieldMeta>::META,
+                            size_of_field_at: <$type as $crate::FieldAccessArray>::size_of_field_at,
+                        },
+                    )*
+                ]));
+
+            impl $crate::gen2::StructMeta for Meta {
+                const FIELDS: $crate::gen2::StructFields = FIELDS;
+            }
+
+            impl $crate::gen2::StructAttributeFixedSize<{<Meta as $crate::gen2::StructMeta>::IS_FIXED_SIZE}> for Meta {
+            }
+
+            impl $crate::gen2::StructAttributeHasLengthField<{<Meta as $crate::gen2::StructMeta>::HAS_LENGTH_FIELD}> for Meta {
+            }
+
             impl $crate::Enliven for Meta {
                 type WithLifetime<'a> = S<'a>;
                 type ForMeasure<'a> = M<'a>;
@@ -518,27 +507,12 @@ macro_rules! protocol_builder {
 
             #[allow(unused)]
             impl super::access::FieldAccess<Meta> {
-                #[inline(always)]
-                pub const fn name() -> &'static str {
-                    stringify!($name)
-                }
-                #[inline(always)]
-                pub const fn meta() -> &'static dyn $crate::Meta {
-                    &Meta {}
-                }
                 #[inline]
-                pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
-                    let mut offset = 0;
-                    $(
-                        offset += match super::access::FieldAccess::<$type>::size_of_field_at(buf.split_at(offset).1) {
-                            Ok(n) => n,
-                            Err(e) => return Err(e),
-                        };
-                    )*
-                    Ok(offset)
+                pub fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
+                    FIELDS.compute_size(buf)
                 }
                 #[inline(always)]
-                pub const fn extract(buf: &[u8]) -> Result<$name<'_>, $crate::ParseError> {
+                pub fn extract(buf: &[u8]) -> Result<$name<'_>, $crate::ParseError> {
                     $name::new(buf)
                 }
                 #[inline(always)]
@@ -555,19 +529,6 @@ macro_rules! protocol_builder {
             $crate::field_access!{self::FieldAccess, [<$name Meta>]}
             $crate::array_access!{variable, self::FieldAccess, [<$name Meta>]}
         );
-    };
-    (__meta__, fixed_offset($fixed_expr:expr) $field:ident $crate::meta::Length) => {
-        impl $crate::StructLength for Meta {
-            fn length_field_of(of: &Self::Struct<'_>) -> usize {
-                of.$field()
-            }
-            fn length_field_offset() -> usize {
-                $fixed_expr
-            }
-        }
-    };
-    (__meta__, $fixed:ident($fixed_expr:expr) $field:ident $crate::meta::Rest) => {
-
     };
     (__meta__, $fixed:ident($fixed_expr:expr) $field:ident $any:ty) => {
     };

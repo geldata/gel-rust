@@ -1,6 +1,8 @@
 #![allow(private_bounds)]
 
-use super::{Enliven, FieldAccessArray, FixedSize, Meta, MetaRelation, ParseError};
+use crate::gen2::{HasStructFieldMeta, StructFieldMeta};
+
+use super::{Enliven, FieldAccessArray, FixedSize, ParseError};
 pub use std::marker::PhantomData;
 
 pub mod meta {
@@ -20,13 +22,12 @@ pub struct ZTArrayMeta<T> {
     pub _phantom: PhantomData<T>,
 }
 
-impl<T: FieldAccessArray> Meta for ZTArrayMeta<T> {
-    fn name(&self) -> &'static str {
-        "ZTArray"
-    }
-    fn relations(&self) -> &'static [(MetaRelation, &'static dyn Meta)] {
-        &[(MetaRelation::Item, <T as FieldAccessArray>::META)]
-    }
+impl<T> HasStructFieldMeta for ZTArrayMeta<T> {
+    const META: StructFieldMeta = StructFieldMeta {
+        type_name: "ZTArray",
+        constant_size: None,
+        is_length: true,
+    };
 }
 
 impl<T> Enliven for ZTArrayMeta<T>
@@ -98,9 +99,6 @@ impl<'a, T: FieldAccessArray> Iterator for ZTArrayIter<'a, T> {
 }
 
 impl<T: FieldAccessArray + 'static> FieldAccessArray for ZTArrayMeta<T> {
-    const META: &'static dyn Meta = &ZTArrayMeta::<T> {
-        _phantom: PhantomData,
-    };
     fn size_of_field_at(mut buf: &[u8]) -> Result<usize, ParseError> {
         let mut size = 1;
         loop {
@@ -138,16 +136,12 @@ pub struct ArrayMeta<L, T> {
     pub _phantom: PhantomData<(L, T)>,
 }
 
-impl<L: FieldAccessArray, T: FieldAccessArray> Meta for ArrayMeta<L, T> {
-    fn name(&self) -> &'static str {
-        "Array"
-    }
-    fn relations(&self) -> &'static [(MetaRelation, &'static dyn Meta)] {
-        &[
-            (MetaRelation::Length, L::META),
-            (MetaRelation::Item, T::META),
-        ]
-    }
+impl<L, T> HasStructFieldMeta for ArrayMeta<L, T> {
+    const META: StructFieldMeta = StructFieldMeta {
+        type_name: "Array",
+        constant_size: None,
+        is_length: false,
+    };
 }
 
 impl<L, T> Enliven for ArrayMeta<L, T>
@@ -264,11 +258,8 @@ where
     for<'a> L::ForBuilder<'a>: TryFrom<usize>,
     for<'a> L::WithLifetime<'a>: TryInto<usize>,
 {
-    const META: &'static dyn Meta = &ArrayMeta::<L, T> {
-        _phantom: PhantomData,
-    };
     fn size_of_field_at(mut buf: &[u8]) -> Result<usize, ParseError> {
-        let mut size = std::mem::size_of::<T>();
+        let mut size = std::mem::size_of::<L>();
         let len = match L::extract(buf) {
             Ok(n) => n.try_into(),
             Err(e) => return Err(e),
@@ -320,16 +311,10 @@ pub struct FixedArrayMeta<const S: usize, T> {
     pub _phantom: PhantomData<T>,
 }
 
-impl<const S: usize, T: FieldAccessArray> Meta for FixedArrayMeta<S, T> {
-    fn name(&self) -> &'static str {
-        "FixedArray"
-    }
-
-    fn fixed_length(&self) -> Option<usize> {
-        Some(S)
-    }
-
-    fn relations(&self) -> &'static [(MetaRelation, &'static dyn Meta)] {
-        &[(MetaRelation::Item, <T as FieldAccessArray>::META)]
-    }
+impl<const S: usize, T: HasStructFieldMeta> HasStructFieldMeta for FixedArrayMeta<S, T> {
+    const META: StructFieldMeta = StructFieldMeta {
+        type_name: "FixedArray",
+        constant_size: Some(S * T::META.constant_size.unwrap()),
+        is_length: false,
+    };
 }

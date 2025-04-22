@@ -77,24 +77,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_meta() {
-        let expected = [
-            r#"Message { Field("mtype"): u8, Field("mlen"): len, Field("data"): Rest }"#,
-            r#"CommandComplete { Parent: "Message", Field("mtype"): u8, Field("mlen"): len, Field("tag"): ZTString }"#,
-            r#"Sync { Parent: "Message", Field("mtype"): u8, Field("mlen"): len }"#,
-            r#"DataRow { Parent: "Message", Field("mtype"): u8, Field("mlen"): len, Field("values"): Array { Length: i16, Item: Encoded } }"#,
-            r#"QueryType { Field("typ"): u8, Field("len"): u32, Field("meta"): Array { Length: u32, Item: u8 } }"#,
-            r#"Query { Parent: "Message", Field("mtype"): u8, Field("mlen"): len, Field("query"): ZTString, Field("types"): Array { Length: i16, Item: QueryType { Field("typ"): u8, Field("len"): u32, Field("meta"): Array { Length: u32, Item: u8 } } } }"#,
-            r#"Key { Field("key"): FixedArray { Length: 16, Item: u8 } }"#,
-            r#"Uuids { Field("uuids"): Array { Length: u32, Item: Uuid } }"#,
-        ];
-
-        for (i, meta) in meta::ALL.iter().enumerate() {
-            assert_eq!(expected[i], format!("{meta:?}"));
-        }
-    }
-
-    #[test]
     fn test_query() {
         let buf = builder::Query {
             query: "SELECT * from foo",
@@ -107,6 +89,12 @@ mod tests {
         .to_vec();
 
         let query = data::Query::new(&buf).expect("Failed to parse query");
+        let types = query.types();
+        assert_eq!(1, types.len());
+        assert_eq!(
+            r#"QueryType { typ: 1, len: 4, meta: [1, 2, 3, 4] }"#,
+            format!("{:?}", types.into_iter().next().unwrap())
+        );
         assert_eq!(
             r#"Query { mtype: 81, mlen: 37, query: "SELECT * from foo", types: [QueryType { typ: 1, len: 4, meta: [1, 2, 3, 4] }] }"#,
             format!("{query:?}")

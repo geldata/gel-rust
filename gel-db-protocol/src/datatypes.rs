@@ -1,14 +1,14 @@
-use std::{marker::PhantomData, str::Utf8Error};
+use std::str::Utf8Error;
 
 pub use uuid::Uuid;
 
+use crate::gen2::{HasStructFieldMeta, StructFieldMeta};
 use crate::{
     declare_field_access, declare_field_access_fixed_size, writer::BufWriter, Enliven, FieldAccess,
-    FieldAccessArray, Meta, ParseError,
+    FieldAccessArray, ParseError,
 };
 
 pub mod meta {
-    pub use super::BasicMeta as Basic;
     pub use super::EncodedMeta as Encoded;
     pub use super::LStringMeta as LString;
     pub use super::LengthMeta as Length;
@@ -28,10 +28,6 @@ declare_field_access! {
     Inflated = Rest<'a>,
     Measure = &'a [u8],
     Builder = &'a [u8],
-
-    pub const fn meta() -> &'static dyn Meta {
-        &RestMeta {}
-    }
 
     pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
         Ok(buf.len())
@@ -55,10 +51,13 @@ declare_field_access! {
 }
 
 pub struct RestMeta {}
-impl Meta for RestMeta {
-    fn name(&self) -> &'static str {
-        "Rest"
-    }
+
+impl HasStructFieldMeta for RestMeta {
+    const META: StructFieldMeta = StructFieldMeta {
+        type_name: "Rest",
+        constant_size: None,
+        is_length: false,
+    };
 }
 
 impl Rest<'_> {}
@@ -106,10 +105,6 @@ declare_field_access!(
     Measure = &'a str,
     Builder = &'a str,
 
-    pub const fn meta() -> &'static dyn Meta {
-        &ZTStringMeta {}
-    }
-
     pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
         let mut i = 0;
         loop {
@@ -143,10 +138,13 @@ declare_field_access!(
 );
 
 pub struct ZTStringMeta {}
-impl Meta for ZTStringMeta {
-    fn name(&self) -> &'static str {
-        "ZTString"
-    }
+
+impl HasStructFieldMeta for ZTStringMeta {
+    const META: StructFieldMeta = StructFieldMeta {
+        type_name: "ZTString",
+        constant_size: None,
+        is_length: false,
+    };
 }
 
 impl std::fmt::Debug for ZTString<'_> {
@@ -211,10 +209,6 @@ declare_field_access!(
     Measure = &'a str,
     Builder = &'a str,
 
-    pub const fn meta() -> &'static dyn Meta {
-        &LStringMeta {}
-    }
-
     pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
         if buf.len() < 4 {
             return Err(ParseError::TooShort);
@@ -252,10 +246,13 @@ declare_field_access!(
 );
 
 pub struct LStringMeta {}
-impl Meta for LStringMeta {
-    fn name(&self) -> &'static str {
-        "LString"
-    }
+
+impl HasStructFieldMeta for LStringMeta {
+    const META: StructFieldMeta = StructFieldMeta {
+        type_name: "LString",
+        constant_size: None,
+        is_length: false,
+    };
 }
 
 impl std::fmt::Debug for LString<'_> {
@@ -316,10 +313,6 @@ declare_field_access_fixed_size! {
     Size = 16,
     Zero = Uuid::nil(),
 
-    pub const fn meta() -> &'static dyn Meta {
-        &UuidMeta {}
-    }
-
     pub const fn extract(buf: &[u8; 16]) -> Result<Uuid, ParseError> {
         Ok(Uuid::from_u128(<u128>::from_be_bytes(*buf)))
     }
@@ -334,11 +327,6 @@ declare_field_access_fixed_size! {
 }
 
 pub struct UuidMeta {}
-impl Meta for UuidMeta {
-    fn name(&self) -> &'static str {
-        "Uuid"
-    }
-}
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 /// An encoded row value.
@@ -368,10 +356,6 @@ declare_field_access! {
     Inflated = Encoded<'a>,
     Measure = Encoded<'a>,
     Builder = Encoded<'a>,
-
-    pub const fn meta() -> &'static dyn Meta {
-        &EncodedMeta {}
-    }
 
     pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
         const N: usize = std::mem::size_of::<i32>();
@@ -433,10 +417,12 @@ declare_field_access! {
 }
 
 pub struct EncodedMeta {}
-impl Meta for EncodedMeta {
-    fn name(&self) -> &'static str {
-        "Encoded"
-    }
+impl HasStructFieldMeta for EncodedMeta {
+    const META: StructFieldMeta = StructFieldMeta {
+        type_name: "Encoded",
+        constant_size: None,
+        is_length: false,
+    };
 }
 
 impl Encoded<'_> {}
@@ -475,10 +461,6 @@ declare_field_access_fixed_size! {
     Size = 4,
     Zero = 0,
 
-    pub const fn meta() -> &'static dyn Meta {
-        &LengthMeta {}
-    }
-
     pub const fn extract(buf: &[u8; 4]) -> Result<usize, ParseError> {
         let n = i32::from_be_bytes(*buf);
         if n >= 0 {
@@ -508,25 +490,25 @@ impl FieldAccess<LengthMeta> {
 // FieldAccess. For now it works!
 pub struct LengthMeta {}
 
-impl Meta for LengthMeta {
-    fn name(&self) -> &'static str {
-        "len"
-    }
-}
-
-pub struct BasicMeta<T> {
-    _phantom: PhantomData<T>,
-}
-
-impl<T> Meta for BasicMeta<T> {
-    fn name(&self) -> &'static str {
-        std::any::type_name::<T>()
-    }
+impl HasStructFieldMeta for LengthMeta {
+    const META: StructFieldMeta = StructFieldMeta {
+        type_name: "len",
+        constant_size: Some(4),
+        is_length: true,
+    };
 }
 
 macro_rules! basic_types {
     ($($ty:ty),*) => {
         $(
+        impl HasStructFieldMeta for $ty {
+            const META: StructFieldMeta = StructFieldMeta {
+                type_name: stringify!($ty),
+                constant_size: Some(std::mem::size_of::<$ty>()),
+                is_length: false,
+            };
+        }
+
         declare_field_access_fixed_size! {
             Meta = $ty,
             Inflated = $ty,
@@ -534,10 +516,6 @@ macro_rules! basic_types {
             Builder = $ty,
             Size = std::mem::size_of::<$ty>(),
             Zero = 0,
-
-            pub const fn meta() -> &'static dyn Meta {
-                &BasicMeta::<$ty> { _phantom: PhantomData }
-            }
 
             pub const fn extract(buf: &[u8; std::mem::size_of::<$ty>()]) -> Result<$ty, ParseError> {
                 Ok(<$ty>::from_be_bytes(*buf))

@@ -1,4 +1,4 @@
-use crate::{BufWriter, Enliven, Meta, ParseError};
+use crate::{BufWriter, Enliven, ParseError};
 
 /// As Rust does not currently support const in traits, we use this struct to
 /// provide the const methods. It requires more awkward code, so we make use of
@@ -16,7 +16,6 @@ pub struct FieldAccess<T: Enliven> {
 /// Delegates to a concrete [`FieldAccess`] but as a non-const trait. This is
 /// used for performing extraction in iterators.
 pub trait FieldAccessArray: Enliven {
-    const META: &'static dyn Meta;
     fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError>;
     fn extract(buf: &[u8]) -> Result<<Self as Enliven>::WithLifetime<'_>, ParseError>;
     fn copy_to_buf(buf: &mut BufWriter, value: &Self::ForBuilder<'_>);
@@ -39,9 +38,6 @@ macro_rules! declare_field_access {
         Inflated = $inflated:ty,
         Measure = $measured:ty,
         Builder = $builder:ty,
-
-        pub const fn meta() -> &'static dyn Meta
-            $meta_body:block
 
         pub const fn size_of_field_at($size_of_arg0:ident : &[u8]) -> Result<usize, ParseError>
             $size_of:block
@@ -66,10 +62,6 @@ macro_rules! declare_field_access {
 
         impl FieldAccess<$meta> {
             #[inline(always)]
-            pub const fn meta() -> &'static dyn Meta {
-                $meta_body
-            }
-            #[inline(always)]
             pub const fn size_of_field_at($size_of_arg0: &[u8]) -> Result<usize, ParseError> {
                 $size_of
             }
@@ -88,6 +80,10 @@ macro_rules! declare_field_access {
             #[inline(always)]
             pub const fn constant($constant_arg0: usize) -> $constant_ret {
                 $constant
+            }
+            #[inline(always)]
+            pub const fn constant_size() -> Option<usize> {
+                None
             }
         }
 
@@ -109,9 +105,6 @@ macro_rules! declare_field_access_fixed_size {
         Size = $size:expr,
         Zero = $zero:expr,
 
-        pub const fn meta() -> &'static dyn Meta
-            $meta_body:block
-
         pub const fn extract($extract_arg0:ident : &$extract_type:ty) -> Result<$extract_ret:ty, ParseError>
            $extract:block
 
@@ -128,10 +121,6 @@ macro_rules! declare_field_access_fixed_size {
         }
 
         impl FieldAccess<$meta> {
-            #[inline(always)]
-            pub const fn meta() -> &'static dyn Meta {
-                $meta_body
-            }
             #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
                 if let Ok(_) = Self::extract(buf) {
@@ -166,6 +155,10 @@ macro_rules! declare_field_access_fixed_size {
             pub const fn constant($constant_arg0: usize) -> $constant_ret {
                 $constant
             }
+            #[inline(always)]
+            pub const fn constant_size() -> Option<usize> {
+                Some($size)
+            }
         }
 
         impl $crate::FixedSize for $meta {
@@ -184,12 +177,6 @@ macro_rules! declare_field_access_fixed_size {
 
         #[allow(unused)]
         impl<const S: usize> FieldAccess<$crate::meta::FixedArray<S, $meta>> {
-            #[inline(always)]
-            pub const fn meta() -> &'static dyn Meta {
-                &$crate::meta::FixedArray::<S, $meta> {
-                    _phantom: PhantomData,
-                }
-            }
             #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
                 let size = $size * S;
@@ -232,10 +219,13 @@ macro_rules! declare_field_access_fixed_size {
                     FieldAccess::<$meta>::copy_to_buf(buf, n);
                 }
             }
+            #[inline(always)]
+            pub const fn constant_size() -> Option<usize> {
+                Some($size * S)
+            }
         }
 
         impl<const S: usize> FieldAccessArray for $crate::meta::FixedArray<S, $meta> {
-            const META: &'static dyn Meta = FieldAccess::<$meta>::meta();
             #[inline(always)]
             fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
                 // TODO: needs to verify the values as well
@@ -272,7 +262,6 @@ macro_rules! declare_field_access_fixed_size {
 macro_rules! field_access {
     ($acc:ident :: FieldAccess, $ty:ty) => {
         impl $crate::FieldAccessArray for $ty {
-            const META: &'static dyn $crate::Meta = $acc::FieldAccess::<$ty>::meta();
             #[inline(always)]
             fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
                 $acc::FieldAccess::<$ty>::size_of_field_at(buf)
@@ -309,9 +298,6 @@ macro_rules! array_access {
         $(
         #[allow(unused)]
         impl FieldAccess<$crate::meta::Array<$len, $ty>> {
-            pub const fn meta() -> &'static dyn Meta {
-                &$crate::meta::Array::<$len, $ty> { _phantom: PhantomData }
-            }
             #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
                 const N: usize = <$ty as $crate::FixedSize>::SIZE;
@@ -387,14 +373,15 @@ macro_rules! array_access {
             pub const fn constant(value: usize) -> $crate::Array<'static, $len, $ty> {
                 panic!("Constants unsupported for this data type")
             }
+            #[inline(always)]
+            pub const fn constant_size() -> Option<usize> {
+                None
+            }
         }
         )*
 
         #[allow(unused)]
         impl $acc::FieldAccess<$crate::meta::ZTArray<$ty>> {
-            pub const fn meta() -> &'static dyn $crate::Meta {
-                &$crate::meta::ZTArray::<$ty> { _phantom: std::marker::PhantomData }
-            }
             #[inline]
             pub const fn size_of_field_at(mut buf: &[u8]) -> Result<usize, $crate::ParseError> {
                 let mut size = 1;
@@ -442,17 +429,18 @@ macro_rules! array_access {
             pub const fn constant(value: usize) -> $crate::ZTArray<'static, $ty> {
                 panic!("Constants unsupported for this data type")
             }
+            #[inline(always)]
+            pub const fn constant_size() -> Option<usize> {
+                None
+            }
         }
     };
     (variable, $acc:ident :: FieldAccess, $ty:ty | $($len:ty)*) => {
         $(
         #[allow(unused)]
         impl $acc::FieldAccess<$crate::meta::Array<$len, $ty>> {
-            pub const fn meta() -> &'static dyn $crate::Meta {
-                &$crate::meta::Array::<$len, $ty> { _phantom: std::marker::PhantomData }
-            }
             #[inline]
-            pub const fn size_of_field_at(mut buf: &[u8]) -> Result<usize, $crate::ParseError> {
+            pub fn size_of_field_at(mut buf: &[u8]) -> Result<usize, $crate::ParseError> {
                 let mut size = std::mem::size_of::<$len>();
                 let mut len = match $acc::FieldAccess::<$len>::extract(buf) {
                     Ok(n) => n,
@@ -509,16 +497,17 @@ macro_rules! array_access {
             pub const fn constant(value: usize) -> $crate::Array<'static, $len, $ty> {
                 panic!("Constants unsupported for this data type")
             }
+            #[inline(always)]
+            pub const fn constant_size() -> Option<usize> {
+                None
+            }
         }
         )*
 
         #[allow(unused)]
         impl $acc::FieldAccess<$crate::meta::ZTArray<$ty>> {
-            pub const fn meta() -> &'static dyn $crate::Meta {
-                &$crate::meta::ZTArray::<$ty> { _phantom: std::marker::PhantomData }
-            }
             #[inline]
-            pub const fn size_of_field_at(mut buf: &[u8]) -> Result<usize, $crate::ParseError> {
+            pub fn size_of_field_at(mut buf: &[u8]) -> Result<usize, $crate::ParseError> {
                 let mut size = 1;
                 loop {
                     if buf.is_empty() {
@@ -563,6 +552,10 @@ macro_rules! array_access {
             #[inline(always)]
             pub const fn constant(value: usize) -> $crate::ZTArray<'static, $ty> {
                 panic!("Constants unsupported for this data type")
+            }
+            #[inline(always)]
+            pub const fn constant_size() -> Option<usize> {
+                None
             }
         }
     };
