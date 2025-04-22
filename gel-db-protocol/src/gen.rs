@@ -77,74 +77,55 @@ macro_rules! struct_elaborate {
 
     // Skip __builder_value__ for 'len'
     (__builder_type__ fields([type(len)(len), value(), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_docs__ fields([type($crate::meta::Length), size(fixed=fixed), value(auto=auto), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder_docs__ fields([type($crate::meta::Length), value(auto=auto), $($rest)*] $($frest)*) $($srest)*);
     };
     (__builder_type__ fields([type(len)(len), value($($value:tt)+), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_docs__ fields([type($crate::meta::Length), size(fixed=fixed), value(value=($($value)*)), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder_docs__ fields([type($crate::meta::Length), value(value=($($value)*)), $($rest)*] $($frest)*) $($srest)*);
     };
     // Pattern match on known fixed-sized types and mark them as `size(fixed=fixed)`
     (__builder_type__ fields([type([$elem:ty; $len:literal])($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fields([type($crate::meta::FixedArray<$len, $elem>), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
-    };
-    (__builder_type__ fields([type(u8)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
-    };
-    (__builder_type__ fields([type(i16)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
-    };
-    (__builder_type__ fields([type(i32)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
-    };
-    (__builder_type__ fields([type(u32)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
-    };
-    (__builder_type__ fields([type(u64)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
-    };
-    (__builder_type__ fields([type(Uuid)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder_value__ fields([type($crate::meta::FixedArray<$len, $elem>), $($rest)*] $($frest)*) $($srest)*);
     };
 
     // Fallback for other types - variable sized
     (__builder_type__ fields([type($ty:ty)($ty2:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fields([type($ty), size(variable=variable), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder_value__ fields([type($ty), $($rest)*] $($frest)*) $($srest)*);
     };
 
     // Next, mark the presence or absence of a value
     (__builder_value__ fields([
-        type($ty:ty), size($($size:tt)*), value(), $($rest:tt)*
+        type($ty:ty), value(), $($rest:tt)*
     ] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_docs__ fields([type($ty), size($($size)*), value(no_value=no_value), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder_docs__ fields([type($ty), value(no_value=no_value), $($rest)*] $($frest)*) $($srest)*);
     };
     (__builder_value__ fields([
-        type($ty:ty), size($($size:tt)*), value($($value:tt)+), $($rest:tt)*
+        type($ty:ty), value($($value:tt)+), $($rest:tt)*
     ] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_docs__ fields([type($ty), size($($size)*), value(value=($($value)*)), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder_docs__ fields([type($ty), value(value=($($value)*)), $($rest)*] $($frest)*) $($srest)*);
     };
 
     // Next, handle missing docs
     (__builder_docs__ fields([
-        type($ty:ty), size($($size:tt)*), value($($value:tt)*), docs(), name($field:ident), $($rest:tt)*
+        type($ty:ty), value($($value:tt)*), docs(), name($field:ident), $($rest:tt)*
     ] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder__ fields([type($ty), size($($size)*), value($($value)*), docs(concat!("`", stringify!($field), "` field.")), name($field), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder__ fields([type($ty), value($($value)*), docs(concat!("`", stringify!($field), "` field.")), name($field), $($rest)*] $($frest)*) $($srest)*);
     };
     (__builder_docs__ fields([
-        type($ty:ty), size($($size:tt)*), value($($value:tt)*), docs($($fdoc:literal)+), $($rest:tt)*
+        type($ty:ty), value($($value:tt)*), docs($($fdoc:literal)+), $($rest:tt)*
     ] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder__ fields([type($ty), size($($size)*), value($($value)*), docs(concat!($($fdoc)+)), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder__ fields([type($ty), value($($value)*), docs(concat!($($fdoc)+)), $($rest)*] $($frest)*) $($srest)*);
     };
 
 
     // Push down the field to the accumulator
     (__builder__ fields([
-        type($ty:ty), size($($size:tt)*), value($($value:tt)*), docs($fdoc:expr), name($field:ident), $($rest:tt)*
+        type($ty:ty), value($($value:tt)*), docs($fdoc:expr), name($field:ident), $($rest:tt)*
     ] $($frest:tt)*) accum($($faccum:tt)*) original($($original:tt)*)) => {
         $crate::struct_elaborate!(__builder_type__ fields($($frest)*) accum(
             $($faccum)*
             {
                 name($field),
                 type($ty),
-                size($($size)*),
                 value($($value)*),
                 docs($fdoc),
             },
@@ -268,7 +249,6 @@ macro_rules! protocol_builder {
         fields($({
             name($field:ident),
             type($type:ty),
-            size($($size:tt)*),
             value($(value = ($value:expr))? $(no_value = $no_value:ident)? $(auto = $auto:ident)?),
             docs($fdoc:expr),
             $($rest:tt)*
@@ -417,7 +397,6 @@ macro_rules! protocol_builder {
         fields($({
             name($field:ident),
             type($type:ty),
-            size($($size:tt)*),
             value($(value = ($value:expr))? $(no_value = $no_value:ident)? $(auto = $auto:ident)?),
             docs($fdoc:expr),
             $($rest:tt)*
@@ -514,7 +493,6 @@ macro_rules! protocol_builder {
         fields($({
             name($field:ident),
             type($type:ty),
-            size($($size:tt)*),
             value($(value = ($value:expr))? $(no_value = $no_value:ident)? $(auto = $auto:ident)?),
             docs($fdoc:expr),
             $($rest:tt)*
@@ -709,11 +687,11 @@ mod tests {
             super (),
             docs(),
             fields({
-                name(a), type (u8), size(fixed = fixed), value(no_value = no_value),
+                name(a), type (u8), value(no_value = no_value),
                 docs(concat!("`", stringify! (a), "` field.")),
             },
             {
-                name(b), type (u8), size(fixed = fixed), value(no_value = no_value),
+                name(b), type (u8), value(no_value = no_value),
                 docs(concat!("`", stringify! (b), "` field.")),
             },),
         }));
@@ -733,29 +711,29 @@ mod tests {
             super (),
             docs(),
             fields({
-                name(a), type (u8), size(fixed = fixed), value(no_value = no_value),
+                name(a), type (u8), value(no_value = no_value),
                 docs(concat!("`", stringify! (a), "` field.")),
             },
             {
-                name(l), type ($crate::meta::Length), size(fixed = fixed),
+                name(l), type ($crate::meta::Length),
                 value(auto = auto), docs(concat!("`", stringify! (l), "` field.")),
             },
             {
-                name(s), type (ZTString), size(variable = variable),
+                name(s), type (ZTString),
                 value(no_value = no_value),
                 docs(concat!("`", stringify! (s), "` field.")),
             },
             {
-                name(c), type (i16), size(fixed = fixed), value(no_value = no_value),
+                name(c), type (i16), value(no_value = no_value),
                 docs(concat!("`", stringify! (c), "` field.")),
             },
             {
-                name(d), type ($crate::meta::FixedArray<4, u8>), size(fixed = fixed),
+                name(d), type ($crate::meta::FixedArray<4, u8>),
                 value(no_value = no_value),
                 docs(concat!("`", stringify! (d), "` field.")),
             },
             {
-                name(e), type (ZTArray<ZTString>), size(variable = variable),
+                name(e), type (ZTArray<ZTString>),
                 value(no_value = no_value),
                 docs(concat!("`", stringify! (e), "` field.")),
             },
