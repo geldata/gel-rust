@@ -8,7 +8,7 @@ members = [
     "gel-errors",
     "gel-jwt",
     "gel-pg-captive",
-    "gel-pg-protocol",
+    #"gel-pg-protocol",
     "gel-protocol",
     "gel-stream",
     "gel-tokio",

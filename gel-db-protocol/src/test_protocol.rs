@@ -59,6 +59,14 @@ protocol!(
         types: Array<'a, i16, QueryType<'a>>,
     }
 
+    /// A fixed-length message.
+    struct FixedLength<'a>: Message {
+        /// Identifies the message as a fixed-length message.
+        mtype: u8 = 'F',
+        /// Length of message contents in bytes, including self.
+        mlen: len = 5,
+    }
+
     struct Key<'a> {
         /// The key.
         key: [u8; 16],
@@ -98,7 +106,7 @@ mod tests {
             ..Default::default()
         }
         .to_vec();
-
+        eprintln!("buf: {:?}", buf);
         let query = Query::new(&buf).expect("Failed to parse query");
         let types = query.types;
         assert_eq!(1, types.len());
@@ -116,10 +124,8 @@ mod tests {
     fn test_fixed_array() {
         let buf = KeyBuilder {
             key: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-            ..Default::default()
         }
         .to_vec();
-
         let key = Key::new(&buf).expect("Failed to parse key");
         assert_eq!(
             key.key,
@@ -131,7 +137,6 @@ mod tests {
     fn test_uuid() {
         let buf = UuidsBuilder {
             uuids: &[Uuid::NAMESPACE_DNS],
-            ..Default::default()
         }
         .to_vec();
 

@@ -175,6 +175,31 @@ macro_rules! __protocol {
         use $crate::protocol_builder;
         use $crate::prelude::*;
 
+        pub trait DataTypeX where Self: Sized {
+            const META: StructFieldMeta;
+            /// Always a reference
+            type BuilderForEncode: ?Sized;
+            type BuilderForStruct<'unused>;
+            type DecodeLifetime<'a>;
+
+            fn decode<'a>(buf: &mut &'a [u8]) -> Result<Self::DecodeLifetime<'a>, ParseError>;
+            fn encode<'a, 'b>(buf: &mut BufWriter<'a>, value: &'b Self::BuilderForEncode);
+            #[allow(unused)] 
+            fn encode_usize<'a>(buf: &mut BufWriter<'a>, value: usize) { unreachable!("encode usize") }
+            #[allow(unused)] 
+            fn decode_usize<'a>(buf: &mut &'a [u8]) -> Result<usize, ParseError> { unreachable!("decode usize") }
+        }
+
+        // $crate::copy_datatype!($crate::prelude::DataType, DataTypeX, 
+        //     u8, u16, u32, u64, i8, i16, i32, i64, f32, f64,
+        //     Length,
+        //     ZTString<'a>,
+        //     LString<'a>,
+        //     Rest<'a>,
+        //     Encoded<'a>
+            
+        // );
+
         $(
             $crate::paste!(
                 $crate::struct_elaborate!(protocol_builder(__struct__) => $( #[ doc = $sdoc ] )* struct $name <$lt> $(: $super)? { $($struct)+ } );
@@ -192,9 +217,21 @@ macro_rules! __protocol {
                     $($(#[$default])? $emname = $emvalue),+
                 }
 
-                $crate::declare_type!($ename, flags=[enum], alias=$repr, {}
+                $crate::declare_type!(DataTypeX, $ename, flags=[enum], {
+                    fn decode(buf: [u8; N]) -> Result<Self, ParseError> {
+                        let repr = $repr::from_be_bytes(buf);
+                        match repr {
+                            $(
+                                $emvalue => Ok($ename::$emname),
+                            )+
+                            _ => Err(ParseError::InvalidData),
+                        }
+                    }
+                    fn encode(value: Self) -> [u8; N] {
+                        $repr::to_be_bytes(value as _)
+                    }
+                });
 
-                );
             );
         )*
     };
@@ -293,7 +330,7 @@ macro_rules! protocol_builder {
                 pub fn new(mut buf: &'a [u8]) -> Result<Self, ParseError> {
                     let mut new = $name::<'a>::default();
                     $(
-                        new.$field = <$type as DataType>::decode(&mut buf)?;
+                        new.$field = $type::decode(&mut buf)?;
                     )*
                     Ok(new)
                 }
@@ -341,7 +378,7 @@ macro_rules! protocol_builder {
                         $(
                             $crate::gen2::StructField {
                                 name: stringify!($field),
-                                meta: &<$type as $crate::prelude::DataType>::META,
+                                meta: &(<$type>::META),
                                 value: $crate::r#if!(__is_empty__ [$($value)?] { None } else { Some($($value)? as usize) }),
                             },
                         )*
@@ -364,17 +401,41 @@ macro_rules! protocol_builder {
             impl $crate::gen2::StructAttributeFieldCount<{<$name<'_> as $crate::gen2::StructMeta>::FIELD_COUNT}> for $name<'_> {
             }
 
-            $crate::declare_type!($name<'a>, builder: [<$name Builder>] <'a>, flags=[struct],
+            $crate::declare_type!(DataTypeX, $name<'a>, builder: [<$name Builder>] <'a>, flags=[struct],
             {
-                fn decode(buf: &mut &[u8]) -> Result<$name<'_>, $crate::ParseError> {
-                    let mut buf = $crate::gen2::StructDemarcatedBuffer::new(buf)?;
-                    Ok(S::new(buf.as_ref())?)
+                fn decode(buf: &mut &[u8]) -> Result<Self, ParseError> {
+                    let mut new = $name::default();
+                    $(
+                        new.$field = <$type>::decode(buf)?;
+                    )*
+                    Ok(new)
                 }
+                fn encode(buf: &mut BufWriter, value: &Self) {
+                    $(
+                        $crate::r#if!(__is_empty__ [$($value)?] {
+                            $crate::r#if!(__is_empty__ [$($auto)?] {
+                                // value is no_value (present in builder)
+                                <$type>::encode(buf, &value.$field);
+                            } else {
+                                // value is auto (not present in builder)
+                                let auto_offset = buf.size();
+                                $type::encode(buf, &Default::default());
+                            });
+                        } else {
+                            // value is set, not present in builder
+                            $type::encode_usize(buf, $($value)? as usize);
+                        });
+                    )*
 
-                const fn encode(mut buf: $crate::BufWriter, value: &S) -> $crate::BufWriter {
+                    $(
+                        $crate::r#if!(__has__ [$($auto)?] {
+                            let len = (buf.size() - auto_offset) as u32;
+                            buf.write_rewind(auto_offset, &len.to_be_bytes());
+                        });
+                    )*
+
                 }
-            }
-            );
+            });
         );
     };
 
@@ -408,7 +469,7 @@ macro_rules! protocol_builder {
                     $($(
                         #[doc = $fdoc]
                         pub $field: $crate::r#if!(__has__ [$no_value] {
-                            <$type as $crate::prelude::DataType>::BuilderForStruct<$lt>
+                            <$type>::BuilderForStruct<$lt>
                         }),
                     )?)*
                 }
@@ -445,25 +506,24 @@ macro_rules! protocol_builder {
                 /// not the most efficient way to perform serialization.
                 #[allow(unused)]
                 pub fn to_vec(&self) -> Vec<u8> {
-                    // let mut vec = Vec::with_capacity(256);
-                    // let mut buf = $crate::BufWriter::new(&mut vec);
-                    // self.copy_to_buf(&mut buf);
-                    // match buf.finish() {
-                    //     Ok(size) => {
-                    //         vec.truncate(size);
-                    //         vec
-                    //     },
-                    //     Err(size) => {
-                    //         vec.resize(size, 0);
-                    //         let mut buf = $crate::BufWriter::new(&mut vec);
-                    //         self.copy_to_buf(&mut buf);
-                    //         // Will not fail this second time
-                    //         let size = buf.finish().unwrap();
-                    //         vec.truncate(size);
-                    //         vec
-                    //     }
-                    // }
-                    unimplemented!()
+                    let mut vec = Vec::with_capacity(256);
+                    let mut buf = $crate::BufWriter::new(&mut vec);
+                    <$name as DataTypeX>::encode(&mut buf, self);
+                    match buf.finish() {
+                        Ok(size) => {
+                            vec.truncate(size);
+                            vec
+                        },
+                        Err(size) => {
+                            vec.resize(size, 0);
+                            let mut buf = $crate::BufWriter::new(&mut vec);
+                            <$name as DataTypeX>::encode(&mut buf, self);
+                            // Will not fail this second time
+                            let size = buf.finish().unwrap();
+                            vec.truncate(size);
+                            vec
+                        }
+                    }
                 }
 
                 // #[allow(unused)]

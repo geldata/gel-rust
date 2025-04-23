@@ -7,7 +7,7 @@ pub trait EnumMeta {}
 /// A trait for structs that describes their fields, containing some associated
 /// constants. Note that only `FIELDS` is provided. The remainder of the
 /// associated constants are computed from `FIELDS`.
-pub trait StructMeta: DataType + Clone {
+pub trait StructMeta: Clone {
     type Struct<'a>: StructNew;
     const FIELDS: StructFields;
     const FIELD_COUNT: usize = Self::FIELDS.fields.len();
@@ -273,7 +273,7 @@ impl StructFields {
     }
 }
 
-impl<T: StructAttributeFixedSize<true> + DataType> DataTypeFixedSize for T {
+impl<T: StructAttributeFixedSize<true>> DataTypeFixedSize for T {
     const SIZE: usize = T::FIXED_SIZE.unwrap();
 }
 
@@ -283,7 +283,7 @@ impl<T: StructAttributeHasLengthField<true> + StructMeta> StructLength for T {
         if buf.len() < index + std::mem::size_of::<u32>() {
             None
         } else {
-            let len = u32::decode(&mut &buf[index..index + std::mem::size_of::<u32>()])
+            let len = <u32 as DataType>::decode(&mut &buf[index..index + std::mem::size_of::<u32>()])
                 .ok()?;
             Some(index + len as usize)
         }

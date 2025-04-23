@@ -7,6 +7,12 @@ pub struct Rest<'a> {
     buf: &'a [u8],
 }
 
+impl <'a> Rest<'a> {
+    pub fn new(buf: &'a [u8]) -> Self {
+        Self { buf }
+    }
+}
+
 impl Rest<'_> {}
 
 impl AsRef<[u8]> for Rest<'_> {
@@ -49,6 +55,12 @@ pub struct ZTString<'a> {
 impl std::fmt::Debug for ZTString<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         String::from_utf8_lossy(self.buf).fmt(f)
+    }
+}
+
+impl <'a> ZTString<'a> {
+    pub fn new(buf: &'a [u8]) -> Self {
+        Self { buf }
     }
 }
 
@@ -105,6 +117,12 @@ pub struct LString<'a> {
 impl std::fmt::Debug for LString<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         String::from_utf8_lossy(self.buf).fmt(f)
+    }
+}
+
+impl <'a> LString<'a> {
+    pub fn new(buf: &'a [u8]) -> Self {
+        Self { buf }
     }
 }
 
@@ -201,6 +219,11 @@ impl PartialEq<&[u8]> for Encoded<'_> {
     }
 }
 
-#[derive(Copy, Clone, Default, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct Length(pub i32);
 
+impl std::fmt::Debug for Length {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}

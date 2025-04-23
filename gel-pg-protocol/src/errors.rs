@@ -2,7 +2,7 @@ use core::str;
 use paste::paste;
 use std::{collections::HashMap, str::FromStr};
 
-use crate::protocol::data::{ErrorResponse, NoticeResponse};
+use crate::protocol::{ErrorResponse, NoticeResponse};
 
 #[macro_export]
 macro_rules! pg_error_class {

@@ -173,7 +173,6 @@ mod tests {
         test_data.append(
             &mut DataRowBuilder {
                 values: &[Encoded::Value(b"1")],
-                ..Default::default()
             }
             .to_vec(),
         );

@@ -76,27 +76,27 @@ message_group!(
 protocol!(
 
 /// A generic base for all Postgres mtype/mlen-style messages.
-struct Message {
+struct Message<'a> {
     /// Identifies the message.
     mtype: u8,
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Message contents.
-    data: Rest,
+    data: Rest<'a>,
 }
 
 /// A generic base for all initial Postgres messages.
-struct InitialMessage {
+struct InitialMessage<'a> {
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// The identifier for this initial message.
     protocol_version: i32,
     /// Message contents.
-    data: Rest
+    data: Rest<'a>
 }
 
 /// The `AuthenticationMessage` struct is a base for all Postgres authentication messages.
-struct AuthenticationMessage: Message {
+struct AuthenticationMessage<'a>: Message {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
     /// Length of message contents in bytes, including self.
@@ -106,7 +106,7 @@ struct AuthenticationMessage: Message {
 }
 
 /// The `AuthenticationOk` struct represents a message indicating successful authentication.
-struct AuthenticationOk: Message {
+struct AuthenticationOk<'a>: Message {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
     /// Length of message contents in bytes, including self.
@@ -116,7 +116,7 @@ struct AuthenticationOk: Message {
 }
 
 /// The `AuthenticationKerberosV5` struct represents a message indicating that Kerberos V5 authentication is required.
-struct AuthenticationKerberosV5: Message {
+struct AuthenticationKerberosV5<'a>: Message {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
     /// Length of message contents in bytes, including self.
@@ -126,7 +126,7 @@ struct AuthenticationKerberosV5: Message {
 }
 
 /// The `AuthenticationCleartextPassword` struct represents a message indicating that a cleartext password is required for authentication.
-struct AuthenticationCleartextPassword: Message {
+struct AuthenticationCleartextPassword<'a>: Message {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
     /// Length of message contents in bytes, including self.
@@ -136,7 +136,7 @@ struct AuthenticationCleartextPassword: Message {
 }
 
 /// The `AuthenticationMD5Password` struct represents a message indicating that an MD5-encrypted password is required for authentication.
-struct AuthenticationMD5Password: Message {
+struct AuthenticationMD5Password<'a>: Message {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
     /// Length of message contents in bytes, including self.
@@ -148,7 +148,7 @@ struct AuthenticationMD5Password: Message {
 }
 
 /// The `AuthenticationSCMCredential` struct represents a message indicating that an SCM credential is required for authentication.
-struct AuthenticationSCMCredential: Message {
+struct AuthenticationSCMCredential<'a>: Message {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
     /// Length of message contents in bytes, including self.
@@ -158,7 +158,7 @@ struct AuthenticationSCMCredential: Message {
 }
 
 /// The `AuthenticationGSS` struct represents a message indicating that GSSAPI authentication is required.
-struct AuthenticationGSS: Message {
+struct AuthenticationGSS<'a>: Message {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
     /// Length of message contents in bytes, including self.
@@ -168,7 +168,7 @@ struct AuthenticationGSS: Message {
 }
 
 /// The `AuthenticationGSSContinue` struct represents a message indicating the continuation of GSSAPI authentication.
-struct AuthenticationGSSContinue: Message {
+struct AuthenticationGSSContinue<'a>: Message {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
     /// Length of message contents in bytes, including self.
@@ -176,11 +176,11 @@ struct AuthenticationGSSContinue: Message {
     /// Specifies that this message contains GSSAPI or SSPI data.
     status: i32 = 8,
     /// GSSAPI or SSPI authentication data.
-    data: Rest,
+    data: Rest<'a>,
 }
 
 /// The `AuthenticationSSPI` struct represents a message indicating that SSPI authentication is required.
-struct AuthenticationSSPI: Message {
+struct AuthenticationSSPI<'a>: Message {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
     /// Length of message contents in bytes, including self.
@@ -190,7 +190,7 @@ struct AuthenticationSSPI: Message {
 }
 
 /// The `AuthenticationSASL` struct represents a message indicating that SASL authentication is required.
-struct AuthenticationSASL: Message {
+struct AuthenticationSASL<'a>: Message {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
     /// Length of message contents in bytes, including self.
@@ -198,11 +198,11 @@ struct AuthenticationSASL: Message {
     /// Specifies that SASL authentication is required.
     status: i32 = 10,
     /// List of SASL authentication mechanisms, terminated by a zero byte.
-    mechanisms: ZTArray<ZTString>,
+    mechanisms: ZTArray<'a, ZTString<'a>>,
 }
 
 /// The `AuthenticationSASLContinue` struct represents a message containing a SASL challenge during the authentication process.
-struct AuthenticationSASLContinue: Message {
+struct AuthenticationSASLContinue<'a>: Message {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
     /// Length of message contents in bytes, including self.
@@ -210,11 +210,11 @@ struct AuthenticationSASLContinue: Message {
     /// Specifies that this message contains a SASL challenge.
     status: i32 = 11,
     /// SASL data, specific to the SASL mechanism being used.
-    data: Rest,
+    data: Rest<'a>,
 }
 
 /// The `AuthenticationSASLFinal` struct represents a message indicating the completion of SASL authentication.
-struct AuthenticationSASLFinal: Message {
+struct AuthenticationSASLFinal<'a>: Message {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
     /// Length of message contents in bytes, including self.
@@ -222,11 +222,11 @@ struct AuthenticationSASLFinal: Message {
     /// Specifies that SASL authentication has completed.
     status: i32 = 12,
     /// SASL outcome "additional data", specific to the SASL mechanism being used.
-    data: Rest,
+    data: Rest<'a>,
 }
 
 /// The `BackendKeyData` struct represents a message containing the process ID and secret key for this backend.
-struct BackendKeyData: Message {
+struct BackendKeyData<'a>: Message {
     /// Identifies the message as cancellation key data.
     mtype: u8 = 'K',
     /// Length of message contents in bytes, including self.
@@ -238,25 +238,25 @@ struct BackendKeyData: Message {
 }
 
 /// The `Bind` struct represents a message to bind a named portal to a prepared statement.
-struct Bind: Message {
+struct Bind<'a>: Message {
     /// Identifies the message as a Bind command.
     mtype: u8 = 'B',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// The name of the destination portal.
-    portal: ZTString,
+    portal: ZTString<'a>,
     /// The name of the source prepared statement.
-    statement: ZTString,
+    statement: ZTString<'a>,
     /// The parameter format codes.
-    format_codes: Array<i16, i16>,
+    format_codes: Array<'a, i16, i16>,
     /// Array of parameter values and their lengths.
-    values: Array<i16, Encoded>,
+    values: Array<'a, i16, Encoded>,
     /// The result-column format codes.
-    result_format_codes: Array<i16, i16>,
+    result_format_codes: Array<'a, i16, i16>,
 }
 
 /// The `BindComplete` struct represents a message indicating that a Bind operation was successful.
-struct BindComplete: Message {
+struct BindComplete<'a>: Message {
     /// Identifies the message as a Bind-complete indicator.
     mtype: u8 = '2',
     /// Length of message contents in bytes, including self.
@@ -264,7 +264,7 @@ struct BindComplete: Message {
 }
 
 /// The `CancelRequest` struct represents a message to request the cancellation of a query.
-struct CancelRequest: InitialMessage {
+struct CancelRequest<'a>: InitialMessage {
     /// Length of message contents in bytes, including self.
     mlen: len = 16,
     /// The cancel request code.
@@ -276,7 +276,7 @@ struct CancelRequest: InitialMessage {
 }
 
 /// The `Close` struct represents a message to close a prepared statement or portal.
-struct Close: Message {
+struct Close<'a>: Message {
     /// Identifies the message as a Close command.
     mtype: u8 = 'C',
     /// Length of message contents in bytes, including self.
@@ -284,11 +284,11 @@ struct Close: Message {
     /// 'S' to close a prepared statement; 'P' to close a portal.
     ctype: CloseType,
     /// The name of the prepared statement or portal to close.
-    name: ZTString,
+    name: ZTString<'a>,
 }
 
 /// The `CloseComplete` struct represents a message indicating that a Close operation was successful.
-struct CloseComplete: Message {
+struct CloseComplete<'a>: Message {
     /// Identifies the message as a Close-complete indicator.
     mtype: u8 = '3',
     /// Length of message contents in bytes, including self.
@@ -296,27 +296,27 @@ struct CloseComplete: Message {
 }
 
 /// The `CommandComplete` struct represents a message indicating the successful completion of a command.
-struct CommandComplete: Message {
+struct CommandComplete<'a>: Message {
     /// Identifies the message as a command-completed response.
     mtype: u8 = 'C',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// The command tag.
-    tag: ZTString,
+    tag: ZTString<'a>,
 }
 
 /// The `CopyData` struct represents a message containing data for a copy operation.
-struct CopyData: Message {
+struct CopyData<'a>: Message {
     /// Identifies the message as COPY data.
     mtype: u8 = 'd',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Data that forms part of a COPY data stream.
-    data: Rest,
+    data: Rest<'a>,
 }
 
 /// The `CopyDone` struct represents a message indicating that a copy operation is complete.
-struct CopyDone: Message {
+struct CopyDone<'a>: Message {
     /// Identifies the message as a COPY-complete indicator.
     mtype: u8 = 'c',
     /// Length of message contents in bytes, including self.
@@ -324,17 +324,17 @@ struct CopyDone: Message {
 }
 
 /// The `CopyFail` struct represents a message indicating that a copy operation has failed.
-struct CopyFail: Message {
+struct CopyFail<'a>: Message {
     /// Identifies the message as a COPY-failure indicator.
     mtype: u8 = 'f',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// An error message to report as the cause of failure.
-    error_msg: ZTString,
+    error_msg: ZTString<'a>,
 }
 
 /// The `CopyInResponse` struct represents a message indicating that the server is ready to receive data for a copy-in operation.
-struct CopyInResponse: Message {
+struct CopyInResponse<'a>: Message {
     /// Identifies the message as a Start Copy In response.
     mtype: u8 = 'G',
     /// Length of message contents in bytes, including self.
@@ -342,11 +342,11 @@ struct CopyInResponse: Message {
     /// The format of the data.
     format: CopyFormat,
     /// The format codes for each column.
-    format_codes: Array<i16, i16>,
+    format_codes: Array<'a, i16, i16>,
 }
 
 /// The `CopyOutResponse` struct represents a message indicating that the server is ready to send data for a copy-out operation.
-struct CopyOutResponse: Message {
+struct CopyOutResponse<'a>: Message {
     /// Identifies the message as a Start Copy Out response.
     mtype: u8 = 'H',
     /// Length of message contents in bytes, including self.
@@ -354,11 +354,11 @@ struct CopyOutResponse: Message {
     /// The format of the data.
     format: CopyFormat,
     /// The format codes for each column.
-    format_codes: Array<i16, i16>,
+    format_codes: Array<'a, i16, i16>,
 }
 
 /// The `CopyBothResponse` is used only for Streaming Replication.
-struct CopyBothResponse: Message {
+struct CopyBothResponse<'a>: Message {
     /// Identifies the message as a Start Copy Both response.
     mtype: u8 = 'W',
     /// Length of message contents in bytes, including self.
@@ -366,21 +366,21 @@ struct CopyBothResponse: Message {
     /// The format of the data.
     format: CopyFormat,
     /// The format codes for each column.
-    format_codes: Array<i16, i16>,
+    format_codes: Array<'a, i16, i16>,
 }
 
 /// The `DataRow` struct represents a message containing a row of data.
-struct DataRow: Message {
+struct DataRow<'a>: Message {
     /// Identifies the message as a data row.
     mtype: u8 = 'D',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Array of column values and their lengths.
-    values: Array<i16, Encoded>,
+    values: Array<'a, i16, Encoded>,
 }
 
 /// The `Describe` struct represents a message to describe a prepared statement or portal.
-struct Describe: Message {
+struct Describe<'a>: Message {
     /// Identifies the message as a Describe command.
     mtype: u8 = 'D',
     /// Length of message contents in bytes, including self.
@@ -388,49 +388,49 @@ struct Describe: Message {
     /// 'S' to describe a prepared statement; 'P' to describe a portal.
     dtype: DescribeType,
     /// The name of the prepared statement or portal.
-    name: ZTString,
+    name: ZTString<'a>,
 }
 
 /// The `EmptyQueryResponse` struct represents a message indicating that an empty query string was recognized.
-struct EmptyQueryResponse: Message {
-    /// Identifies the message as a response to an empty query String.
+struct EmptyQueryResponse<'a>: Message {
+    /// Identifies the message as a response to an empty query String<'a>.
     mtype: u8 = 'I',
     /// Length of message contents in bytes, including self.
     mlen: len = 4,
 }
 
 /// The `ErrorResponse` struct represents a message indicating that an error has occurred.
-struct ErrorResponse: Message {
+struct ErrorResponse<'a>: Message {
     /// Identifies the message as an error.
     mtype: u8 = 'E',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Array of error fields and their values.
-    fields: ZTArray<ErrorField>,
+    fields: ZTArray<'a, ErrorField>,
 }
 
 /// The `ErrorField` struct represents a single error message within an `ErrorResponse`.
-struct ErrorField {
+struct ErrorField<'a> {
     /// A code identifying the field type.
     etype: u8,
     /// The field value.
-    value: ZTString,
+    value: ZTString<'a>,
 }
 
 /// The `Execute` struct represents a message to execute a prepared statement or portal.
-struct Execute: Message {
+struct Execute<'a>: Message {
     /// Identifies the message as an Execute command.
     mtype: u8 = 'E',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// The name of the portal to execute.
-    portal: ZTString,
+    portal: ZTString<'a>,
     /// Maximum number of rows to return.
     max_rows: i32,
 }
 
 /// The `Flush` struct represents a message to flush the backend's output buffer.
-struct Flush: Message {
+struct Flush<'a>: Message {
     /// Identifies the message as a Flush command.
     mtype: u8 = 'H',
     /// Length of message contents in bytes, including self.
@@ -438,7 +438,7 @@ struct Flush: Message {
 }
 
 /// The `FunctionCall` struct represents a message to call a function.
-struct FunctionCall: Message {
+struct FunctionCall<'a>: Message {
     /// Identifies the message as a function call.
     mtype: u8 = 'F',
     /// Length of message contents in bytes, including self.
@@ -446,15 +446,15 @@ struct FunctionCall: Message {
     /// OID of the function to execute.
     function_id: i32,
     /// The parameter format codes.
-    format_codes: Array<i16, FormatCode>,
+    format_codes: Array<'a, i16, FormatCode>,
     /// Array of args and their lengths.
-    args: Array<i16, Encoded>,
+    args: Array<'a, i16, Encoded>,
     /// The format code for the result.
     result_format_code: FormatCode,
 }
 
 /// The `FunctionCallResponse` struct represents a message containing the result of a function call.
-struct FunctionCallResponse: Message {
+struct FunctionCallResponse<'a>: Message {
     /// Identifies the message as a function-call response.
     mtype: u8 = 'V',
     /// Length of message contents in bytes, including self.
@@ -464,7 +464,7 @@ struct FunctionCallResponse: Message {
 }
 
 /// The `GSSENCRequest` struct represents a message requesting GSSAPI encryption.
-struct GSSENCRequest: InitialMessage {
+struct GSSENCRequest<'a>: InitialMessage {
     /// Length of message contents in bytes, including self.
     mlen: len = 8,
     /// The GSSAPI Encryption request code.
@@ -472,17 +472,17 @@ struct GSSENCRequest: InitialMessage {
 }
 
 /// The `GSSResponse` struct represents a message containing a GSSAPI or SSPI response.
-struct GSSResponse: Message {
+struct GSSResponse<'a>: Message {
     /// Identifies the message as a GSSAPI or SSPI response.
     mtype: u8 = 'p',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// GSSAPI or SSPI authentication data.
-    data: Rest,
+    data: Rest<'a>,
 }
 
 /// The `NegotiateProtocolVersion` struct represents a message requesting protocol version negotiation.
-struct NegotiateProtocolVersion: Message {
+struct NegotiateProtocolVersion<'a>: Message {
     /// Identifies the message as a protocol version negotiation request.
     mtype: u8 = 'v',
     /// Length of message contents in bytes, including self.
@@ -490,11 +490,11 @@ struct NegotiateProtocolVersion: Message {
     /// Newest minor protocol version supported by the server.
     minor_version: i32,
     /// List of protocol options not recognized.
-    options: Array<i32, ZTString>,
+    options: Array<'a, i32, ZTString<'a>>,
 }
 
 /// The `NoData` struct represents a message indicating that there is no data to return.
-struct NoData: Message {
+struct NoData<'a>: Message {
     /// Identifies the message as a No Data indicator.
     mtype: u8 = 'n',
     /// Length of message contents in bytes, including self.
@@ -502,25 +502,25 @@ struct NoData: Message {
 }
 
 /// The `NoticeResponse` struct represents a message containing a notice.
-struct NoticeResponse: Message {
+struct NoticeResponse<'a>: Message {
     /// Identifies the message as a notice.
     mtype: u8 = 'N',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Array of notice fields and their values.
-    fields: ZTArray<NoticeField>,
+    fields: ZTArray<'a, NoticeField>,
 }
 
 /// The `NoticeField` struct represents a single error message within an `NoticeResponse`.
-struct NoticeField: Message {
+struct NoticeField<'a>: Message {
     /// A code identifying the field type.
     ntype: u8,
     /// The field value.
-    value: ZTString,
+    value: ZTString<'a>,
 }
 
 /// The `NotificationResponse` struct represents a message containing a notification from the backend.
-struct NotificationResponse: Message {
+struct NotificationResponse<'a>: Message {
     /// Identifies the message as a notification.
     mtype: u8 = 'A',
     /// Length of message contents in bytes, including self.
@@ -528,49 +528,49 @@ struct NotificationResponse: Message {
     /// The process ID of the notifying backend.
     pid: i32,
     /// The name of the notification channel.
-    channel: ZTString,
+    channel: ZTString<'a>,
     /// The notification payload.
-    payload: ZTString,
+    payload: ZTString<'a>,
 }
 
 /// The `ParameterDescription` struct represents a message describing the parameters needed by a prepared statement.
-struct ParameterDescription: Message {
+struct ParameterDescription<'a>: Message {
     /// Identifies the message as a parameter description.
     mtype: u8 = 't',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// OIDs of the parameter data types.
-    param_types: Array<i16, i32>,
+    param_types: Array<'a, i16, i32>,
 }
 
 /// The `ParameterStatus` struct represents a message containing the current status of a parameter.
-struct ParameterStatus: Message {
+struct ParameterStatus<'a>: Message {
     /// Identifies the message as a runtime parameter status report.
     mtype: u8 = 'S',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// The name of the parameter.
-    name: ZTString,
+    name: ZTString<'a>,
     /// The current value of the parameter.
-    value: ZTString,
+    value: ZTString<'a>,
 }
 
 /// The `Parse` struct represents a message to parse a query string.
-struct Parse: Message {
+struct Parse<'a>: Message {
     /// Identifies the message as a Parse command.
     mtype: u8 = 'P',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// The name of the destination prepared statement.
-    statement: ZTString,
+    statement: ZTString<'a>,
     /// The query string to be parsed.
-    query: ZTString,
+    query: ZTString<'a>,
     /// OIDs of the parameter data types.
-    param_types: Array<i16, i32>,
+    param_types: Array<'a, i16, i32>,
 }
 
 /// The `ParseComplete` struct represents a message indicating that a Parse operation was successful.
-struct ParseComplete: Message {
+struct ParseComplete<'a>: Message {
     /// Identifies the message as a Parse-complete indicator.
     mtype: u8 = '1',
     /// Length of message contents in bytes, including self.
@@ -578,17 +578,17 @@ struct ParseComplete: Message {
 }
 
 /// The `PasswordMessage` struct represents a message containing a password.
-struct PasswordMessage: Message {
+struct PasswordMessage<'a>: Message {
     /// Identifies the message as a password response.
     mtype: u8 = 'p',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// The password (encrypted or plaintext, depending on context).
-    password: ZTString,
+    password: ZTString<'a>,
 }
 
 /// The `PortalSuspended` struct represents a message indicating that a portal has been suspended.
-struct PortalSuspended: Message {
+struct PortalSuspended<'a>: Message {
     /// Identifies the message as a portal-suspended indicator.
     mtype: u8 = 's',
     /// Length of message contents in bytes, including self.
@@ -596,17 +596,17 @@ struct PortalSuspended: Message {
 }
 
 /// The `Query` struct represents a message to execute a simple query.
-struct Query: Message {
+struct Query<'a>: Message {
     /// Identifies the message as a simple query command.
     mtype: u8 = 'Q',
     /// Length of message contents in bytes, including self.
     mlen: len,
-    /// The query String to be executed.
-    query: ZTString,
+    /// The query String<'a> to be executed.
+    query: ZTString<'a>,
 }
 
 /// The `ReadyForQuery` struct represents a message indicating that the backend is ready for a new query.
-struct ReadyForQuery: Message {
+struct ReadyForQuery<'a>: Message {
     /// Identifies the message as a ready-for-query indicator.
     mtype: u8 = 'Z',
     /// Length of message contents in bytes, including self.
@@ -616,19 +616,19 @@ struct ReadyForQuery: Message {
 }
 
 /// The `RowDescription` struct represents a message describing the rows that will be returned by a query.
-struct RowDescription: Message {
+struct RowDescription<'a>: Message {
     /// Identifies the message as a row description.
     mtype: u8 = 'T',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Array of field descriptions.
-    fields: Array<i16, RowField>,
+    fields: Array<'a, i16, RowField>,
 }
 
 /// The `RowField` struct represents a row within the `RowDescription` message.
-struct RowField {
+struct RowField<'a> {
     /// The field name
-    name: ZTString,
+    name: ZTString<'a>,
     /// The table ID (OID) of the table the column is from, or 0 if not a column reference
     table_oid: i32,
     /// The attribute number of the column, or 0 if not a column reference
@@ -644,60 +644,60 @@ struct RowField {
 }
 
 /// The `SASLInitialResponse` struct represents a message containing a SASL initial response.
-struct SASLInitialResponse: Message {
+struct SASLInitialResponse<'a>: Message {
     /// Identifies the message as a SASL initial response.
     mtype: u8 = 'p',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Name of the SASL authentication mechanism.
-    mechanism: ZTString,
+    mechanism: ZTString<'a>,
     /// SASL initial response data.
-    response: Array<i32, u8>,
+    response: Array<'a, i32, u8>,
 }
 
 /// The `SASLResponse` struct represents a message containing a SASL response.
-struct SASLResponse: Message {
+struct SASLResponse<'a>: Message {
     /// Identifies the message as a SASL response.
     mtype: u8 = 'p',
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// SASL response data.
-    response: Rest,
+    response: Rest<'a>,
 }
 
 /// The `SSLRequest` struct represents a message requesting SSL encryption.
-struct SSLRequest: InitialMessage {
+struct SSLRequest<'a>: InitialMessage {
     /// Length of message contents in bytes, including self.
     mlen: len = 8,
     /// The SSL request code.
     code: i32 = 80877103,
 }
 
-struct SSLResponse {
+struct SSLResponse<'a> {
     /// Specifies if SSL was accepted or rejected.
     code: u8,
 }
 
 /// The `StartupMessage` struct represents a message to initiate a connection.
-struct StartupMessage: InitialMessage {
+struct StartupMessage<'a>: InitialMessage {
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// The protocol version number.
     protocol: i32 = 196608,
     /// List of parameter name-value pairs, terminated by a zero byte.
-    params: ZTArray<StartupNameValue>,
+    params: ZTArray<'a, StartupNameValue>,
 }
 
 /// The `StartupMessage` struct represents a name/value pair within the `StartupMessage` message.
-struct StartupNameValue {
+struct StartupNameValue<'a> {
     /// The parameter name.
-    name: ZTString,
+    name: ZTString<'a>,
     /// The parameter value.
-    value: ZTString,
+    value: ZTString<'a>,
 }
 
 /// The `Sync` struct represents a message to synchronize the frontend and backend.
-struct Sync: Message {
+struct Sync<'a>: Message {
     /// Identifies the message as a Sync command.
     mtype: u8 = 'S',
     /// Length of message contents in bytes, including self.
@@ -705,7 +705,7 @@ struct Sync: Message {
 }
 
 /// The `Terminate` struct represents a message to terminate a connection.
-struct Terminate: Message {
+struct Terminate<'a>: Message {
     /// Identifies the message as a Terminate command.
     mtype: u8 = 'X',
     /// Length of message contents in bytes, including self.
@@ -748,7 +748,7 @@ enum FormatCode {
 
 #[cfg(test)]
 mod tests {
-    use super::{builder, data::*, meta};
+    use super::*;
     use gel_db_protocol::{match_message, Encoded, StructBuffer, StructMeta};
     use rand::Rng;
 

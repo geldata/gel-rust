@@ -12,16 +12,17 @@ pub trait DataType where Self: Sized {
     /// Always a reference
     type BuilderForEncode: ?Sized;
     type BuilderForStruct<'unused>;
+    type DecodeLifetime<'a>;
     
-    fn decode<'a>(buf: &mut &'a [u8]) -> Result<Self, ParseError>;
-    fn encode<'a, 'b>(buf: EncodeTarget<'a>, value: &'b Self::BuilderForEncode) -> EncodeTarget<'a>;
-
-    fn to_vec(&self) -> Vec<u8> {
-        unimplemented!()
-    }
+    fn decode<'a>(buf: &mut &'a [u8]) -> Result<Self::DecodeLifetime<'a>, ParseError>;
+    fn encode<'a, 'b>(buf: &mut BufWriter<'a>, value: &'b Self::BuilderForEncode);
+    #[allow(unused)] 
+    fn encode_usize<'a>(buf: &mut BufWriter<'a>, value: usize) { unreachable!("encode usize") }
+    #[allow(unused)] 
+    fn decode_usize<'a>(buf: &mut &'a [u8]) -> Result<usize, ParseError> { unreachable!("decode usize") }
 }
 
-pub trait DataTypeFixedSize: DataType {
+pub trait DataTypeFixedSize {
     const SIZE: usize;
 }
 
@@ -109,24 +110,67 @@ pub struct EncodeTarget<'a> {
 
 // );
 
-declare_type!(Rest<'a>, builder: &'a [u8], 
+declare_type!(DataType, Rest<'a>, builder: &'a [u8], 
 {
-    fn decode(buf: &mut &[u8]) -> Result<Rest<'a>, ParseError> {
-        Ok(Rest::new(buf))
+    fn decode(buf: &mut &[u8]) -> Result<Self, ParseError> {
+        let res = Rest::new(buf);
+        *buf = &[];
+        Ok(res)
     }
 
-    const fn encode(mut buf: EncodeTarget, value: &[u8]) -> BufWriter {
-        buf.write_all(value)
+    fn encode(buf: &mut BufWriter, value: &[u8]) {
+        buf.write(value)
     }
 }
 );
 
-declare_type!(LString<'a>, builder: &'a str, {});
-declare_type!(ZTString<'a>, builder: &'a str, {});
+declare_type!(DataType, LString<'a>, builder: &'a str, {
+    fn decode(buf: &mut &[u8]) -> Result<Self, ParseError> {
+        let arr = Array::<u32, u8>::decode(buf)?;
+        Ok(LString::new(arr.into_slice()))
+    }
+    fn encode(buf: &mut BufWriter, value: &str) {
+        Array::<u32, u8>::encode(buf, &value.as_bytes());
+    }
+});
+declare_type!(DataType, ZTString<'a>, builder: &'a str, {
+    fn decode(buf: &mut &[u8]) -> Result<Self, ParseError> {
+        let arr = ZTArray::<u8>::decode(buf)?;
+        Ok(ZTString::new(arr.into_slice()))
+    }
+    fn encode(buf: &mut BufWriter, value: &str) {
+        ZTArray::<u8>::encode(buf, &value.as_bytes());
+    }
+});
 
-declare_type!(Length, flags=[length], alias = u32, {});
-
-declare_type!(Encoded<'a>, builder: Encoded<'a>, {}
+declare_type!(DataType, Encoded<'a>, builder: Encoded<'a>, {
+    fn decode(buf: &mut &[u8]) -> Result<Self, ParseError> {
+        if let Some((len, array)) = buf.split_first_chunk::<4>() {
+            let len = i32::from_be_bytes(*len);
+            if len == -1 && array.is_empty() {
+                Ok(Encoded::Null)
+            } else if len < 0 {
+                Err(ParseError::InvalidData)
+            } else if array.len() < len as _ {
+                Err(ParseError::TooShort)
+            } else {
+                Ok(Encoded::Value(array))
+            }
+        } else {
+            Err(ParseError::TooShort)
+        }
+    }
+    fn encode(buf: &mut BufWriter, value: &Encoded<'a>) {
+        match value {
+            Encoded::Null => buf.write(&[0xff, 0xff, 0xff, 0xff]),
+            Encoded::Value(value) => {
+                let len: i32 = value.len() as _;
+                buf.write(&len.to_be_bytes());
+                buf.write(value);
+            }
+        }
+    }
+});
 
     // Meta = EncodedMeta,
     // Inflated = Encoded<'a>,
@@ -190,18 +234,34 @@ declare_type!(Encoded<'a>, builder: Encoded<'a>, {}
     // pub const fn constant(_constant: usize) -> Encoded<'static> {
     //     panic!("Constants unsupported for this data type")
     // }
-);
 
 
-declare_type!(Uuid, alias = [u8; 16], {});
-declare_type!(u8, {});
-declare_type!(u16, {});
-declare_type!(u32, {});
-declare_type!(u64, {});
-declare_type!(i8, {});
-declare_type!(i16, {});
-declare_type!(i32, {});
-declare_type!(i64, {});
-declare_type!(f32, {});
-declare_type!(f64, {});
+declare_type!(DataType, Length, flags=[length], {
+    fn decode(buf: [u8; 4]) -> Result<Self, ParseError> {
+        Ok(Self(i32::from_be_bytes(buf)))
+    }
+    fn encode(value: u32) -> [u8; 4] {
+        value.0.to_be_bytes()
+    }
+});
 
+declare_type!(DataType, Uuid, {
+    fn decode(buf: [u8; 16]) -> Result<Self, ParseError> {
+        Ok(Uuid::from_bytes(buf))
+    }
+    fn encode(value: Uuid) -> [u8; 16] {
+        value.into_bytes()
+    }
+});
+
+declare_type!(u8);
+declare_type!(u16);
+declare_type!(u32);
+declare_type!(u64);
+declare_type!(i8);
+declare_type!(i16);
+declare_type!(i32);
+declare_type!(i64);
+
+declare_type!(f32);
+declare_type!(f64);

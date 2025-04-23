@@ -33,6 +33,8 @@ pub mod prelude {
     
     pub use super::gen2::StructFieldMeta;
     pub use super::gen2::StructLength;
+    pub use super::gen2::StructFields;
+    pub use super::gen2::StructNew;
 
     pub use super::declare_meta;
 
