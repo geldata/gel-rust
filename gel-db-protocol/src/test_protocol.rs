@@ -143,4 +143,32 @@ mod tests {
         let uuids = Uuids::new(&buf).expect("Failed to parse uuids");
         assert_eq!(uuids.uuids.get(0), Some(Uuid::NAMESPACE_DNS));
     }
+
+    #[test]
+    fn test_fixed_length() {
+        let buf = FixedLengthBuilder::default().to_vec();
+        let fixed_length = FixedLength::new(&buf).expect("Failed to parse fixed length");
+        assert_eq!(*fixed_length.mlen(), 5);
+    }
+
+    #[test]
+    fn test_encoded() {
+        let buf = DataRowBuilder {
+            values: &[
+                Encoded::Null,
+                Encoded::Value(b"123"),
+                Encoded::Null,
+                Encoded::Value(b"456"),
+            ],
+        }
+        .to_vec();
+        eprintln!("buf: {:?}", buf);
+        let data_row = DataRow::new(&buf).expect("Failed to parse data row");
+        assert_eq!(data_row.values.len(), 4);
+        let mut iter = data_row.values.into_iter();
+        assert_eq!(iter.next().unwrap(), Encoded::Null);
+        assert_eq!(iter.next().unwrap(), Encoded::Value(b"123"));
+        assert_eq!(iter.next().unwrap(), Encoded::Null);
+        assert_eq!(iter.next().unwrap(), Encoded::Value(b"456"));
+    }
 }

@@ -1,5 +1,5 @@
 /// This macro is used to declare a new type.
-/// 
+///
 /// Note that we use a "new" trait type for arrays to work around orphan rules.
 #[macro_export]
 macro_rules! declare_type {
@@ -68,7 +68,7 @@ macro_rules! declare_type {
             )?
         }
 
-        // impl <'a, L: $crate::prelude::DataType> $datatype 
+        // impl <'a, L: $crate::prelude::DataType> $datatype
         //     for $crate::prelude::Array<'a, L, $ty> {
         //         const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
         //             type = $ty,
@@ -95,7 +95,7 @@ macro_rules! declare_type {
         //         }
         // }
 
-        // impl <'a> $datatype 
+        // impl <'a> $datatype
         //     for $crate::prelude::ZTArray<'a, $ty> {
         //         const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
         //             type = $ty,
@@ -130,7 +130,7 @@ macro_rules! declare_type {
         //         }
         // }
 
-        // impl <const N: usize> $datatype 
+        // impl <const N: usize> $datatype
         //     for [$ty; N] {
         //         const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
         //             type = $ty,
@@ -165,7 +165,7 @@ macro_rules! declare_type {
         fn decode($dbuf:ident: &mut &[u8]) -> Result<Self, ParseError> $decode:block
         fn encode($ebuf:ident: &mut BufWriter, $evalue:ident: $encode_type:ty) $encode:block
     }) => {
-        impl <$lt $(,$generics)*> $datatype 
+        impl <$lt $(,$generics)*> $datatype
             for $ty<$lt $(,$generics)*> where $($generics: $datatype + 'a),* {
             const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
                 type = $ty,
@@ -186,34 +186,7 @@ macro_rules! declare_type {
             }
         }
 
-        // impl <$lt, L: $crate::prelude::DataType> $datatype 
-        //     for $crate::prelude::Array<$lt, L, $ty<$lt>> {
-        //         const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
-        //             type = $ty,
-        //             constant_size = None,
-        //             flags = [$($($flag),*)?]
-        //         );
-        //         type BuilderForStruct<'unused> = &$lt [$builder];
-        //         type BuilderForEncode = [$builder];
-        //         type DecodeLifetime<'__next_lifetime> = Array<'__next_lifetime, L, $ty<'__next_lifetime>>;
-        //         fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, $crate::prelude::ParseError> {
-        //             let len = L::decode_usize(buf)?;
-        //             let orig_buf = *buf;
-        //             for _ in 0..len {
-        //                 <$ty as $datatype>::decode(buf)?;
-        //             }
-        //             Ok(Array::new(orig_buf, len as _))
-        //         }
-        //         fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
-        //             let len = value.len();
-        //             L::encode_usize(buf, len);
-        //             for elem in value {
-        //                 <$ty as $datatype>::encode(buf, elem);
-        //             }
-        //         }
-        // }
-
-        // impl <$lt> $datatype 
+        // impl <$lt> $datatype
         //     for $crate::prelude::ZTArray<$lt, $ty<$lt>> {
         //         const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
         //             type = $ty,
@@ -231,7 +204,7 @@ macro_rules! declare_type {
         //         }
         // }
 
-        // impl <$lt, const N: usize> $datatype 
+        // impl <$lt, const N: usize> $datatype
         //     for [$ty<$lt>; N] {
         //         const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
         //             type = $ty,
@@ -265,7 +238,7 @@ macro_rules! declare_meta {
             $(
                 .[< set_ $flag >]()
             )*)
-        
+
     };
 }
 
@@ -279,7 +252,7 @@ macro_rules! copy_datatype {
                 type BuilderForStruct<'unused> = <$ty $(<$lt>)? as $from>::BuilderForStruct<'unused>;
                 type DecodeLifetime<'__next_lifetime> = <$ty $(<$lt>)? as $from>::DecodeLifetime<'__next_lifetime>;
 
-                fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, ParseError> { 
+                fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, ParseError> {
                     <$ty as $from>::decode(buf)
                 }
 

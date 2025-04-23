@@ -31,13 +31,13 @@ macro_rules! __message_group {
                 }
             }
 
-            pub fn copy_to_buf(&self, writer: &mut $crate::BufWriter) {
-                match self {
-                    $(
-                        Self::$message(message) => message.copy_to_buf(writer),
-                    )*
-                }
-            }
+            // pub fn copy_to_buf(&self, writer: &mut $crate::BufWriter) {
+            //     match self {
+            //         $(
+            //             Self::$message(message) => message.copy_to_buf(writer),
+            //         )*
+            //     }
+            // }
         }
 
         $(
@@ -51,7 +51,7 @@ macro_rules! __message_group {
         #[allow(unused)]
         pub trait [<$group Match>] {
             $(
-                fn [<$message:snake>]<'a>(&mut self) -> Option<impl FnMut(data::$message<'a>)> {
+                fn [<$message:snake>]<'a>(&mut self) -> Option<impl FnMut($message<'a>)> {
                     // No implementation by default
                     let mut opt = Some(|_| {});
                     opt.take();
@@ -67,7 +67,7 @@ macro_rules! __message_group {
         impl $group {
             pub fn identify(buf: &[u8]) -> Option<Self> {
                 $(
-                    if <meta::$message as $crate::Enliven>::WithLifetime::is_buffer(buf) {
+                    if $message::is_buffer(buf) {
                         return Some(Self::$message);
                     }
                 )*
@@ -86,7 +86,7 @@ pub use __message_group as message_group;
 ///
 /// ```rust
 /// use gel_db_protocol::*;
-/// use gel_db_protocol::test_protocol::data::*;
+/// use gel_db_protocol::test_protocol::*;
 ///
 /// let buf = [b'?', 0, 0, 0, 4];
 /// match_message!(Message::new(&buf), Backend {

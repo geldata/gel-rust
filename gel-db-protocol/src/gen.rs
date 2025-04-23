@@ -58,7 +58,7 @@ macro_rules! struct_elaborate {
             accum()
             // Save the original struct parts so we can build the remainder of
             // the struct at the end.
-            original($next $( ($($next_args)*) )? 
+            original($next $( ($($next_args)*) )?
                 => $(#[$sdoc])* struct $name <$lt> $(: $super)? {})
         ););
     };
@@ -127,8 +127,8 @@ macro_rules! struct_elaborate {
     };
 
     // Write the final "elaborated" struct into a call to the `next` macro.
-    (__finalize__ 
-        accum($($accum:tt)*) original($next:ident $( ($($next_args:tt)*) )? => 
+    (__finalize__
+        accum($($accum:tt)*) original($next:ident $( ($($next_args:tt)*) )? =>
         $( #[ $sdoc:meta ] )* struct $name:ident <$lt:lifetime> $(: $super:ident)? {})
     ) => {
         $next ! (
@@ -167,8 +167,8 @@ macro_rules! __protocol {
         $( $( #[ doc = $sdoc:literal ] )*
             struct $name:ident <$lt:lifetime> $(: $super:ident)? { $($struct:tt)+ }
         )+
-        $(  #[repr($repr:ty)] $( #[ doc = $edoc:literal ] )* 
-            enum $ename:ident { $($(#[$default:meta])? $emname:ident = $emvalue:literal),+ $(,)? } 
+        $(  #[repr($repr:ty)] $( #[ doc = $edoc:literal ] )*
+            enum $ename:ident { $($(#[$default:meta])? $emname:ident = $emvalue:literal),+ $(,)? }
         )*
     ) => {
 
@@ -184,20 +184,20 @@ macro_rules! __protocol {
 
         //     fn decode<'a>(buf: &mut &'a [u8]) -> Result<Self::DecodeLifetime<'a>, ParseError>;
         //     fn encode<'a, 'b>(buf: &mut BufWriter<'a>, value: &'b Self::BuilderForEncode);
-        //     #[allow(unused)] 
+        //     #[allow(unused)]
         //     fn encode_usize<'a>(buf: &mut BufWriter<'a>, value: usize) { unreachable!("encode usize") }
-        //     #[allow(unused)] 
+        //     #[allow(unused)]
         //     fn decode_usize<'a>(buf: &mut &'a [u8]) -> Result<usize, ParseError> { unreachable!("decode usize") }
         // }
 
-        // $crate::copy_datatype!($crate::prelude::DataType, DataTypeX, 
+        // $crate::copy_datatype!($crate::prelude::DataType, DataTypeX,
         //     u8, u16, u32, u64, i8, i16, i32, i64, f32, f64,
         //     Length,
         //     ZTString<'a>,
         //     LString<'a>,
         //     Rest<'a>,
         //     Encoded<'a>
-            
+
         // );
 
         $(
@@ -282,7 +282,7 @@ macro_rules! protocol_builder {
             pub struct $name<$lt> {
                 pub(crate) buf: &$lt [u8],
                 $(
-                    pub $field: $type,
+                    $field: $type,
                 )*
             }
 
@@ -310,12 +310,6 @@ macro_rules! protocol_builder {
                 }
             }
 
-            impl $crate::gen2::StructNew for $name<'_> {
-                fn new<'a>(buf: &'a [u8]) -> Result<Self::Struct<'a>, ParseError> {
-                    Self::Struct::<'a>::new(buf)
-                }
-            }
-
             #[allow(unused)]
             impl <'a> $name<'a> {
                 /// Checks the constant values for this struct to determine whether
@@ -329,11 +323,19 @@ macro_rules! protocol_builder {
                 #[inline]
                 pub fn new(mut buf: &'a [u8]) -> Result<Self, ParseError> {
                     let mut new = $name::<'a>::default();
+                    new.buf = buf;
                     $(
                         new.$field = <$type as DataType>::decode(&mut buf)?;
                     )*
                     Ok(new)
                 }
+
+                $(
+                    #[doc = $fdoc]
+                    pub fn $field(&self) -> $type {
+                        self.$field
+                    }
+                )*
 
                 pub fn to_vec(self) -> Vec<u8> {
                     self.buf.to_vec()
@@ -385,6 +387,14 @@ macro_rules! protocol_builder {
                     ]));
 
                 type Struct<'__struct> = $name<'__struct>;
+
+                fn new<'__next_lifetime>(buf: &'__next_lifetime [u8]) -> Result<Self::Struct<'__next_lifetime>, ParseError> {
+                    Self::Struct::<'__next_lifetime>::new(buf)
+                }
+
+                fn to_vec(&self) -> Vec<u8> {
+                    self.buf.to_vec()
+                }
             }
 
             /// Implements a trait indicating that the struct has a fixed size.
@@ -526,6 +536,14 @@ macro_rules! protocol_builder {
                     }
                 }
 
+                #[allow(unused)]
+                pub fn measure(&self) -> usize {
+                    let mut buf = Vec::new();
+                    let mut writer = $crate::BufWriter::new(&mut buf);
+                    <$name as DataType>::encode(&mut writer, self);
+                    writer.finish().unwrap_err()
+                }
+
                 // #[allow(unused)]
                 // pub const fn measure(&self) -> usize {
                 //     let mut size = 0;
@@ -552,14 +570,14 @@ macro_rules! protocol_builder {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
     use crate::gen2::StructAttributeHasLengthField;
+    use pretty_assertions::assert_eq;
 
     mod fixed_only {
         use super::*;
 
         crate::protocol!(
-            struct FixedOnly <'a> {
+            struct FixedOnly<'a> {
                 a: u8,
             }
         );
@@ -601,7 +619,7 @@ mod tests {
         use super::*;
 
         crate::protocol!(
-            struct WithLength <'a> {
+            struct WithLength<'a> {
                 a: u8,
                 l: len,
             }
@@ -613,7 +631,7 @@ mod tests {
 
     mod array {
         crate::protocol!(
-            struct StaticArray <'a> {
+            struct StaticArray<'a> {
                 a: u8,
                 l: [u8; 4],
             }
@@ -622,7 +640,7 @@ mod tests {
 
     mod string {
         crate::protocol!(
-            struct HasLString <'a> {
+            struct HasLString<'a> {
                 s: LString<'a>,
             }
         );
@@ -630,7 +648,7 @@ mod tests {
 
     mod has_enum {
         crate::protocol!(
-            struct HasEnum <'a> {
+            struct HasEnum<'a> {
                 e: MyEnum,
             }
 

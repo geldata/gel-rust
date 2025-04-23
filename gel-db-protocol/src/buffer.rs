@@ -1,4 +1,4 @@
-use crate::{gen2::StructNew, prelude::*};
+use crate::prelude::*;
 use std::{collections::VecDeque, marker::PhantomData};
 
 /// A buffer that accumulates bytes of sized structs and feeds them to provided sink function when messages
@@ -9,7 +9,7 @@ pub struct StructBuffer<M: StructLength> {
     accum: VecDeque<u8>,
 }
 
-impl<M: StructLength + StructNew> StructBuffer<M> {
+impl<M: StructLength> StructBuffer<M> {
     /// Pushes bytes into the buffer, potentially feeding output to the function.
     ///
     /// # Lifetimes
@@ -167,7 +167,7 @@ mod tests {
         test_data.append(&mut SyncBuilder::default().to_vec());
         let len = test_data.len();
         lengths.push(len);
-        test_data.append(&mut CommandCompleteBuilder { tag: "TAG", ..Default::default() }.to_vec());
+        test_data.append(&mut CommandCompleteBuilder { tag: "TAG" }.to_vec());
         lengths.push(test_data.len() - len);
         let len = test_data.len();
         test_data.append(

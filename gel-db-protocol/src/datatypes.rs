@@ -7,7 +7,7 @@ pub struct Rest<'a> {
     buf: &'a [u8],
 }
 
-impl <'a> Rest<'a> {
+impl<'a> Rest<'a> {
     pub fn new(buf: &'a [u8]) -> Self {
         Self { buf }
     }
@@ -58,7 +58,7 @@ impl std::fmt::Debug for ZTString<'_> {
     }
 }
 
-impl <'a> ZTString<'a> {
+impl<'a> ZTString<'a> {
     pub fn new(buf: &'a [u8]) -> Self {
         Self { buf }
     }
@@ -120,7 +120,7 @@ impl std::fmt::Debug for LString<'_> {
     }
 }
 
-impl <'a> LString<'a> {
+impl<'a> LString<'a> {
     pub fn new(buf: &'a [u8]) -> Self {
         Self { buf }
     }
@@ -225,5 +225,12 @@ pub struct Length(pub i32);
 impl std::fmt::Debug for Length {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl std::ops::Deref for Length {
+    type Target = i32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }

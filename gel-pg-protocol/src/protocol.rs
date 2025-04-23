@@ -250,7 +250,7 @@ struct Bind<'a>: Message {
     /// The parameter format codes.
     format_codes: Array<'a, i16, i16>,
     /// Array of parameter values and their lengths.
-    values: Array<'a, i16, Encoded>,
+    values: Array<'a, i16, Encoded<'a>>,
     /// The result-column format codes.
     result_format_codes: Array<'a, i16, i16>,
 }
@@ -376,7 +376,7 @@ struct DataRow<'a>: Message {
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Array of column values and their lengths.
-    values: Array<'a, i16, Encoded>,
+    values: Array<'a, i16, Encoded<'a>>,
 }
 
 /// The `Describe` struct represents a message to describe a prepared statement or portal.
@@ -406,7 +406,7 @@ struct ErrorResponse<'a>: Message {
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Array of error fields and their values.
-    fields: ZTArray<'a, ErrorField>,
+    fields: ZTArray<'a, ErrorField<'a>>,
 }
 
 /// The `ErrorField` struct represents a single error message within an `ErrorResponse`.
@@ -448,7 +448,7 @@ struct FunctionCall<'a>: Message {
     /// The parameter format codes.
     format_codes: Array<'a, i16, FormatCode>,
     /// Array of args and their lengths.
-    args: Array<'a, i16, Encoded>,
+    args: Array<'a, i16, Encoded<'a>>,
     /// The format code for the result.
     result_format_code: FormatCode,
 }
@@ -460,7 +460,7 @@ struct FunctionCallResponse<'a>: Message {
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// The function result value.
-    result: Encoded,
+    result: Encoded<'a>,
 }
 
 /// The `GSSENCRequest` struct represents a message requesting GSSAPI encryption.
@@ -508,7 +508,7 @@ struct NoticeResponse<'a>: Message {
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Array of notice fields and their values.
-    fields: ZTArray<'a, NoticeField>,
+    fields: ZTArray<'a, NoticeField<'a>>,
 }
 
 /// The `NoticeField` struct represents a single error message within an `NoticeResponse`.
@@ -622,7 +622,7 @@ struct RowDescription<'a>: Message {
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Array of field descriptions.
-    fields: Array<'a, i16, RowField>,
+    fields: Array<'a, i16, RowField<'a>>,
 }
 
 /// The `RowField` struct represents a row within the `RowDescription` message.
@@ -685,7 +685,7 @@ struct StartupMessage<'a>: InitialMessage {
     /// The protocol version number.
     protocol: i32 = 196608,
     /// List of parameter name-value pairs, terminated by a zero byte.
-    params: ZTArray<'a, StartupNameValue>,
+    params: ZTArray<'a, StartupNameValue<'a>>,
 }
 
 /// The `StartupMessage` struct represents a name/value pair within the `StartupMessage` message.
@@ -749,7 +749,7 @@ enum FormatCode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gel_db_protocol::{match_message, Encoded, StructBuffer, StructMeta};
+    use gel_db_protocol::prelude::{match_message, Encoded, StructBuffer, StructMeta};
     use rand::Rng;
 
     /// We want to ensure that no malformed messages will cause unexpected
@@ -757,43 +757,46 @@ mod tests {
     /// ensure we don't.
     ///
     /// This isn't a 100% foolproof test.
-    fn fuzz_test<S: StructMeta>(s: S::Struct<'_>) {
-        let buf = S::to_vec(&s);
+    fn fuzz_test<S: StructMeta>(s: S) {
+        let buf = s.to_vec();
+        assert!(buf.len() > 4, "Buffer is unexpectedly too short: {buf:?}");
+
+        eprintln!("Fuzzing buffer: {buf:?}");
 
         // Re-create, won't panic
         fuzz_test_buf::<S>(&buf);
 
         // Truncating at any given length won't panic
         for i in 0..buf.len() {
-            let mut buf = S::to_vec(&s);
+            let mut buf = s.to_vec();
             buf.truncate(i);
             fuzz_test_buf::<S>(&buf);
         }
 
         // Removing any particular value won't panic
         for i in 0..buf.len() {
-            let mut buf = S::to_vec(&s);
+            let mut buf = s.to_vec();
             buf.remove(i);
             fuzz_test_buf::<S>(&buf);
         }
 
         // Zeroing any particular value won't panic
         for i in 0..buf.len() {
-            let mut buf = S::to_vec(&s);
+            let mut buf = s.to_vec();
             buf[i] = 0;
             fuzz_test_buf::<S>(&buf);
         }
 
         // Corrupt each byte by incrementing (mod 256)
         for i in 0..buf.len() {
-            let mut buf = S::to_vec(&s);
+            let mut buf = s.to_vec();
             buf[i] = buf[i].wrapping_add(1);
             fuzz_test_buf::<S>(&buf);
         }
 
         // Corrupt each byte by decrementing (mod 256)
         for i in 0..buf.len() {
-            let mut buf = S::to_vec(&s);
+            let mut buf = s.to_vec();
             buf[i] = buf[i].wrapping_sub(1);
             fuzz_test_buf::<S>(&buf);
         }
@@ -804,7 +807,7 @@ mod tests {
         let bytes_i32 = negative_two_i32.to_be_bytes();
         for start_index in 0..buf.len().saturating_sub(3) {
             if start_index + 4 <= buf.len() {
-                let mut buf = S::to_vec(&s); // Clean buffer for each iteration
+                let mut buf = s.to_vec(); // Clean buffer for each iteration
                 buf[start_index..start_index + 4].copy_from_slice(&bytes_i32);
                 eprintln!("Replaced 4-byte chunk at offset {} with -2 (big-endian) in buffer of length {}", start_index, buf.len());
                 fuzz_test_buf::<S>(&buf);
@@ -817,7 +820,7 @@ mod tests {
         let bytes_i16 = negative_two_i16.to_be_bytes();
         for start_index in 0..buf.len().saturating_sub(1) {
             if start_index + 2 <= buf.len() {
-                let mut buf = S::to_vec(&s); // Clean buffer for each iteration
+                let mut buf = s.to_vec(); // Clean buffer for each iteration
                 buf[start_index..start_index + 2].copy_from_slice(&bytes_i16);
                 eprintln!("Replaced 2-byte chunk at offset {} with -2 (big-endian) in buffer of length {}", start_index, buf.len());
                 fuzz_test_buf::<S>(&buf);
@@ -832,7 +835,7 @@ mod tests {
 
         // Insert a random byte at a random position
         for i in 0..run_count {
-            let mut buf = S::to_vec(&s);
+            let mut buf = s.to_vec();
             let random_byte: u8 = rand::rng().random();
             let random_position = rand::rng().random_range(0..=buf.len());
             buf.insert(random_position, random_byte);
@@ -848,7 +851,7 @@ mod tests {
 
         // Corrupt random parts of the buffer. This is non-deterministic.
         for i in 0..run_count {
-            let mut buf = S::to_vec(&s);
+            let mut buf = s.to_vec();
             let rand: [u8; 4] = rand::rng().random();
             let n = rand::rng().random_range(0..buf.len() - 4);
             let range = n..n + 4;
@@ -865,7 +868,7 @@ mod tests {
 
         // Corrupt 1..4 random bytes at random positions
         for i in 0..run_count {
-            let mut buf = S::to_vec(&s);
+            let mut buf = s.to_vec();
             let num_bytes_to_corrupt = rand::rng().random_range(1..=4);
             let mut positions = Vec::new();
 
@@ -912,13 +915,13 @@ mod tests {
         let buf = [b'p', 0, 0, 0, 5, 2];
         assert!(SASLResponse::is_buffer(&buf));
         let message = SASLResponse::new(&buf).unwrap();
-        assert_eq!(message.mlen(), 5);
+        assert_eq!(*message.mlen(), 5);
         assert_eq!(message.response().len(), 1);
     }
 
     #[test]
     fn test_sasl_response_measure() {
-        let measure = builder::SASLResponse {
+        let measure = SASLResponseBuilder {
             response: &[1, 2, 3, 4, 5],
         };
         assert_eq!(measure.measure(), 10)
@@ -937,33 +940,33 @@ mod tests {
 
         assert!(SASLInitialResponse::is_buffer(&buf));
         let message = SASLInitialResponse::new(&buf).unwrap();
-        assert_eq!(message.mlen(), 0x36);
+        assert_eq!(*message.mlen(), 0x36);
         assert_eq!(message.mechanism(), "SCRAM-SHA-256");
         assert_eq!(
             message.response().as_ref(),
             b"n,,n=,r=pEkPLQu29GEvwNeVJt72arQI"
         );
 
-        fuzz_test::<meta::SASLInitialResponse>(message);
+        fuzz_test(message);
     }
 
     #[test]
     fn test_sasl_initial_response_builder() {
-        let buf = builder::SASLInitialResponse {
+        let buf = SASLInitialResponseBuilder {
             mechanism: "SCRAM-SHA-256",
             response: b"n,,n=,r=pEkPLQu29GEvwNeVJt72arQI",
         }
         .to_vec();
 
         let message = SASLInitialResponse::new(&buf).unwrap();
-        assert_eq!(message.mlen(), 0x36);
+        assert_eq!(*message.mlen(), 0x36);
         assert_eq!(message.mechanism(), "SCRAM-SHA-256");
         assert_eq!(
             message.response().as_ref(),
             b"n,,n=,r=pEkPLQu29GEvwNeVJt72arQI"
         );
 
-        fuzz_test::<meta::SASLInitialResponse>(message);
+        fuzz_test(message);
     }
 
     #[test]
@@ -974,7 +977,7 @@ mod tests {
             0x73, 0x74, 0x67, 0x72, 0x65, 0x73, 0, 0,
         ];
         let message = StartupMessage::new(&buf).unwrap();
-        assert_eq!(message.mlen(), buf.len());
+        assert_eq!(*message.mlen() as usize, buf.len());
         assert_eq!(message.protocol(), 196608);
         let arr = message.params();
         let mut vals = vec![];
@@ -984,7 +987,7 @@ mod tests {
         }
         assert_eq!(vals, vec!["user", "postgres", "database", "postgres"]);
 
-        fuzz_test::<meta::StartupMessage>(message);
+        fuzz_test(message);
     }
 
     #[test]
@@ -997,7 +1000,7 @@ mod tests {
         ];
         assert!(RowDescription::is_buffer(&buf));
         let message = RowDescription::new(&buf).unwrap();
-        assert_eq!(message.mlen(), buf.len() - 1);
+        assert_eq!(*message.mlen() as usize, buf.len() - 1);
         assert_eq!(message.fields().len(), 2);
         let mut iter = message.fields().into_iter();
         let f1 = iter.next().unwrap();
@@ -1005,18 +1008,18 @@ mod tests {
         let f2 = iter.next().unwrap();
         assert_eq!(f2.name(), "f2");
         assert_eq!(None, iter.next());
-        fuzz_test::<meta::RowDescription>(message);
+        fuzz_test(message);
     }
 
     #[test]
     fn test_row_description_measure() {
-        let measure = builder::RowDescription {
+        let measure = RowDescriptionBuilder {
             fields: &[
-                builder::RowField {
+                RowFieldBuilder {
                     name: "F1",
                     ..Default::default()
                 },
-                builder::RowField {
+                RowFieldBuilder {
                     name: "F2",
                     ..Default::default()
                 },
@@ -1027,14 +1030,14 @@ mod tests {
 
     #[test]
     fn test_row_description_builder() {
-        let builder = builder::RowDescription {
+        let builder = RowDescriptionBuilder {
             fields: &[
-                builder::RowField {
+                RowFieldBuilder {
                     name: "F1",
                     column_attr_number: 1,
                     ..Default::default()
                 },
-                builder::RowField {
+                RowFieldBuilder {
                     name: "F2",
                     data_type_oid: 1234,
                     format_code: FormatCode::Binary,
@@ -1060,31 +1063,31 @@ mod tests {
         assert_eq!(f2.format_code(), FormatCode::Binary);
         assert_eq!(None, iter.next());
 
-        fuzz_test::<meta::RowDescription>(message);
+        fuzz_test(message);
     }
 
     #[test]
     fn test_message_polymorphism_sync() {
-        let sync = builder::Sync::default();
+        let sync = SyncBuilder::default();
         let buf = sync.to_vec();
         assert_eq!(buf.len(), 5);
         // Read it as a Message
         let message = Message::new(&buf).unwrap();
-        assert_eq!(message.mlen(), 4);
+        assert_eq!(*message.mlen(), 4);
         assert_eq!(message.mtype(), b'S');
         assert_eq!(message.data(), &[]);
         // And also a Sync
         assert!(Sync::is_buffer(&buf));
         let message = Sync::new(&buf).unwrap();
-        assert_eq!(message.mlen(), 4);
+        assert_eq!(*message.mlen(), 4);
         assert_eq!(message.mtype(), b'S');
 
-        fuzz_test::<meta::Sync>(message);
+        fuzz_test(message);
     }
 
     #[test]
     fn test_message_polymorphism_rest() {
-        let auth = builder::AuthenticationGSSContinue {
+        let auth = AuthenticationGSSContinueBuilder {
             data: &[1, 2, 3, 4, 5],
         };
         let buf = auth.to_vec();
@@ -1092,17 +1095,17 @@ mod tests {
         // Read it as a Message
         assert!(Message::is_buffer(&buf));
         let message = Message::new(&buf).unwrap();
-        assert_eq!(message.mlen(), 13);
+        assert_eq!(*message.mlen(), 13);
         assert_eq!(message.mtype(), b'R');
         assert_eq!(message.data(), &[0, 0, 0, 8, 1, 2, 3, 4, 5]);
         // And also a AuthenticationGSSContinue
         assert!(AuthenticationGSSContinue::is_buffer(&buf));
         let message = AuthenticationGSSContinue::new(&buf).unwrap();
-        assert_eq!(message.mlen(), 13);
+        assert_eq!(*message.mlen(), 13);
         assert_eq!(message.mtype(), b'R');
         assert_eq!(message.data(), &[1, 2, 3, 4, 5]);
 
-        fuzz_test::<meta::AuthenticationGSSContinue>(message);
+        fuzz_test(message);
     }
 
     #[test]
@@ -1115,7 +1118,7 @@ mod tests {
             b'T', b' ', b'1', 0x00, 0x5a, 0x00, 0x00, 0x00, 0x05, b'I',
         ];
 
-        let mut buffer = StructBuffer::<meta::Message>::default();
+        let mut buffer = StructBuffer::<Message>::default();
         buffer.push(&data, |message| {
             match_message!(message, Backend {
                 (RowDescription as row) => {
@@ -1125,13 +1128,13 @@ mod tests {
                     assert_eq!(field.data_type_oid(), 23);
                     assert_eq!(field.format_code(), FormatCode::Text);
                     eprintln!("{row:?}");
-                    fuzz_test::<meta::RowDescription>(row);
+                    fuzz_test(row);
                 },
                 (DataRow as row) => {
                     assert_eq!(row.values().len(), 1);
                     assert_eq!(row.values().into_iter().next().unwrap(), "1");
                     eprintln!("{row:?}");
-                    fuzz_test::<meta::DataRow>(row);
+                    fuzz_test(row);
                 },
                 (CommandComplete as complete) => {
                     assert_eq!(complete.tag(), "SELECT 1");
@@ -1150,7 +1153,7 @@ mod tests {
 
     #[test]
     fn test_encode_data_row() {
-        builder::DataRow {
+        DataRowBuilder {
             values: &[Encoded::Value(b"1")],
         }
         .to_vec();
@@ -1169,18 +1172,18 @@ mod tests {
 
         assert!(Parse::is_buffer(&buf));
         let message = Parse::new(&buf).unwrap();
-        assert_eq!(message.mlen(), 25);
+        assert_eq!(*message.mlen(), 25);
         assert_eq!(message.statement(), "Stmt");
         assert_eq!(message.query(), "SELECT $1");
         assert_eq!(message.param_types().len(), 1);
         assert_eq!(message.param_types().get(0).unwrap(), 23); // OID
 
-        fuzz_test::<meta::Parse>(message);
+        fuzz_test(message);
     }
 
     #[test]
     fn test_function_call() {
-        let buf = builder::FunctionCall {
+        let buf = FunctionCallBuilder {
             function_id: 100,
             format_codes: &[FormatCode::Text],
             args: &[Encoded::Value(b"123")],
@@ -1203,7 +1206,7 @@ mod tests {
         );
         assert_eq!(message.result_format_code(), FormatCode::Text);
 
-        fuzz_test::<meta::FunctionCall>(message);
+        fuzz_test(message);
     }
 
     #[test]

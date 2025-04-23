@@ -126,8 +126,8 @@ impl<'a, L> Array<'a, L, u8> {
 
 impl<'a, L, T> std::fmt::Debug for Array<'a, L, T>
 where
-    for <'b> &'b Self: IntoIterator,
-    for <'b> <&'b Self as IntoIterator>::Item: std::fmt::Debug,
+    for<'b> &'b Self: IntoIterator,
+    for<'b> <&'b Self as IntoIterator>::Item: std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_list().entries(self).finish()

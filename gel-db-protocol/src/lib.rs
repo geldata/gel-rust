@@ -30,14 +30,17 @@ pub mod prelude {
     pub use super::encoding::EncodeTarget;
     pub use super::encoding::ParseError;
     pub use super::writer::BufWriter;
-    
+
     pub use super::gen2::StructFieldMeta;
-    pub use super::gen2::StructLength;
     pub use super::gen2::StructFields;
-    pub use super::gen2::StructNew;
+    pub use super::gen2::StructLength;
+    pub use super::gen2::StructMeta;
 
     pub use super::declare_meta;
 
-    pub use super::datatypes::*;
     pub use super::arrays::*;
+    pub use super::buffer::StructBuffer;
+    pub use super::datatypes::*;
+
+    pub use super::match_message;
 }

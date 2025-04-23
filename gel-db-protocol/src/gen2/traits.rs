@@ -7,18 +7,17 @@ pub trait EnumMeta {}
 /// A trait for structs that describes their fields, containing some associated
 /// constants. Note that only `FIELDS` is provided. The remainder of the
 /// associated constants are computed from `FIELDS`.
-pub trait StructMeta: Clone {
-    type Struct<'a>: StructNew;
+pub trait StructMeta: Copy + Clone + std::fmt::Debug {
+    type Struct<'a>: Copy + Clone + std::fmt::Debug;
     const FIELDS: StructFields;
     const FIELD_COUNT: usize = Self::FIELDS.fields.len();
     const IS_FIXED_SIZE: bool = Self::FIELDS.constant_size().is_some();
     const FIXED_SIZE: Option<usize> = Self::FIELDS.constant_size();
     const LENGTH_FIELD_INDEX: Option<usize> = Self::FIELDS.length_field_fixed_offset();
     const HAS_LENGTH_FIELD: bool = Self::LENGTH_FIELD_INDEX.is_some();
-}
 
-pub trait StructNew: StructMeta {
     fn new<'a>(buf: &'a [u8]) -> Result<Self::Struct<'a>, ParseError>;
+    fn to_vec(&self) -> Vec<u8>;
 }
 
 /// A trait implemented for all structs with a boolean determining whether they
@@ -63,19 +62,34 @@ pub struct StructFieldMeta {
 
 impl StructFieldMeta {
     pub const fn new(type_name: &'static str, constant_size: Option<usize>) -> Self {
-        Self { type_name, constant_size, is_length: false, is_enum: false, is_struct: false }
+        Self {
+            type_name,
+            constant_size,
+            is_length: false,
+            is_enum: false,
+            is_struct: false,
+        }
     }
 
     pub const fn set_length(self) -> Self {
-        Self { is_length: true, ..self }
+        Self {
+            is_length: true,
+            ..self
+        }
     }
 
     pub const fn set_enum(self) -> Self {
-        Self { is_enum: true, ..self }
+        Self {
+            is_enum: true,
+            ..self
+        }
     }
 
     pub const fn set_struct(self) -> Self {
-        Self { is_struct: true, ..self }
+        Self {
+            is_struct: true,
+            ..self
+        }
     }
 }
 
@@ -283,8 +297,9 @@ impl<T: StructAttributeHasLengthField<true> + StructMeta> StructLength for T {
         if buf.len() < index + std::mem::size_of::<u32>() {
             None
         } else {
-            let len = <u32 as DataType>::decode(&mut &buf[index..index + std::mem::size_of::<u32>()])
-                .ok()?;
+            let len =
+                <u32 as DataType>::decode(&mut &buf[index..index + std::mem::size_of::<u32>()])
+                    .ok()?;
             Some(index + len as usize)
         }
     }
