@@ -175,20 +175,20 @@ macro_rules! __protocol {
         use $crate::protocol_builder;
         use $crate::prelude::*;
 
-        pub trait DataTypeX where Self: Sized {
-            const META: StructFieldMeta;
-            /// Always a reference
-            type BuilderForEncode: ?Sized;
-            type BuilderForStruct<'unused>;
-            type DecodeLifetime<'a>;
+        // pub trait DataTypeX where Self: Sized {
+        //     const META: StructFieldMeta;
+        //     /// Always a reference
+        //     type BuilderForEncode: ?Sized;
+        //     type BuilderForStruct<'unused>;
+        //     type DecodeLifetime<'a>;
 
-            fn decode<'a>(buf: &mut &'a [u8]) -> Result<Self::DecodeLifetime<'a>, ParseError>;
-            fn encode<'a, 'b>(buf: &mut BufWriter<'a>, value: &'b Self::BuilderForEncode);
-            #[allow(unused)] 
-            fn encode_usize<'a>(buf: &mut BufWriter<'a>, value: usize) { unreachable!("encode usize") }
-            #[allow(unused)] 
-            fn decode_usize<'a>(buf: &mut &'a [u8]) -> Result<usize, ParseError> { unreachable!("decode usize") }
-        }
+        //     fn decode<'a>(buf: &mut &'a [u8]) -> Result<Self::DecodeLifetime<'a>, ParseError>;
+        //     fn encode<'a, 'b>(buf: &mut BufWriter<'a>, value: &'b Self::BuilderForEncode);
+        //     #[allow(unused)] 
+        //     fn encode_usize<'a>(buf: &mut BufWriter<'a>, value: usize) { unreachable!("encode usize") }
+        //     #[allow(unused)] 
+        //     fn decode_usize<'a>(buf: &mut &'a [u8]) -> Result<usize, ParseError> { unreachable!("decode usize") }
+        // }
 
         // $crate::copy_datatype!($crate::prelude::DataType, DataTypeX, 
         //     u8, u16, u32, u64, i8, i16, i32, i64, f32, f64,
@@ -217,7 +217,7 @@ macro_rules! __protocol {
                     $($(#[$default])? $emname = $emvalue),+
                 }
 
-                $crate::declare_type!(DataTypeX, $ename, flags=[enum], {
+                $crate::declare_type!(DataType, $ename, flags=[enum], {
                     fn decode(buf: [u8; N]) -> Result<Self, ParseError> {
                         let repr = $repr::from_be_bytes(buf);
                         match repr {
@@ -330,7 +330,7 @@ macro_rules! protocol_builder {
                 pub fn new(mut buf: &'a [u8]) -> Result<Self, ParseError> {
                     let mut new = $name::<'a>::default();
                     $(
-                        new.$field = $type::decode(&mut buf)?;
+                        new.$field = <$type as DataType>::decode(&mut buf)?;
                     )*
                     Ok(new)
                 }
@@ -378,7 +378,7 @@ macro_rules! protocol_builder {
                         $(
                             $crate::gen2::StructField {
                                 name: stringify!($field),
-                                meta: &(<$type>::META),
+                                meta: &(<$type as DataType>::META),
                                 value: $crate::r#if!(__is_empty__ [$($value)?] { None } else { Some($($value)? as usize) }),
                             },
                         )*
@@ -401,12 +401,12 @@ macro_rules! protocol_builder {
             impl $crate::gen2::StructAttributeFieldCount<{<$name<'_> as $crate::gen2::StructMeta>::FIELD_COUNT}> for $name<'_> {
             }
 
-            $crate::declare_type!(DataTypeX, $name<'a>, builder: [<$name Builder>] <'a>, flags=[struct],
+            $crate::declare_type!(DataType, $name<'a>, builder: [<$name Builder>] <'a>, flags=[struct],
             {
                 fn decode(buf: &mut &[u8]) -> Result<Self, ParseError> {
                     let mut new = $name::default();
                     $(
-                        new.$field = <$type>::decode(buf)?;
+                        new.$field = <$type as DataType>::decode(buf)?;
                     )*
                     Ok(new)
                 }
@@ -415,15 +415,15 @@ macro_rules! protocol_builder {
                         $crate::r#if!(__is_empty__ [$($value)?] {
                             $crate::r#if!(__is_empty__ [$($auto)?] {
                                 // value is no_value (present in builder)
-                                <$type>::encode(buf, &value.$field);
+                                <$type as DataType>::encode(buf, &value.$field);
                             } else {
                                 // value is auto (not present in builder)
                                 let auto_offset = buf.size();
-                                $type::encode(buf, &Default::default());
+                                <$type as DataType>::encode(buf, &Default::default());
                             });
                         } else {
                             // value is set, not present in builder
-                            $type::encode_usize(buf, $($value)? as usize);
+                            <$type as DataType>::encode_usize(buf, $($value)? as usize);
                         });
                     )*
 
@@ -469,7 +469,7 @@ macro_rules! protocol_builder {
                     $($(
                         #[doc = $fdoc]
                         pub $field: $crate::r#if!(__has__ [$no_value] {
-                            <$type>::BuilderForStruct<$lt>
+                            <$type as DataType>::BuilderForStruct<$lt>
                         }),
                     )?)*
                 }
@@ -508,7 +508,7 @@ macro_rules! protocol_builder {
                 pub fn to_vec(&self) -> Vec<u8> {
                     let mut vec = Vec::with_capacity(256);
                     let mut buf = $crate::BufWriter::new(&mut vec);
-                    <$name as DataTypeX>::encode(&mut buf, self);
+                    <$name as DataType>::encode(&mut buf, self);
                     match buf.finish() {
                         Ok(size) => {
                             vec.truncate(size);
@@ -517,7 +517,7 @@ macro_rules! protocol_builder {
                         Err(size) => {
                             vec.resize(size, 0);
                             let mut buf = $crate::BufWriter::new(&mut vec);
-                            <$name as DataTypeX>::encode(&mut buf, self);
+                            <$name as DataType>::encode(&mut buf, self);
                             // Will not fail this second time
                             let size = buf.finish().unwrap();
                             vec.truncate(size);

@@ -68,91 +68,91 @@ macro_rules! declare_type {
             )?
         }
 
-        impl <'a, L: $crate::prelude::DataType> $datatype 
-            for $crate::prelude::Array<'a, L, $ty> {
-                const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
-                    type = $ty,
-                    constant_size = None,
-                    flags = [$($($flag),*)?]
-                );
-                type BuilderForStruct<'unused> = &'a [$ty];
-                type BuilderForEncode = [$ty];
-                type DecodeLifetime<'__next_lifetime> = Array<'__next_lifetime, L, $ty>;
-                fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, $crate::prelude::ParseError> {
-                    let len = L::decode_usize(buf)?;
-                    let orig_buf = *buf;
-                    for _ in 0..len {
-                        <$ty as $datatype>::decode(buf)?;
-                    }
-                    Ok(Array::new(orig_buf, len as _))
-                }
-                fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
-                    let len = value.len();
-                    L::encode_usize(buf, len);
-                    for elem in value {
-                        <$ty as $datatype>::encode(buf, elem);
-                    }
-                }
-        }
+        // impl <'a, L: $crate::prelude::DataType> $datatype 
+        //     for $crate::prelude::Array<'a, L, $ty> {
+        //         const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
+        //             type = $ty,
+        //             constant_size = None,
+        //             flags = [$($($flag),*)?]
+        //         );
+        //         type BuilderForStruct<'unused> = &'a [$ty];
+        //         type BuilderForEncode = [$ty];
+        //         type DecodeLifetime<'__next_lifetime> = Array<'__next_lifetime, L, $ty>;
+        //         fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, $crate::prelude::ParseError> {
+        //             let len = L::decode_usize(buf)?;
+        //             let orig_buf = *buf;
+        //             for _ in 0..len {
+        //                 <$ty as $datatype>::decode(buf)?;
+        //             }
+        //             Ok(Array::new(orig_buf, len as _))
+        //         }
+        //         fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
+        //             let len = value.len();
+        //             L::encode_usize(buf, len);
+        //             for elem in value {
+        //                 <$ty as $datatype>::encode(buf, elem);
+        //             }
+        //         }
+        // }
 
-        impl <'a> $datatype 
-            for $crate::prelude::ZTArray<'a, $ty> {
-                const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
-                    type = $ty,
-                    constant_size = None,
-                    flags = [$($($flag),*)?]
-                );
-                type BuilderForStruct<'unused> = &'a [$ty];
-                type BuilderForEncode = [$ty];
-                type DecodeLifetime<'__next_lifetime> = ZTArray<'__next_lifetime, $ty>;
-                fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, $crate::prelude::ParseError> {
-                    let mut orig_buf = *buf;
-                    let mut len = 0;
-                    loop {
-                        if buf.is_empty() {
-                            return Err($crate::prelude::ParseError::TooShort);
-                        }
-                        if buf[0] == 0 {
-                            orig_buf = &orig_buf[0..orig_buf.len() - buf.len()];
-                            *buf = &buf[1..];
-                            break;
-                        }
-                        <$ty as $datatype>::decode(buf)?;
-                        len += 1;
-                    }
-                    Ok(ZTArray::new(orig_buf, len))
-                }
-                fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
-                    for elem in value {
-                        <$ty as $datatype>::encode(buf, elem);
-                    }
-                    buf.write(&[0]);
-                }
-        }
+        // impl <'a> $datatype 
+        //     for $crate::prelude::ZTArray<'a, $ty> {
+        //         const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
+        //             type = $ty,
+        //             constant_size = None,
+        //             flags = [$($($flag),*)?]
+        //         );
+        //         type BuilderForStruct<'unused> = &'a [$ty];
+        //         type BuilderForEncode = [$ty];
+        //         type DecodeLifetime<'__next_lifetime> = ZTArray<'__next_lifetime, $ty>;
+        //         fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, $crate::prelude::ParseError> {
+        //             let mut orig_buf = *buf;
+        //             let mut len = 0;
+        //             loop {
+        //                 if buf.is_empty() {
+        //                     return Err($crate::prelude::ParseError::TooShort);
+        //                 }
+        //                 if buf[0] == 0 {
+        //                     orig_buf = &orig_buf[0..orig_buf.len() - buf.len()];
+        //                     *buf = &buf[1..];
+        //                     break;
+        //                 }
+        //                 <$ty as $datatype>::decode(buf)?;
+        //                 len += 1;
+        //             }
+        //             Ok(ZTArray::new(orig_buf, len))
+        //         }
+        //         fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
+        //             for elem in value {
+        //                 <$ty as $datatype>::encode(buf, elem);
+        //             }
+        //             buf.write(&[0]);
+        //         }
+        // }
 
-        impl <const N: usize> $datatype 
-            for [$ty; N] {
-                const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
-                    type = $ty,
-                    constant_size = Some(std::mem::size_of::<$ty>() * N),
-                    flags = [$($($flag),*)?]
-                );
-                type BuilderForStruct<'unused> = [$ty; N];
-                type BuilderForEncode = [$ty; N];
-                type DecodeLifetime<'__next_lifetime> = [$ty; N];
-                fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self, $crate::prelude::ParseError> {
-                    let mut res = [$ty::default(); N];
-                    for i in 0..N {
-                        res[i] = <$ty as $datatype>::decode(buf)?;
-                    }
-                    Ok(res)
-                }
-                fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
-                    for elem in value {
-                        <$ty as $datatype>::encode(buf, elem);
-                    }
-                }
-        }
+        // impl <const N: usize> $datatype 
+        //     for [$ty; N] {
+        //         const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
+        //             type = $ty,
+        //             constant_size = Some(std::mem::size_of::<$ty>() * N),
+        //             flags = [$($($flag),*)?]
+        //         );
+        //         type BuilderForStruct<'unused> = [$ty; N];
+        //         type BuilderForEncode = [$ty; N];
+        //         type DecodeLifetime<'__next_lifetime> = [$ty; N];
+        //         fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self, $crate::prelude::ParseError> {
+        //             let mut res = [$ty::default(); N];
+        //             for i in 0..N {
+        //                 res[i] = <$ty as $datatype>::decode(buf)?;
+        //             }
+        //             Ok(res)
+        //         }
+        //         fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
+        //             for elem in value {
+        //                 <$ty as $datatype>::encode(buf, elem);
+        //             }
+        //         }
+        // }
 
         impl $crate::prelude::DataTypeFixedSize for $ty {
             const SIZE: usize = std::mem::size_of::<$ty>();
@@ -186,74 +186,74 @@ macro_rules! declare_type {
             }
         }
 
-        impl <$lt, L: $crate::prelude::DataType> $datatype 
-            for $crate::prelude::Array<$lt, L, $ty<$lt>> {
-                const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
-                    type = $ty,
-                    constant_size = None,
-                    flags = [$($($flag),*)?]
-                );
-                type BuilderForStruct<'unused> = &$lt [$builder];
-                type BuilderForEncode = [$builder];
-                type DecodeLifetime<'__next_lifetime> = Array<'__next_lifetime, L, $ty<'__next_lifetime>>;
-                fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, $crate::prelude::ParseError> {
-                    let len = L::decode_usize(buf)?;
-                    let orig_buf = *buf;
-                    for _ in 0..len {
-                        <$ty as $datatype>::decode(buf)?;
-                    }
-                    Ok(Array::new(orig_buf, len as _))
-                }
-                fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
-                    let len = value.len();
-                    L::encode_usize(buf, len);
-                    for elem in value {
-                        <$ty as $datatype>::encode(buf, elem);
-                    }
-                }
-        }
+        // impl <$lt, L: $crate::prelude::DataType> $datatype 
+        //     for $crate::prelude::Array<$lt, L, $ty<$lt>> {
+        //         const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
+        //             type = $ty,
+        //             constant_size = None,
+        //             flags = [$($($flag),*)?]
+        //         );
+        //         type BuilderForStruct<'unused> = &$lt [$builder];
+        //         type BuilderForEncode = [$builder];
+        //         type DecodeLifetime<'__next_lifetime> = Array<'__next_lifetime, L, $ty<'__next_lifetime>>;
+        //         fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, $crate::prelude::ParseError> {
+        //             let len = L::decode_usize(buf)?;
+        //             let orig_buf = *buf;
+        //             for _ in 0..len {
+        //                 <$ty as $datatype>::decode(buf)?;
+        //             }
+        //             Ok(Array::new(orig_buf, len as _))
+        //         }
+        //         fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
+        //             let len = value.len();
+        //             L::encode_usize(buf, len);
+        //             for elem in value {
+        //                 <$ty as $datatype>::encode(buf, elem);
+        //             }
+        //         }
+        // }
 
-        impl <$lt> $datatype 
-            for $crate::prelude::ZTArray<$lt, $ty<$lt>> {
-                const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
-                    type = $ty,
-                    constant_size = None,
-                    flags = [$($($flag),*)?]
-                );
-                type BuilderForStruct<'unused> = &$lt [$builder];
-                type BuilderForEncode = [$builder];
-                type DecodeLifetime<'__next_lifetime> = ZTArray<'__next_lifetime, $ty<'__next_lifetime>>;
-                fn decode<'__next_lifetime>(_buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, $crate::prelude::ParseError> {
-                    unimplemented!("7")
-                }
-                fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
-                    unimplemented!("8")
-                }
-        }
+        // impl <$lt> $datatype 
+        //     for $crate::prelude::ZTArray<$lt, $ty<$lt>> {
+        //         const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
+        //             type = $ty,
+        //             constant_size = None,
+        //             flags = [$($($flag),*)?]
+        //         );
+        //         type BuilderForStruct<'unused> = &$lt [$builder];
+        //         type BuilderForEncode = [$builder];
+        //         type DecodeLifetime<'__next_lifetime> = ZTArray<'__next_lifetime, $ty<'__next_lifetime>>;
+        //         fn decode<'__next_lifetime>(_buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, $crate::prelude::ParseError> {
+        //             unimplemented!("7")
+        //         }
+        //         fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
+        //             unimplemented!("8")
+        //         }
+        // }
 
-        impl <$lt, const N: usize> $datatype 
-            for [$ty<$lt>; N] {
-                const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
-                    type = $ty,
-                    constant_size = None,
-                    flags = [$($($flag),*)?]
-                );
-                type BuilderForStruct<'unused> = [$builder; N];
-                type BuilderForEncode = [$builder; N];
-                type DecodeLifetime<'__next_lifetime> = [$ty<'__next_lifetime>; N];
-                fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, $crate::prelude::ParseError> {
-                    let mut res = [$ty::<'__next_lifetime>::default(); N];
-                    for i in 0..N {
-                        res[i] = <$ty as $datatype>::decode(buf)?;
-                    }
-                    Ok(res)
-                }
-                fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
-                    for elem in value {
-                        <$ty as $datatype>::encode(buf, elem);
-                    }
-                }
-        }
+        // impl <$lt, const N: usize> $datatype 
+        //     for [$ty<$lt>; N] {
+        //         const META: $crate::prelude::StructFieldMeta = $crate::prelude::declare_meta!(
+        //             type = $ty,
+        //             constant_size = None,
+        //             flags = [$($($flag),*)?]
+        //         );
+        //         type BuilderForStruct<'unused> = [$builder; N];
+        //         type BuilderForEncode = [$builder; N];
+        //         type DecodeLifetime<'__next_lifetime> = [$ty<'__next_lifetime>; N];
+        //         fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, $crate::prelude::ParseError> {
+        //             let mut res = [$ty::<'__next_lifetime>::default(); N];
+        //             for i in 0..N {
+        //                 res[i] = <$ty as $datatype>::decode(buf)?;
+        //             }
+        //             Ok(res)
+        //         }
+        //         fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
+        //             for elem in value {
+        //                 <$ty as $datatype>::encode(buf, elem);
+        //             }
+        //         }
+        // }
 
     };
 }

@@ -10,7 +10,7 @@ use crate::datatypes::*;
 pub trait DataType where Self: Sized {
     const META: StructFieldMeta;
     /// Always a reference
-    type BuilderForEncode: ?Sized;
+    type BuilderForEncode;
     type BuilderForStruct<'unused>;
     type DecodeLifetime<'a>;
     
@@ -37,6 +37,94 @@ pub enum ParseError {
 pub struct EncodeTarget<'a> {
     _phantom: PhantomData<&'a ()>,
 }
+
+impl<'a, L: DataType, T: DataType> DataType for Array<'a, L, T> where T::BuilderForEncode: 'a, T::BuilderForStruct<'a>: 'a {
+    const META: StructFieldMeta = declare_meta!(
+        type = Array,
+        constant_size = None,
+        flags = []
+    );
+    type BuilderForEncode = &'a [T::BuilderForEncode];
+    type BuilderForStruct<'unused> = &'a [T::BuilderForStruct<'a>];
+    type DecodeLifetime<'__next_lifetime> = Array<'__next_lifetime, L, T::DecodeLifetime<'__next_lifetime>>;
+
+    fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, ParseError> {
+        let orig_buf = *buf;
+        let len = L::decode_usize(buf)?;
+        for _ in 0..len {
+            T::decode(buf)?;
+        }
+        Ok(Array::new(orig_buf, len as _))
+    }
+
+    fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
+        L::encode_usize(buf, value.len());
+        for elem in value.iter() {
+            T::encode(buf, elem);
+        }
+    }
+}
+
+impl<'a, T: DataType> DataType for ZTArray<'a, T> where T::BuilderForEncode: 'a, T::BuilderForStruct<'a>: 'a {
+    const META: StructFieldMeta = declare_meta!(
+        type = ZTArray,
+        constant_size = None,
+        flags = []
+    );
+    type BuilderForEncode = &'a [T::BuilderForEncode];
+    type BuilderForStruct<'unused> = &'a [T::BuilderForStruct<'a>];
+    type DecodeLifetime<'__next_lifetime> = ZTArray<'__next_lifetime, T::DecodeLifetime<'__next_lifetime>>;
+    
+    fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, ParseError> {
+        let mut orig_buf = *buf;
+        let mut len = 0;
+        loop {
+            if buf.is_empty() {
+                return Err(crate::prelude::ParseError::TooShort);
+            }
+            if buf[0] == 0 {
+                orig_buf = &orig_buf[0..orig_buf.len() - buf.len()];
+                *buf = &buf[1..];
+                break;
+            }
+            T::decode(buf)?;
+            len += 1;
+        }
+        Ok(ZTArray::new(orig_buf, len))
+    }
+
+    fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
+        for elem in value.iter() {
+            T::encode(buf, elem);
+        }
+        buf.write(&[0]);
+    }
+}
+
+
+impl <const N: usize, T: DataType> DataType for [T; N] where for <'a> T::DecodeLifetime<'a>: Default + Copy {
+    const META: StructFieldMeta = declare_meta!(
+        type = FixedArray,
+        constant_size = Some(std::mem::size_of::<T>() * N),
+        flags = []
+    );
+    type BuilderForStruct<'unused> = [T::BuilderForStruct<'unused>; N];
+    type BuilderForEncode = [T::BuilderForEncode; N];
+    type DecodeLifetime<'__next_lifetime> = [T::DecodeLifetime<'__next_lifetime>; N];
+    fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, crate::prelude::ParseError> {
+        let mut res = [T::DecodeLifetime::<'__next_lifetime>::default(); N];
+        for i in 0..N {
+            res[i] = T::decode(buf)?;
+        }
+        Ok(res)
+    }
+    fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
+        for elem in value {
+           T::encode(buf, elem);
+        }
+    }
+}
+
 
 // declare_type!(ZTArray<'a, T>, builder: [T], flags: [array], 
 
