@@ -1,63 +1,10 @@
 use std::str::Utf8Error;
-
 pub use uuid::Uuid;
 
-use crate::gen2::{HasStructFieldMeta, StructFieldMeta};
-use crate::{
-    declare_field_access, declare_field_access_fixed_size, writer::BufWriter, Enliven, FieldAccess,
-    FieldAccessArray, ParseError,
-};
-
-pub mod meta {
-    pub use super::EncodedMeta as Encoded;
-    pub use super::LStringMeta as LString;
-    pub use super::LengthMeta as Length;
-    pub use super::RestMeta as Rest;
-    pub use super::UuidMeta as Uuid;
-    pub use super::ZTStringMeta as ZTString;
-}
-
 /// Represents the remainder of data in a message.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Copy, Debug, PartialEq, Eq, Default, Clone)]
 pub struct Rest<'a> {
     buf: &'a [u8],
-}
-
-declare_field_access! {
-    Meta = RestMeta,
-    Inflated = Rest<'a>,
-    Measure = &'a [u8],
-    Builder = &'a [u8],
-
-    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
-        Ok(buf.len())
-    }
-
-    pub const fn extract(buf: &[u8]) -> Result<Rest<'_>, ParseError> {
-        Ok(Rest { buf })
-    }
-
-    pub const fn measure(buf: &[u8]) -> usize {
-        buf.len()
-    }
-
-    pub fn copy_to_buf(buf: &mut BufWriter, value: &[u8]) {
-        buf.write(value)
-    }
-
-    pub const fn constant(_constant: usize) -> Rest<'static> {
-        panic!("Constants unsupported for this data type")
-    }
-}
-
-pub struct RestMeta {}
-
-impl HasStructFieldMeta for RestMeta {
-    const META: StructFieldMeta = StructFieldMeta {
-        type_name: "Rest",
-        constant_size: None,
-        is_length: false,
-    };
 }
 
 impl Rest<'_> {}
@@ -94,57 +41,9 @@ impl PartialEq<&[u8]> for Rest<'_> {
 }
 
 /// A zero-terminated string.
-#[allow(unused)]
+#[derive(Copy, Clone, Default)]
 pub struct ZTString<'a> {
     buf: &'a [u8],
-}
-
-declare_field_access!(
-    Meta = ZTStringMeta,
-    Inflated = ZTString<'a>,
-    Measure = &'a str,
-    Builder = &'a str,
-
-    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
-        let mut i = 0;
-        loop {
-            if i >= buf.len() {
-                return Err(ParseError::TooShort);
-            }
-            if buf[i] == 0 {
-                return Ok(i + 1);
-            }
-            i += 1;
-        }
-    }
-
-    pub const fn extract(buf: &[u8]) -> Result<ZTString<'_>, ParseError> {
-        let buf = buf.split_at(buf.len() - 1).0;
-        Ok(ZTString { buf })
-    }
-
-    pub const fn measure(buf: &str) -> usize {
-        buf.len() + 1
-    }
-
-    pub fn copy_to_buf(buf: &mut BufWriter, value: &str) {
-        buf.write(value.as_bytes());
-        buf.write_u8(0);
-    }
-
-    pub const fn constant(_constant: usize) -> ZTString<'static> {
-        panic!("Constants unsupported for this data type")
-    }
-);
-
-pub struct ZTStringMeta {}
-
-impl HasStructFieldMeta for ZTStringMeta {
-    const META: StructFieldMeta = StructFieldMeta {
-        type_name: "ZTString",
-        constant_size: None,
-        is_length: false,
-    };
 }
 
 impl std::fmt::Debug for ZTString<'_> {
@@ -198,61 +97,9 @@ impl<'a> TryInto<&'a str> for ZTString<'a> {
 }
 
 /// A length-prefixed string.
-#[allow(unused)]
+#[derive(Copy, Clone, Default)]
 pub struct LString<'a> {
     buf: &'a [u8],
-}
-
-declare_field_access!(
-    Meta = LStringMeta,
-    Inflated = LString<'a>,
-    Measure = &'a str,
-    Builder = &'a str,
-
-    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
-        if buf.len() < 4 {
-            return Err(ParseError::TooShort);
-        }
-        let len = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
-        Ok(4 + len)
-    }
-
-    pub const fn extract(buf: &[u8]) -> Result<LString<'_>, ParseError> {
-        if buf.len() < 4 {
-            return Err(ParseError::TooShort);
-        }
-        let len = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
-        if buf.len() < 4 + len {
-            return Err(ParseError::TooShort);
-        }
-        Ok(LString {
-            buf: buf.split_at(4).1,
-        })
-    }
-
-    pub const fn measure(buf: &str) -> usize {
-        4 + buf.len()
-    }
-
-    pub fn copy_to_buf(buf: &mut BufWriter, value: &str) {
-        let len = value.len() as u32;
-        buf.write(&len.to_be_bytes());
-        buf.write(value.as_bytes());
-    }
-
-    pub const fn constant(_constant: usize) -> LString<'static> {
-        panic!("Constants unsupported for this data type")
-    }
-);
-
-pub struct LStringMeta {}
-
-impl HasStructFieldMeta for LStringMeta {
-    const META: StructFieldMeta = StructFieldMeta {
-        type_name: "LString",
-        constant_size: None,
-        is_length: false,
-    };
 }
 
 impl std::fmt::Debug for LString<'_> {
@@ -305,29 +152,6 @@ impl<'a> TryInto<&'a str> for LString<'a> {
     }
 }
 
-declare_field_access_fixed_size! {
-    Meta = UuidMeta,
-    Inflated = Uuid,
-    Measure = Uuid,
-    Builder = Uuid,
-    Size = 16,
-    Zero = Uuid::nil(),
-
-    pub const fn extract(buf: &[u8; 16]) -> Result<Uuid, ParseError> {
-        Ok(Uuid::from_u128(<u128>::from_be_bytes(*buf)))
-    }
-
-    pub fn copy_to_buf(buf: &mut BufWriter, value: &Uuid) {
-        buf.write(value.as_bytes().as_slice())
-    }
-
-    pub const fn constant(_constant: usize) -> Uuid {
-        panic!("Constants unsupported for this data type")
-    }
-}
-
-pub struct UuidMeta {}
-
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 /// An encoded row value.
 pub enum Encoded<'a> {
@@ -349,80 +173,6 @@ impl<'a> AsRef<Encoded<'a>> for Encoded<'a> {
     fn as_ref(&self) -> &Encoded<'a> {
         self
     }
-}
-
-declare_field_access! {
-    Meta = EncodedMeta,
-    Inflated = Encoded<'a>,
-    Measure = Encoded<'a>,
-    Builder = Encoded<'a>,
-
-    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
-        const N: usize = std::mem::size_of::<i32>();
-        if let Some(len) = buf.first_chunk::<N>() {
-            let len = i32::from_be_bytes(*len);
-            if len == -1 {
-                Ok(N)
-            } else if len < 0 {
-                Err(ParseError::InvalidData)
-            } else if buf.len() < len as usize + N {
-                Err(ParseError::TooShort)
-            } else {
-                Ok(len as usize + N)
-            }
-        } else {
-            Err(ParseError::TooShort)
-        }
-    }
-
-    pub const fn extract(buf: &[u8]) -> Result<Encoded<'_>, ParseError> {
-        const N: usize = std::mem::size_of::<i32>();
-        if let Some((len, array)) = buf.split_first_chunk::<N>() {
-            let len = i32::from_be_bytes(*len);
-            if len == -1 && array.is_empty() {
-                Ok(Encoded::Null)
-            } else if len < 0 {
-                Err(ParseError::InvalidData)
-            } else if array.len() < len as _ {
-                Err(ParseError::TooShort)
-            } else {
-                Ok(Encoded::Value(array))
-            }
-        } else {
-            Err(ParseError::TooShort)
-        }
-    }
-
-    pub const fn measure(value: &Encoded) -> usize {
-        match value {
-            Encoded::Null => std::mem::size_of::<i32>(),
-            Encoded::Value(value) => value.len() + std::mem::size_of::<i32>(),
-        }
-    }
-
-    pub fn copy_to_buf(buf: &mut BufWriter, value: &Encoded) {
-        match value {
-            Encoded::Null => buf.write(&[0xff, 0xff, 0xff, 0xff]),
-            Encoded::Value(value) => {
-                let len: i32 = value.len() as _;
-                buf.write(&len.to_be_bytes());
-                buf.write(value);
-            }
-        }
-    }
-
-    pub const fn constant(_constant: usize) -> Encoded<'static> {
-        panic!("Constants unsupported for this data type")
-    }
-}
-
-pub struct EncodedMeta {}
-impl HasStructFieldMeta for EncodedMeta {
-    const META: StructFieldMeta = StructFieldMeta {
-        type_name: "Encoded",
-        constant_size: None,
-        is_length: false,
-    };
 }
 
 impl Encoded<'_> {}
@@ -451,86 +201,6 @@ impl PartialEq<&[u8]> for Encoded<'_> {
     }
 }
 
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq)]
 pub struct Length(pub i32);
 
-declare_field_access_fixed_size! {
-    Meta = LengthMeta,
-    Inflated = usize,
-    Measure = i32,
-    Builder = i32,
-    Size = 4,
-    Zero = 0,
-
-    pub const fn extract(buf: &[u8; 4]) -> Result<usize, ParseError> {
-        let n = i32::from_be_bytes(*buf);
-        if n >= 0 {
-            Ok(n as _)
-        } else {
-            Err(ParseError::InvalidData)
-        }
-    }
-
-    pub fn copy_to_buf(buf: &mut BufWriter, value: &i32) {
-        FieldAccess::<i32>::copy_to_buf(buf, value)
-    }
-
-    pub const fn constant(value: usize) -> usize {
-        value
-    }
-}
-
-impl FieldAccess<LengthMeta> {
-    pub fn copy_to_buf_rewind(buf: &mut BufWriter, rewind: usize, value: usize) {
-        buf.write_rewind(rewind, &(value as i32).to_be_bytes());
-    }
-}
-
-// We alias usize here. Note that if this causes trouble in the future we can
-// probably work around this by adding a new "const value" function to
-// FieldAccess. For now it works!
-pub struct LengthMeta {}
-
-impl HasStructFieldMeta for LengthMeta {
-    const META: StructFieldMeta = StructFieldMeta {
-        type_name: "len",
-        constant_size: Some(4),
-        is_length: true,
-    };
-}
-
-macro_rules! basic_types {
-    ($($ty:ty),*) => {
-        $(
-        impl HasStructFieldMeta for $ty {
-            const META: StructFieldMeta = StructFieldMeta {
-                type_name: stringify!($ty),
-                constant_size: Some(std::mem::size_of::<$ty>()),
-                is_length: false,
-            };
-        }
-
-        declare_field_access_fixed_size! {
-            Meta = $ty,
-            Inflated = $ty,
-            Measure = $ty,
-            Builder = $ty,
-            Size = std::mem::size_of::<$ty>(),
-            Zero = 0,
-
-            pub const fn extract(buf: &[u8; std::mem::size_of::<$ty>()]) -> Result<$ty, ParseError> {
-                Ok(<$ty>::from_be_bytes(*buf))
-            }
-
-            pub fn copy_to_buf(buf: &mut BufWriter, value: &$ty) {
-                buf.write(&<$ty>::to_be_bytes(*value));
-            }
-
-            pub const fn constant(value: usize) -> $ty {
-                value as _
-            }
-        }
-        )*
-    };
-}
-
-basic_types!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128);

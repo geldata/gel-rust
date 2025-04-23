@@ -1,70 +1,55 @@
 #![allow(private_bounds)]
 
-use crate::gen2::{HasStructFieldMeta, StructFieldMeta};
+use crate::prelude::*;
 
-use super::{Enliven, FieldAccessArray, FixedSize, ParseError};
 pub use std::marker::PhantomData;
 
-pub mod meta {
-    pub use super::ArrayMeta as Array;
-    pub use super::FixedArrayMeta as FixedArray;
-    pub use super::ZTArrayMeta as ZTArray;
-}
-
 /// Inflated version of a zero-terminated array with zero-copy iterator access.
-pub struct ZTArray<'a, T: FieldAccessArray> {
+#[derive(Copy, Clone, Default)]
+pub struct ZTArray<'a, T: DataType> {
     _phantom: PhantomData<T>,
     buf: &'a [u8],
+    len: usize,
 }
 
-/// Metaclass for [`ZTArray`].
-pub struct ZTArrayMeta<T> {
-    pub _phantom: PhantomData<T>,
-}
-
-impl<T> HasStructFieldMeta for ZTArrayMeta<T> {
-    const META: StructFieldMeta = StructFieldMeta {
-        type_name: "ZTArray",
-        constant_size: None,
-        is_length: true,
-    };
-}
-
-impl<T> Enliven for ZTArrayMeta<T>
-where
-    T: FieldAccessArray,
-{
-    type WithLifetime<'a> = ZTArray<'a, T>;
-    type ForBuilder<'a> = &'a [<T as Enliven>::ForBuilder<'a>];
-}
-
-impl<'a, T: FieldAccessArray> ZTArray<'a, T> {
-    pub const fn new(buf: &'a [u8]) -> Self {
+impl<'a, T: DataType> ZTArray<'a, T> {
+    #[inline(always)]
+    pub const fn new(buf: &'a [u8], len: usize) -> Self {
         Self {
             buf,
+            len,
             _phantom: PhantomData,
         }
+    }
+
+    #[inline(always)]
+    pub const fn len(&self) -> usize {
+        self.len
+    }
+
+    #[inline(always)]
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
     }
 }
 
 /// [`ZTArray`] [`Iterator`] for values of type `T`.
-pub struct ZTArrayIter<'a, T: FieldAccessArray> {
+pub struct ZTArrayIter<'a, T: DataType> {
     _phantom: PhantomData<T>,
     buf: &'a [u8],
 }
 
 impl<'a, T> std::fmt::Debug for ZTArray<'a, T>
 where
-    T: FieldAccessArray,
-    <T as Enliven>::WithLifetime<'a>: std::fmt::Debug,
+    T: DataType + std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_list().entries(self).finish()
     }
 }
 
-impl<'a, T: FieldAccessArray> IntoIterator for ZTArray<'a, T> {
-    type Item = <T as Enliven>::WithLifetime<'a>;
+impl<'a, T: DataType> IntoIterator for ZTArray<'a, T> {
+    type Item = T;
     type IntoIter = ZTArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         ZTArrayIter {
@@ -74,8 +59,8 @@ impl<'a, T: FieldAccessArray> IntoIterator for ZTArray<'a, T> {
     }
 }
 
-impl<'a, T: FieldAccessArray> IntoIterator for &ZTArray<'a, T> {
-    type Item = <T as Enliven>::WithLifetime<'a>;
+impl<'a, T: DataType> IntoIterator for &ZTArray<'a, T> {
+    type Item = T;
     type IntoIter = ZTArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         ZTArrayIter {
@@ -85,78 +70,31 @@ impl<'a, T: FieldAccessArray> IntoIterator for &ZTArray<'a, T> {
     }
 }
 
-impl<'a, T: FieldAccessArray> Iterator for ZTArrayIter<'a, T> {
-    type Item = <T as Enliven>::WithLifetime<'a>;
+impl<'a, T: DataType> Iterator for ZTArrayIter<'a, T> {
+    type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         if self.buf[0] == 0 {
             return None;
         }
-        let (value, buf) = self.buf.split_at(T::size_of_field_at(self.buf).ok()?);
-        self.buf = buf;
-        T::extract(value).ok()
-    }
-}
-
-impl<T: FieldAccessArray + 'static> FieldAccessArray for ZTArrayMeta<T> {
-    fn size_of_field_at(mut buf: &[u8]) -> Result<usize, ParseError> {
-        let mut size = 1;
-        loop {
-            if buf.is_empty() {
-                return Err(ParseError::TooShort);
-            }
-            if buf[0] == 0 {
-                return Ok(size);
-            }
-            let elem_size = T::size_of_field_at(buf)?;
-            buf = buf.split_at(elem_size).1;
-            size += elem_size;
-        }
-    }
-    fn extract(buf: &[u8]) -> Result<ZTArray<T>, ParseError> {
-        Ok(ZTArray::new(buf))
-    }
-    fn copy_to_buf(buf: &mut crate::BufWriter, value: &&[<T as Enliven>::ForBuilder<'_>]) {
-        for elem in *value {
-            T::copy_to_buf(buf, elem);
-        }
-        buf.write_u8(0);
+        let value = T::decode(&mut self.buf).ok()?;
+        Some(value)
     }
 }
 
 /// Inflated version of a length-specified array with zero-copy iterator access.
-pub struct Array<'a, L, T: FieldAccessArray> {
+#[derive(Copy, Clone, Default)]
+pub struct Array<'a, L, T: DataType> {
     _phantom: PhantomData<(L, T)>,
     buf: &'a [u8],
     len: u32,
 }
 
-/// Metaclass for [`Array`].
-pub struct ArrayMeta<L, T> {
-    pub _phantom: PhantomData<(L, T)>,
-}
-
-impl<L, T> HasStructFieldMeta for ArrayMeta<L, T> {
-    const META: StructFieldMeta = StructFieldMeta {
-        type_name: "Array",
-        constant_size: None,
-        is_length: false,
-    };
-}
-
-impl<L, T> Enliven for ArrayMeta<L, T>
-where
-    T: FieldAccessArray + Enliven,
-{
-    type WithLifetime<'a> = Array<'a, L, T>;
-    type ForBuilder<'a> = &'a [<T as Enliven>::ForBuilder<'a>];
-}
-
-impl<'a, L, T: FieldAccessArray> Array<'a, L, T> {
+impl<'a, L, T: DataType> Array<'a, L, T> {
     pub const fn new(buf: &'a [u8], len: u32) -> Self {
         Self {
             buf,
-            _phantom: PhantomData,
             len,
+            _phantom: PhantomData,
         }
     }
 
@@ -173,8 +111,7 @@ impl<'a, L, T: FieldAccessArray> Array<'a, L, T> {
 
 impl<'a, L, T> std::fmt::Debug for Array<'a, L, T>
 where
-    T: FieldAccessArray,
-    <T as Enliven>::WithLifetime<'a>: std::fmt::Debug,
+    T: DataType + std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_list().entries(self).finish()
@@ -182,14 +119,14 @@ where
 }
 
 /// [`Array`] [`Iterator`] for values of type `T`.
-pub struct ArrayIter<'a, T: FieldAccessArray> {
+pub struct ArrayIter<'a, T: DataType> {
     _phantom: PhantomData<T>,
     buf: &'a [u8],
     len: u32,
 }
 
-impl<'a, L, T: FieldAccessArray> IntoIterator for Array<'a, L, T> {
-    type Item = <T as Enliven>::WithLifetime<'a>;
+impl<'a, L, T: DataType> IntoIterator for Array<'a, L, T> {
+    type Item = T;
     type IntoIter = ArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         ArrayIter {
@@ -200,8 +137,8 @@ impl<'a, L, T: FieldAccessArray> IntoIterator for Array<'a, L, T> {
     }
 }
 
-impl<'a, L, T: FieldAccessArray> IntoIterator for &Array<'a, L, T> {
-    type Item = <T as Enliven>::WithLifetime<'a>;
+impl<'a, L, T: DataType> IntoIterator for &Array<'a, L, T> {
+    type Item = T;
     type IntoIter = ArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         ArrayIter {
@@ -212,17 +149,15 @@ impl<'a, L, T: FieldAccessArray> IntoIterator for &Array<'a, L, T> {
     }
 }
 
-impl<'a, T: FieldAccessArray> Iterator for ArrayIter<'a, T> {
-    type Item = <T as Enliven>::WithLifetime<'a>;
+impl<'a, T: DataType> Iterator for ArrayIter<'a, T> {
+    type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         if self.len == 0 {
             return None;
         }
         self.len -= 1;
-        let len = T::size_of_field_at(self.buf).ok()?;
-        let (value, buf) = self.buf.split_at(len);
-        self.buf = buf;
-        T::extract(value).ok()
+        let value = T::decode(&mut self.buf).ok()?;
+        Some(value)
     }
 }
 
@@ -234,8 +169,8 @@ impl<T> AsRef<[u8]> for Array<'_, T, u8> {
 }
 
 // Arrays of fixed-size elements can extract elements in O(1).
-impl<'a, L: TryInto<usize>, T: FixedSize + FieldAccessArray> Array<'a, L, T> {
-    pub fn get(&self, index: L) -> Option<<T as Enliven>::WithLifetime<'a>> {
+impl<'a, L: TryInto<usize>, T: DataTypeFixedSize> Array<'a, L, T> {
+    pub fn get(&self, index: L) -> Option<T> {
         let Ok(index) = index.try_into() else {
             return None;
         };
@@ -243,76 +178,9 @@ impl<'a, L: TryInto<usize>, T: FixedSize + FieldAccessArray> Array<'a, L, T> {
         if index >= self.len as _ {
             None
         } else {
-            let segment = &self.buf[T::SIZE * index..T::SIZE * (index + 1)];
+            let mut segment = &self.buf[T::SIZE * index..T::SIZE * (index + 1)];
             // As we've normally pre-scanned all items, this will not panic
-            Some(T::extract_infallible(segment))
+            Some(T::decode(&mut segment).unwrap())
         }
     }
-}
-
-impl<L: FieldAccessArray + 'static, T: FieldAccessArray + 'static> FieldAccessArray
-    for ArrayMeta<L, T>
-where
-    for<'a> L::ForBuilder<'a>: TryFrom<usize>,
-    for<'a> L::WithLifetime<'a>: TryInto<usize>,
-{
-    fn size_of_field_at(mut buf: &[u8]) -> Result<usize, ParseError> {
-        let mut size = std::mem::size_of::<L>();
-        let len = match L::extract(buf) {
-            Ok(n) => n.try_into(),
-            Err(e) => return Err(e),
-        };
-        #[allow(unused_comparisons)]
-        let Ok(mut len) = len
-        else {
-            return Err(ParseError::InvalidData);
-        };
-        buf = buf.split_at(size).1;
-        loop {
-            if len == 0 {
-                break;
-            }
-            len -= 1;
-            let elem_size = T::size_of_field_at(buf)?;
-            buf = buf.split_at(elem_size).1;
-            size += elem_size;
-        }
-        Ok(size)
-    }
-    fn extract(buf: &[u8]) -> Result<Array<L, T>, ParseError> {
-        let len = match L::extract(buf) {
-            Ok(len) => len.try_into(),
-            Err(e) => {
-                return Err(e);
-            }
-        };
-        let Ok(len) = len else {
-            return Err(ParseError::InvalidData);
-        };
-        Ok(Array::new(
-            buf.split_at(std::mem::size_of::<L>()).1,
-            len as _,
-        ))
-    }
-    fn copy_to_buf(buf: &mut crate::BufWriter, value: &&[<T as Enliven>::ForBuilder<'_>]) {
-        let Ok(len) = L::ForBuilder::try_from(value.len()) else {
-            panic!("Array length out of bounds");
-        };
-        L::copy_to_buf(buf, &len);
-        for elem in *value {
-            T::copy_to_buf(buf, elem);
-        }
-    }
-}
-
-pub struct FixedArrayMeta<const S: usize, T> {
-    pub _phantom: PhantomData<T>,
-}
-
-impl<const S: usize, T: HasStructFieldMeta> HasStructFieldMeta for FixedArrayMeta<S, T> {
-    const META: StructFieldMeta = StructFieldMeta {
-        type_name: "FixedArray",
-        constant_size: Some(S * T::META.constant_size.unwrap()),
-        is_length: false,
-    };
 }

@@ -17,7 +17,7 @@ macro_rules! __message_group {
         #[allow(unused)]
         pub enum [<$group Builder>]<'a> {
             $(
-                $message(builder::$message<'a>)
+                $message([<$message Builder>]<'a>)
             ),*
         }
 
@@ -41,8 +41,8 @@ macro_rules! __message_group {
         }
 
         $(
-        impl <'a> From<builder::$message<'a>> for [<$group Builder>]<'a> {
-            fn from(message: builder::$message<'a>) -> Self {
+        impl <'a> From<[<$message Builder>]<'a>> for [<$group Builder>]<'a> {
+            fn from(message: [<$message Builder>]<'a>) -> Self {
                 Self::$message(message)
             }
         }
@@ -106,7 +106,7 @@ macro_rules! __match_message {
         $unknown:ident => $unknown_impl:block $(,)?
     }) => {
         'block: {
-            let __message: Result<_, $crate::ParseError> = $buf;
+            let __message: Result<_, $crate::prelude::ParseError> = $buf;
             let res = match __message {
                 Ok(__message) => {
                     $(
@@ -142,11 +142,11 @@ pub use __match_message as match_message;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_protocol::{builder, data::*};
+    use crate::test_protocol::*;
 
     #[test]
     fn test_match() {
-        let message = builder::Sync::default().to_vec();
+        let message = SyncBuilder::default().to_vec();
         let message = Message::new(&message);
         match_message!(message, Message {
             (DataRow as data_row) => {
