@@ -191,41 +191,6 @@ impl StructFields {
         self.constant_size
     }
 
-    // pub fn compute_size(&self, mut buf: &[u8]) -> Result<usize, ParseError> {
-    //     if let Some(constant_size) = self.constant_size {
-    //         if buf.len() < constant_size {
-    //             return Err(ParseError::TooShort);
-    //         }
-    //         return Ok(constant_size);
-    //     }
-    //     let mut size = 0;
-    //     for field in self.fields {
-    //         let field_size = (field.field.size_of_field_at)(buf)?;
-    //         buf = buf.split_at(field_size).1;
-    //         size += field_size;
-    //     }
-    //     Ok(size)
-    // }
-
-    // pub fn compute_field_ends_from_buf<const FIELD_COUNT: usize>(
-    //     &self,
-    //     mut buf: &[u8],
-    // ) -> Result<[usize; FIELD_COUNT], ParseError> {
-    //     let mut out = [0; FIELD_COUNT];
-    //     debug_assert!(self.fields.len() <= FIELD_COUNT, "Field count mismatch");
-    //     let mut offset = 0;
-    //     let mut index = 0;
-    //     for field in self.fields {
-    //         let field_size = (field.field.size_of_field_at)(buf)?;
-    //         offset += field_size;
-    //         out[index] = offset;
-    //         buf = buf.split_at(field_size).1;
-    //         index += 1;
-    //     }
-
-    //     Ok(out)
-    // }
-
     pub const fn matches_field_constants(&self, buf: &[u8]) -> bool {
         let mut i = 0;
         while i < self.fields.len() {

@@ -195,7 +195,7 @@ declare_type!(DataType, ZTString<'a>, builder: &'a str, {
 
 declare_type!(DataType, Encoded<'a>, builder: Encoded<'a>, {
     fn decode(buf: &mut &[u8]) -> Result<Self, ParseError> {
-        if let Some((len, array)) = buf.split_first_chunk::<4>() {
+        if let Some((len, array)) = buf.split_first_chunk::<{std::mem::size_of::<i32>()}>() {
             let len = i32::from_be_bytes(*len);
             if len == -1 {
                 *buf = array;

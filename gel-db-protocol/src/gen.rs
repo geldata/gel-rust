@@ -543,26 +543,6 @@ macro_rules! protocol_builder {
                     <$name as DataType>::encode(&mut writer, self);
                     writer.finish().unwrap_err()
                 }
-
-                // #[allow(unused)]
-                // pub const fn measure(&self) -> usize {
-                //     let mut size = 0;
-
-                //     $(
-                //         $crate::r#if!(__is_empty__ [$($value)?] {
-                //             $crate::r#if!(__is_empty__ [$($auto)?] {
-                //                 let field_size = super::access::FieldAccess::<$type>::measure(&self.$field);
-                //             } else {
-                //                 let field_size = super::access::FieldAccess::<$type>::measure(&0);
-                //             });
-                //         } else {
-                //             let field_size = super::access::FieldAccess::<$type>::measure(&0);
-                //         });
-
-                //         size += field_size;
-                //     )*
-                //     size
-                // }
             }
         );
     };
@@ -673,72 +653,72 @@ mod tests {
         };
     }
 
-    // #[test]
-    // fn empty_struct() {
-    //     assert_stringify!((struct <'a> Foo {}), (struct <'a> Foo { super (), docs(), fields(), }));
-    // }
+    #[test]
+    fn empty_struct() {
+        assert_stringify!((struct Foo <'a> {}), (struct Foo <'a> { super (), docs(), fields(), }));
+    }
 
-    // #[test]
-    // fn fixed_size_fields() {
-    //     assert_stringify!((struct <'a> Foo {
-    //                 a: u8,
-    //                 b: u8,
-    //             }), (struct Foo
-    //     {
-    //         super (),
-    //         docs(),
-    //         fields({
-    //             name(a), type (u8), value(no_value = no_value),
-    //             docs(concat!("`", stringify! (a), "` field.")),
-    //         },
-    //         {
-    //             name(b), type (u8), value(no_value = no_value),
-    //             docs(concat!("`", stringify! (b), "` field.")),
-    //         },),
-    //     }));
-    // }
+    #[test]
+    fn fixed_size_fields() {
+        assert_stringify!((struct Foo<'a>  {
+                    a: u8,
+                    b: u8,
+                }), (struct Foo<'a>
+        {
+            super (),
+            docs(),
+            fields({
+                name(a), type (u8), value(no_value = no_value),
+                docs(concat!("`", stringify! (a), "` field.")),
+            },
+            {
+                name(b), type (u8), value(no_value = no_value),
+                docs(concat!("`", stringify! (b), "` field.")),
+            },),
+        }));
+    }
 
-    // #[test]
-    // fn mixed_fields() {
-    //     assert_stringify!((struct Foo {
-    //                 a: u8,
-    //                 l: len,
-    //                 s: ZTString,
-    //                 c: i16,
-    //                 d: [u8; 4],
-    //                 e: ZTArray<ZTString>,
-    //             }), (struct Foo
-    //     {
-    //         super (),
-    //         docs(),
-    //         fields({
-    //             name(a), type (u8), value(no_value = no_value),
-    //             docs(concat!("`", stringify! (a), "` field.")),
-    //         },
-    //         {
-    //             name(l), type ($crate::meta::Length),
-    //             value(auto = auto), docs(concat!("`", stringify! (l), "` field.")),
-    //         },
-    //         {
-    //             name(s), type (ZTString),
-    //             value(no_value = no_value),
-    //             docs(concat!("`", stringify! (s), "` field.")),
-    //         },
-    //         {
-    //             name(c), type (i16), value(no_value = no_value),
-    //             docs(concat!("`", stringify! (c), "` field.")),
-    //         },
-    //         {
-    //             name(d), type ($crate::meta::FixedArray<4, u8>),
-    //             value(no_value = no_value),
-    //             docs(concat!("`", stringify! (d), "` field.")),
-    //         },
-    //         {
-    //             name(e), type (ZTArray<ZTString>),
-    //             value(no_value = no_value),
-    //             docs(concat!("`", stringify! (e), "` field.")),
-    //         },
-    //     ),
-    //     }));
-    // }
+    #[test]
+    fn mixed_fields() {
+        assert_stringify!((struct Foo<'a> {
+                    a: u8,
+                    l: len,
+                    s: ZTString,
+                    c: i16,
+                    d: [u8; 4],
+                    e: ZTArray<ZTString>,
+                }), (struct Foo<'a>
+        {
+            super (),
+            docs(),
+            fields({
+                name(a), type (u8), value(no_value = no_value),
+                docs(concat!("`", stringify! (a), "` field.")),
+            },
+            {
+                name(l), type ($crate::prelude::Length),
+                value(auto = auto), docs(concat!("`", stringify! (l), "` field.")),
+            },
+            {
+                name(s), type (ZTString),
+                value(no_value = no_value),
+                docs(concat!("`", stringify! (s), "` field.")),
+            },
+            {
+                name(c), type (i16), value(no_value = no_value),
+                docs(concat!("`", stringify! (c), "` field.")),
+            },
+            {
+                name(d), type ([u8; 4]),
+                value(no_value = no_value),
+                docs(concat!("`", stringify! (d), "` field.")),
+            },
+            {
+                name(e), type (ZTArray<ZTString>),
+                value(no_value = no_value),
+                docs(concat!("`", stringify! (e), "` field.")),
+            },
+        ),
+        }));
+    }
 }
