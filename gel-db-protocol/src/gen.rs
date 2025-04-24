@@ -171,34 +171,8 @@ macro_rules! __protocol {
             enum $ename:ident { $($(#[$default:meta])? $emname:ident = $emvalue:literal),+ $(,)? }
         )*
     ) => {
-
         use $crate::protocol_builder;
         use $crate::prelude::*;
-
-        // pub trait DataTypeX where Self: Sized {
-        //     const META: StructFieldMeta;
-        //     /// Always a reference
-        //     type BuilderForEncode: ?Sized;
-        //     type BuilderForStruct<'unused>;
-        //     type DecodeLifetime<'a>;
-
-        //     fn decode<'a>(buf: &mut &'a [u8]) -> Result<Self::DecodeLifetime<'a>, ParseError>;
-        //     fn encode<'a, 'b>(buf: &mut BufWriter<'a>, value: &'b Self::BuilderForEncode);
-        //     #[allow(unused)]
-        //     fn encode_usize<'a>(buf: &mut BufWriter<'a>, value: usize) { unreachable!("encode usize") }
-        //     #[allow(unused)]
-        //     fn decode_usize<'a>(buf: &mut &'a [u8]) -> Result<usize, ParseError> { unreachable!("decode usize") }
-        // }
-
-        // $crate::copy_datatype!($crate::prelude::DataType, DataTypeX,
-        //     u8, u16, u32, u64, i8, i16, i32, i64, f32, f64,
-        //     Length,
-        //     ZTString<'a>,
-        //     LString<'a>,
-        //     Rest<'a>,
-        //     Encoded<'a>
-
-        // );
 
         $(
             $crate::paste!(
@@ -215,6 +189,12 @@ macro_rules! __protocol {
                 #[repr($repr)]
                 pub enum $ename {
                     $($(#[$default])? $emname = $emvalue),+
+                }
+
+                impl $crate::prelude::EnumMeta for $ename {
+                    const VALUES: &'static [(&'static str, usize)] = &[
+                        $((stringify!($emname), $emvalue as _)),+
+                    ];
                 }
 
                 $crate::declare_type!(DataType, $ename, flags=[enum], {
@@ -316,7 +296,7 @@ macro_rules! protocol_builder {
                 /// this message matches.
                 #[inline]
                 pub const fn is_buffer(buf: &'a [u8]) -> bool {
-                    <Self as $crate::gen2::StructMeta>::FIELDS.matches_field_constants(buf)
+                    <Self as $crate::prelude::StructMeta>::FIELDS.matches_field_constants(buf)
                 }
 
                 /// Creates a new instance of this struct from a given buffer.
@@ -374,11 +354,11 @@ macro_rules! protocol_builder {
 
             /// Implements a trait containing the fields of the struct, allowing
             /// us to compute some useful things.
-            impl <$lt> $crate::gen2::StructMeta for $name<$lt> {
-                const FIELDS: $crate::gen2::StructFields = $crate::gen2::StructFields::new(&
-                    $crate::gen2::StructFieldComputed::new([
+            impl <$lt> $crate::prelude::StructMeta for $name<$lt> {
+                const FIELDS: $crate::prelude::StructFields = $crate::prelude::StructFields::new(&
+                    $crate::prelude::StructFieldComputed::new([
                         $(
-                            $crate::gen2::StructField {
+                            $crate::prelude::StructField {
                                 name: stringify!($field),
                                 meta: &(<$type as DataType>::META),
                                 value: $crate::r#if!(__is_empty__ [$($value)?] { None } else { Some($($value)? as usize) }),
@@ -400,15 +380,15 @@ macro_rules! protocol_builder {
             /// Implements a trait indicating that the struct has a fixed size.
             /// This needs to be a trait-generic rather than and associated
             /// constant for us to use elsewhere.
-            impl $crate::gen2::StructAttributeFixedSize<{<$name<'_> as $crate::gen2::StructMeta>::IS_FIXED_SIZE}> for $name<'_> {
+            impl $crate::prelude::StructAttributeFixedSize<{<$name<'_> as $crate::prelude::StructMeta>::IS_FIXED_SIZE}> for $name<'_> {
             }
 
             /// Implements a trait indicating that the struct has a length field.
-            impl $crate::gen2::StructAttributeHasLengthField<{<$name<'_> as $crate::gen2::StructMeta>::HAS_LENGTH_FIELD}> for $name<'_> {
+            impl $crate::prelude::StructAttributeHasLengthField<{<$name<'_> as $crate::prelude::StructMeta>::HAS_LENGTH_FIELD}> for $name<'_> {
             }
 
             /// Implements a trait indicating that the struct has a field count.
-            impl $crate::gen2::StructAttributeFieldCount<{<$name<'_> as $crate::gen2::StructMeta>::FIELD_COUNT}> for $name<'_> {
+            impl $crate::prelude::StructAttributeFieldCount<{<$name<'_> as $crate::prelude::StructMeta>::FIELD_COUNT}> for $name<'_> {
             }
 
             $crate::declare_type!(DataType, $name<'a>, builder: [<$name Builder>] <'a>, flags=[struct],
@@ -421,6 +401,8 @@ macro_rules! protocol_builder {
                     Ok(new)
                 }
                 fn encode(buf: &mut BufWriter, value: &Self) {
+                    // For structs that don't use it
+                    _ = value;
                     $(
                         $crate::r#if!(__is_empty__ [$($value)?] {
                             $crate::r#if!(__is_empty__ [$($auto)?] {
@@ -486,32 +468,6 @@ macro_rules! protocol_builder {
             });
 
             impl [<$name Builder>]<'_> {
-                // #[allow(unused)]
-                // pub fn copy_to_buf(&self, buf: &mut $crate::BufWriter) {
-                //     $(
-                //         $crate::r#if!(__is_empty__ [$($value)?] {
-                //             $crate::r#if!(__is_empty__ [$($auto)?] {
-                //                 // value is no_value (present in builder)
-                //                <$type as $crate::FieldAccessArray>::copy_to_buf(buf, &self.$field);
-                //             } else {
-                //                 // value is auto (not present in builder)
-                //                 let auto_offset = buf.size();
-                //                 <$type as $crate::FieldAccessArray>::copy_to_buf(buf, &0);
-                //             });
-                //         } else {
-                //             // value is set, not present in builder
-                //             <$type as $crate::FieldAccessArray>::copy_to_buf(buf, &($($value)? as usize as _));
-                //         });
-                //     )*
-
-                //     $(
-                //         $crate::r#if!(__has__ [$($auto)?] {
-                //             $crate::FieldAccess::<$crate::meta::Length>::copy_to_buf_rewind(buf, auto_offset, buf.size() - auto_offset);
-                //         });
-                //     )*
-
-                // }
-
                 /// Convert this builder into a vector of bytes. This is generally
                 /// not the most efficient way to perform serialization.
                 #[allow(unused)]
@@ -550,7 +506,7 @@ macro_rules! protocol_builder {
 
 #[cfg(test)]
 mod tests {
-    use crate::gen2::StructAttributeHasLengthField;
+    use crate::prelude::StructAttributeHasLengthField;
     use pretty_assertions::assert_eq;
 
     mod fixed_only {

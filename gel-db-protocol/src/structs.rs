@@ -2,7 +2,10 @@ use std::mem::MaybeUninit;
 
 use crate::prelude::*;
 
-pub trait EnumMeta {}
+/// A trait for enums that describes some information.
+pub trait EnumMeta {
+    const VALUES: &'static [(&'static str, usize)];
+}
 
 /// A trait for structs that describes their fields, containing some associated
 /// constants. Note that only `FIELDS` is provided. The remainder of the
@@ -58,6 +61,7 @@ pub struct StructFieldMeta {
     pub is_length: bool,
     pub is_enum: bool,
     pub is_struct: bool,
+    pub is_array: bool,
 }
 
 impl StructFieldMeta {
@@ -68,6 +72,7 @@ impl StructFieldMeta {
             is_length: false,
             is_enum: false,
             is_struct: false,
+            is_array: false,
         }
     }
 
@@ -88,6 +93,13 @@ impl StructFieldMeta {
     pub const fn set_struct(self) -> Self {
         Self {
             is_struct: true,
+            ..self
+        }
+    }
+
+    pub const fn set_array(self) -> Self {
+        Self {
+            is_array: true,
             ..self
         }
     }

@@ -3,8 +3,9 @@ mod buffer;
 mod datatypes;
 mod encoding;
 mod gen;
-pub mod gen2;
+mod macros;
 mod message_group;
+mod structs;
 mod writer;
 
 #[doc(hidden)]
@@ -31,10 +32,17 @@ pub mod prelude {
     pub use super::encoding::ParseError;
     pub use super::writer::BufWriter;
 
-    pub use super::gen2::StructFieldMeta;
-    pub use super::gen2::StructFields;
-    pub use super::gen2::StructLength;
-    pub use super::gen2::StructMeta;
+    pub use super::structs::EnumMeta;
+
+    pub use super::structs::StructAttributeFieldCount;
+    pub use super::structs::StructAttributeFixedSize;
+    pub use super::structs::StructAttributeHasLengthField;
+    pub use super::structs::StructField;
+    pub use super::structs::StructFieldComputed;
+    pub use super::structs::StructFieldMeta;
+    pub use super::structs::StructFields;
+    pub use super::structs::StructLength;
+    pub use super::structs::StructMeta;
 
     pub use super::declare_meta;
 

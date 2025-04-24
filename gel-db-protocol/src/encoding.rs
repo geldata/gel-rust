@@ -29,8 +29,13 @@ where
     }
 }
 
+/// Implemented for all data types that have a fixed size.
 pub trait DataTypeFixedSize {
     const SIZE: usize;
+}
+
+impl<const N: usize, T: DataType> DataTypeFixedSize for [T; N] {
+    const SIZE: usize = std::mem::size_of::<T>() * N;
 }
 
 #[derive(thiserror::Error, Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +58,7 @@ where
     const META: StructFieldMeta = declare_meta!(
         type = Array,
         constant_size = None,
-        flags = []
+        flags = [array]
     );
     type BuilderForEncode = &'a [T::BuilderForEncode];
     type BuilderForStruct<'unused> = &'a [T::BuilderForStruct<'a>];
@@ -90,7 +95,7 @@ where
     const META: StructFieldMeta = declare_meta!(
         type = ZTArray,
         constant_size = None,
-        flags = []
+        flags = [array]
     );
     type BuilderForEncode = &'a [T::BuilderForEncode];
     type BuilderForStruct<'unused> = &'a [T::BuilderForStruct<'a>];
@@ -135,7 +140,7 @@ where
     const META: StructFieldMeta = declare_meta!(
         type = FixedArray,
         constant_size = Some(std::mem::size_of::<T>() * N),
-        flags = []
+        flags = [array]
     );
     type BuilderForStruct<'unused> = [T::BuilderForStruct<'unused>; N];
     type BuilderForEncode = [T::BuilderForEncode; N];
