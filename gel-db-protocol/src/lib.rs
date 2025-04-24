@@ -51,4 +51,6 @@ pub mod prelude {
     pub use super::datatypes::*;
 
     pub use super::match_message;
+    pub use super::message_group;
+    pub use super::protocol;
 }

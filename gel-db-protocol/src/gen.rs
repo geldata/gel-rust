@@ -446,10 +446,15 @@ macro_rules! protocol_builder {
             $crate::r#if!(__is_empty__ [$($($no_value)?)*] {
                 $( #[$sdoc] )?
                 // No unfixed-value fields
-                #[derive(::derive_more::Debug, Default, Eq, PartialEq)]
+                #[derive(Default, Eq, PartialEq)]
                 pub struct [<$name Builder>]<'a> {
-                    #[debug(skip)]
                     __no_fields_use_default: std::marker::PhantomData<&'a ()>
+                }
+
+                impl <'a> std::fmt::Debug for [<$name Builder>]<'a> {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(f, "{}Builder", stringify!($name))
+                    }
                 }
             } else {
                 $( #[$sdoc] )?

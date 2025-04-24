@@ -1,4 +1,4 @@
-use gel_db_protocol::{message_group, protocol};
+use gel_db_protocol::prelude::*;
 
 message_group!(
     /// The `Backend` message group contains messages sent from the backend to the frontend.
