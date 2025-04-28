@@ -17,7 +17,7 @@ macro_rules! __message_group {
         #[allow(unused)]
         pub enum [<$group Builder>]<'a> {
             $(
-                $message(builder::$message<'a>)
+                $message([<$message Builder>]<'a>)
             ),*
         }
 
@@ -31,18 +31,18 @@ macro_rules! __message_group {
                 }
             }
 
-            pub fn copy_to_buf(&self, writer: &mut $crate::BufWriter) {
-                match self {
-                    $(
-                        Self::$message(message) => message.copy_to_buf(writer),
-                    )*
-                }
-            }
+            // pub fn copy_to_buf(&self, writer: &mut $crate::BufWriter) {
+            //     match self {
+            //         $(
+            //             Self::$message(message) => message.copy_to_buf(writer),
+            //         )*
+            //     }
+            // }
         }
 
         $(
-        impl <'a> From<builder::$message<'a>> for [<$group Builder>]<'a> {
-            fn from(message: builder::$message<'a>) -> Self {
+        impl <'a> From<[<$message Builder>]<'a>> for [<$group Builder>]<'a> {
+            fn from(message: [<$message Builder>]<'a>) -> Self {
                 Self::$message(message)
             }
         }
@@ -51,7 +51,7 @@ macro_rules! __message_group {
         #[allow(unused)]
         pub trait [<$group Match>] {
             $(
-                fn [<$message:snake>]<'a>(&mut self) -> Option<impl FnMut(data::$message<'a>)> {
+                fn [<$message:snake>]<'a>(&mut self) -> Option<impl FnMut($message<'a>)> {
                     // No implementation by default
                     let mut opt = Some(|_| {});
                     opt.take();
@@ -67,7 +67,7 @@ macro_rules! __message_group {
         impl $group {
             pub fn identify(buf: &[u8]) -> Option<Self> {
                 $(
-                    if <meta::$message as $crate::Enliven>::WithLifetime::is_buffer(buf) {
+                    if $message::is_buffer(buf) {
                         return Some(Self::$message);
                     }
                 )*
@@ -86,7 +86,7 @@ pub use __message_group as message_group;
 ///
 /// ```rust
 /// use gel_db_protocol::*;
-/// use gel_db_protocol::test_protocol::data::*;
+/// use gel_db_protocol::test_protocol::*;
 ///
 /// let buf = [b'?', 0, 0, 0, 4];
 /// match_message!(Message::new(&buf), Backend {
@@ -106,7 +106,7 @@ macro_rules! __match_message {
         $unknown:ident => $unknown_impl:block $(,)?
     }) => {
         'block: {
-            let __message: Result<_, $crate::ParseError> = $buf;
+            let __message: Result<_, $crate::prelude::ParseError> = $buf;
             let res = match __message {
                 Ok(__message) => {
                     $(
@@ -142,11 +142,11 @@ pub use __match_message as match_message;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_protocol::{builder, data::*};
+    use crate::test_protocol::*;
 
     #[test]
     fn test_match() {
-        let message = builder::Sync::default().to_vec();
+        let message = SyncBuilder::default().to_vec();
         let message = Message::new(&message);
         match_message!(message, Message {
             (DataRow as data_row) => {

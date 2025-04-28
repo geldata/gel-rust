@@ -2,27 +2,27 @@
 use crate::gen::protocol;
 
 protocol!(
-    struct Message {
+    struct Message<'a> {
         /// The message type.
         mtype: u8,
         /// The length of the message contents in bytes, including self.
         mlen: len,
         /// The message contents.
-        data: Rest,
+        data: Rest<'a>,
     }
 
     /// The `CommandComplete` struct represents a message indicating the successful completion of a command.
-    struct CommandComplete: Message {
+    struct CommandComplete<'a>: Message {
         /// Identifies the message as a command-completed response.
         mtype: u8 = 'C',
         /// Length of message contents in bytes, including self.
         mlen: len,
         /// The command tag.
-        tag: ZTString,
+        tag: ZTString<'a>,
     }
 
     /// The `Sync` message is used to synchronize the client and server.
-    struct Sync: Message {
+    struct Sync<'a>: Message {
         /// Identifies the message as a synchronization request.
         mtype: u8 = 'S',
         /// Length of message contents in bytes, including self.
@@ -30,43 +30,60 @@ protocol!(
     }
 
     /// The `DataRow` message represents a row of data returned from a query.
-    struct DataRow: Message {
+    struct DataRow<'a>: Message {
         /// Identifies the message as a data row.
         mtype: u8 = 'D',
         /// Length of message contents in bytes, including self.
         mlen: len,
         /// The values in the row.
-        values: Array<i16, Encoded>,
+        values: Array<'a, i16, Encoded<'a>>,
     }
 
-    struct QueryType {
+    struct QueryType<'a> {
         /// The type of the query parameter.
-        typ: u8,
+        typ: QueryParameterType,
         /// The length of the query parameter.
         len: u32,
         /// The metadata of the query parameter.
-        meta: Array<u32, u8>,
+        meta: Array<'a, u32, u8>,
     }
 
-    struct Query: Message {
+    struct Query<'a>: Message {
         /// Identifies the message as a query.
         mtype: u8 = 'Q',
         /// Length of message contents in bytes, including self.
         mlen: len,
         /// The query string.
-        query: ZTString,
+        query: ZTString<'a>,
         /// The types of the query parameters.
-        types: Array<i16, QueryType>,
+        types: Array<'a, i16, QueryType<'a>>,
     }
 
-    struct Key {
+    /// A fixed-length message.
+    struct FixedLength<'a>: Message {
+        /// Identifies the message as a fixed-length message.
+        mtype: u8 = 'F',
+        /// Length of message contents in bytes, including self.
+        mlen: len = 5,
+    }
+
+    struct Key<'a> {
         /// The key.
         key: [u8; 16],
     }
 
-    struct Uuids {
+    struct Uuids<'a> {
         /// The UUIDs.
-        uuids: Array<u32, Uuid>,
+        uuids: Array<'a, u32, Uuid>,
+    }
+
+    #[repr(u8)]
+    enum QueryParameterType {
+        #[default]
+        Int = 1,
+        Float = 2,
+        String = 3,
+        Uuid = 4,
     }
 );
 
@@ -77,64 +94,81 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_meta() {
-        let expected = [
-            r#"Message { Field("mtype"): u8, Field("mlen"): len, Field("data"): Rest }"#,
-            r#"CommandComplete { Parent: "Message", Field("mtype"): u8, Field("mlen"): len, Field("tag"): ZTString }"#,
-            r#"Sync { Parent: "Message", Field("mtype"): u8, Field("mlen"): len }"#,
-            r#"DataRow { Parent: "Message", Field("mtype"): u8, Field("mlen"): len, Field("values"): Array { Length: i16, Item: Encoded } }"#,
-            r#"QueryType { Field("typ"): u8, Field("len"): u32, Field("meta"): Array { Length: u32, Item: u8 } }"#,
-            r#"Query { Parent: "Message", Field("mtype"): u8, Field("mlen"): len, Field("query"): ZTString, Field("types"): Array { Length: i16, Item: QueryType { Field("typ"): u8, Field("len"): u32, Field("meta"): Array { Length: u32, Item: u8 } } } }"#,
-            r#"Key { Field("key"): FixedArray { Length: 16, Item: u8 } }"#,
-            r#"Uuids { Field("uuids"): Array { Length: u32, Item: Uuid } }"#,
-        ];
-
-        for (i, meta) in meta::ALL.iter().enumerate() {
-            assert_eq!(expected[i], format!("{meta:?}"));
-        }
-    }
-
-    #[test]
     fn test_query() {
-        let buf = builder::Query {
+        let buf = QueryBuilder {
             query: "SELECT * from foo",
-            types: &[builder::QueryType {
-                typ: 1,
+            types: &[QueryTypeBuilder {
+                typ: QueryParameterType::Float,
                 len: 4,
                 meta: &[1, 2, 3, 4],
+                ..Default::default()
             }],
+            ..Default::default()
         }
         .to_vec();
-
-        let query = data::Query::new(&buf).expect("Failed to parse query");
+        eprintln!("buf: {:?}", buf);
+        let query = Query::new(&buf).expect("Failed to parse query");
+        let types = query.types;
+        assert_eq!(1, types.len());
         assert_eq!(
-            r#"Query { mtype: 81, mlen: 37, query: "SELECT * from foo", types: [QueryType { typ: 1, len: 4, meta: [1, 2, 3, 4] }] }"#,
+            r#"QueryType { typ: Float, len: 4, meta: [1, 2, 3, 4] }"#,
+            format!("{:?}", types.into_iter().next().unwrap())
+        );
+        assert_eq!(
+            r#"Query { mtype: 81, mlen: 37, query: "SELECT * from foo", types: [QueryType { typ: Float, len: 4, meta: [1, 2, 3, 4] }] }"#,
             format!("{query:?}")
         );
     }
 
     #[test]
     fn test_fixed_array() {
-        let buf = builder::Key {
+        let buf = KeyBuilder {
             key: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
         }
         .to_vec();
-
-        let key = data::Key::new(&buf).expect("Failed to parse key");
+        let key = Key::new(&buf).expect("Failed to parse key");
         assert_eq!(
-            key.key(),
+            key.key,
             [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
         );
     }
 
     #[test]
     fn test_uuid() {
-        let buf = builder::Uuids {
+        let buf = UuidsBuilder {
             uuids: &[Uuid::NAMESPACE_DNS],
         }
         .to_vec();
 
-        let uuids = data::Uuids::new(&buf).expect("Failed to parse uuids");
-        assert_eq!(uuids.uuids().get(0), Some(Uuid::NAMESPACE_DNS));
+        let uuids = Uuids::new(&buf).expect("Failed to parse uuids");
+        assert_eq!(uuids.uuids.get(0), Some(Uuid::NAMESPACE_DNS));
+    }
+
+    #[test]
+    fn test_fixed_length() {
+        let buf = FixedLengthBuilder::default().to_vec();
+        let fixed_length = FixedLength::new(&buf).expect("Failed to parse fixed length");
+        assert_eq!(*fixed_length.mlen(), 5);
+    }
+
+    #[test]
+    fn test_encoded() {
+        let buf = DataRowBuilder {
+            values: &[
+                Encoded::Null,
+                Encoded::Value(b"123"),
+                Encoded::Null,
+                Encoded::Value(b"456"),
+            ],
+        }
+        .to_vec();
+        eprintln!("buf: {:?}", buf);
+        let data_row = DataRow::new(&buf).expect("Failed to parse data row");
+        assert_eq!(data_row.values.len(), 4);
+        let mut iter = data_row.values.into_iter();
+        assert_eq!(iter.next().unwrap(), Encoded::Null);
+        assert_eq!(iter.next().unwrap(), Encoded::Value(b"123"));
+        assert_eq!(iter.next().unwrap(), Encoded::Null);
+        assert_eq!(iter.next().unwrap(), Encoded::Value(b"456"));
     }
 }

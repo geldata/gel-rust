@@ -1,4 +1,4 @@
-use super::{ParseError, StructLength};
+use crate::prelude::*;
 use std::{collections::VecDeque, marker::PhantomData};
 
 /// A buffer that accumulates bytes of sized structs and feeds them to provided sink function when messages
@@ -103,7 +103,8 @@ impl<M: StructLength> StructBuffer<M> {
             while offset < bytes.len() {
                 if let Some(len) = M::length_of_buf(&bytes[offset..]) {
                     if offset + len <= bytes.len() {
-                        f(M::new(&bytes[offset..offset + len]))?;
+                        let msg = M::new(&bytes[offset..offset + len]);
+                        f(msg)?;
                         offset += len;
                     } else {
                         break;
@@ -154,23 +155,23 @@ impl<M: StructLength> StructBuffer<M> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Encoded, ParseError};
+    use crate::prelude::*;
 
     use super::StructBuffer;
-    use crate::test_protocol::{builder, data::*, meta};
+    use crate::test_protocol::*;
 
     /// Create a test data buffer containing three messages
     fn test_data() -> (Vec<u8>, Vec<usize>) {
         let mut test_data = vec![];
         let mut lengths = vec![];
-        test_data.append(&mut builder::Sync::default().to_vec());
+        test_data.append(&mut SyncBuilder::default().to_vec());
         let len = test_data.len();
         lengths.push(len);
-        test_data.append(&mut builder::CommandComplete { tag: "TAG" }.to_vec());
+        test_data.append(&mut CommandCompleteBuilder { tag: "TAG" }.to_vec());
         lengths.push(test_data.len() - len);
         let len = test_data.len();
         test_data.append(
-            &mut builder::DataRow {
+            &mut DataRowBuilder {
                 values: &[Encoded::Value(b"1")],
             }
             .to_vec(),
@@ -187,7 +188,7 @@ mod tests {
         );
 
         let mut accumulated_messages: Vec<Vec<u8>> = Vec::new();
-        let mut buffer = StructBuffer::<meta::Message>::default();
+        let mut buffer = StructBuffer::<Message>::default();
         let mut f = |msg: Result<Message, ParseError>| {
             let msg = msg.unwrap();
             eprintln!("Message: {msg:?}");
