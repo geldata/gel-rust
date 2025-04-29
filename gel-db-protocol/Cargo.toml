@@ -4,7 +4,7 @@ license = "MIT/Apache-2.0"
 version = "0.1.0"
 authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2021"
-description = "A crate that makes parsing and serializing of PostgreSQL-like protocols easier"
+description = "Macros to make parsing and serializing of PostgreSQL-like protocols easier."
 readme = "README.md"
 rust-version.workspace = true
 

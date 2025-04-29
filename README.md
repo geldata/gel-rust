@@ -6,14 +6,17 @@ docs can currently be found on docs.rs:
 
 | Crate | Source | Description |
 |-------|--------|-------------|
-| [gel-auth](https://docs.rs/gel-auth) | [Source](https://github.com/edgedb/edgedb-rust/tree/main/gel-auth) | Authentication and authorization utilities |
-| [gel-derive](https://docs.rs/gel-derive) | [Source](https://github.com/edgedb/edgedb-rust/tree/main/gel-derive) | Derive macro for data structures fetched from the database |
-| [gel-dsn](https://docs.rs/gel-dsn) | [Source](https://github.com/edgedb/edgedb-rust/tree/main/gel-dsn) | Data-source name (DSN) parser for Gel and PostgreSQL databases |
-| [gel-jwt](https://docs.rs/gel-jwt) | [Source](https://github.com/edgedb/edgedb-rust/tree/main/gel-jwt) | JSON Web Token (JWT) utilities |
-| [gel-errors](https://docs.rs/gel-errors) | [Source](https://github.com/edgedb/edgedb-rust/tree/main/gel-errors) | Error handling utilities |
-| [gel-protocol](https://docs.rs/gel-protocol) | [Source](https://github.com/edgedb/edgedb-rust/tree/main/gel-protocol) | Low-level definitions for data model of the Gel protocol |
-| [gel-stream](https://docs.rs/gel-stream) | [Source](https://github.com/edgedb/edgedb-rust/tree/main/gel-stream) | Library for streaming TLS/plaintext data between clients and servers |
-| [gel-tokio](https://docs.rs/gel-tokio) | [Source](https://github.com/edgedb/edgedb-rust/tree/main/gel-tokio) | Gel/EdgeDB client using Tokio async runtime |
+| [gel-auth](https://docs.rs/gel-auth) | [Source](./gel-auth) | Authentication and authorization for the Gel database. |
+| [gel-db-protocol](https://docs.rs/gel-db-protocol) | [Source](./gel-db-protocol) | Macros to make parsing and serializing of PostgreSQL-like protocols easier. |
+| [gel-derive](https://docs.rs/gel-derive) | [Source](./gel-derive) | Derive macros for Gel database client. |
+| [gel-dsn](https://docs.rs/gel-dsn) | [Source](./gel-dsn) | Data-source name (DSN) parser for Gel and PostgreSQL databases. |
+| [gel-errors](https://docs.rs/gel-errors) | [Source](./gel-errors) | Error types for Gel database client. |
+| [gel-jwt](https://docs.rs/gel-jwt) | [Source](./gel-jwt) | JWT implementation for the Gel database. |
+| [gel-pg-captive](https://docs.rs/gel-pg-captive) | [Source](./gel-pg-captive) | Run a captive PostgreSQL server for testing purposes. |
+| [gel-pg-protocol](https://docs.rs/gel-pg-protocol) | [Source](./gel-pg-protocol) | The Gel implementation of the PostgreSQL wire protocol. |
+| [gel-protocol](https://docs.rs/gel-protocol) | [Source](./gel-protocol) | Low-level protocol implementation for Gel database client. |
+| [gel-stream](https://docs.rs/gel-stream) | [Source](./gel-stream) | A library for streaming data between clients and servers. |
+| [gel-tokio](https://docs.rs/gel-tokio) | [Source](./gel-tokio) | Gel database client implementation for tokio. |
 
 Running Tests
 =============
