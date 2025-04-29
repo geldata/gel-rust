@@ -1,7 +1,7 @@
 [package]
 name = "gel-pg-protocol"
 license = "MIT/Apache-2.0"
-version = "0.7.2"
+version = "0.1.0"
 authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2021"
 description = "The Gel implementation of the PostgreSQL wire protocol"
