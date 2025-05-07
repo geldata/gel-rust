@@ -5,7 +5,7 @@ name: CI
 jobs:
   build_and_test:
     name: Tests (Windows)
-    runs-on: large-win-x64
+    runs-on: windows-2025
     strategy:
       matrix:
         rust_version: [default]
