@@ -1,4 +1,5 @@
 use futures::{stream, Stream, StreamExt};
+use gel_jwt::Key;
 use std::{
     hash::Hash,
     net::{SocketAddr, ToSocketAddrs},
@@ -60,7 +61,7 @@ pub trait ListenerConfig: std::fmt::Debug + Send + Sync + 'static {
     fn ssl_config_sni(&self, hostname: Option<&str>) -> Result<(SslConfig, Option<String>), ()>;
 
     fn jwt_key(&self)
-        -> Result<jwt::algorithm::openssl::PKeyWithDigest<openssl::pkey::Public>, ()>;
+        -> Result<gel_jwt::KeyRegistry<Key>, ()>;
 
     /// Returns true if the given [`StreamType`] is supported at this
     /// time.
@@ -141,20 +142,6 @@ impl TestListenerConfig {
         let addrs = s.to_socket_addrs().unwrap().collect();
         Self { addrs }
     }
-}
-
-const MOCK_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgwT5cQa55iRfc/q7I
-uHXWqSw0enO7zQUhbSxj1G8cVfGhRANCAAT/ROscvp1DCIhbA8mbcpQupILxEUVq
-f4r3nlQZCrteNogGAnV+IC2sCGjZuK9xknSMXT7EFkmNkCmTqPeaJKjv
------END PRIVATE KEY-----"#;
-
-fn mock_key_private() -> openssl::pkey::PKey<openssl::pkey::Private> {
-    openssl::pkey::PKey::private_key_from_pem(MOCK_KEY.as_bytes()).unwrap()
-}
-
-fn mock_key_public() -> openssl::pkey::PKey<openssl::pkey::Public> {
-    openssl::pkey::PKey::public_key_from_pem(MOCK_KEY.as_bytes()).unwrap()
 }
 
 impl ListenerConfig for TestListenerConfig {
