@@ -6,6 +6,7 @@ members = [
     "gel-derive",
     "gel-dsn",
     "gel-errors",
+    "gel-frontend",
     "gel-jwt",
     "gel-pg-captive",
     "gel-pg-protocol",

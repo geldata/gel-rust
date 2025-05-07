@@ -34,7 +34,7 @@ derive_more = { version = "2", default-features = false, features = ["debug", "c
 thiserror = "2"
 futures = "0.3"
 smallvec = "1"
-derive-io = "=0.3.0"
+derive-io = "=0.3.2"
 
 # Given that this library may be used in multiple contexts, we want to limit the
 # features we enable by default.

@@ -11,6 +11,28 @@ protocol!(
         data: Rest<'a>,
     }
 
+    struct Parameter<'a>: Message {
+        /// Identifies the message as a parameter message.
+        mtype: u8 = 'P',
+        /// Length of message contents in bytes, including self.
+        mlen: len,
+        /// Name
+        name: LString<'a>,
+        /// Value
+        value: LString<'a>,
+    }
+
+    struct ParameterZT<'a>: Message {
+        /// Identifies the message as a parameter message.
+        mtype: u8 = 'P',
+        /// Length of message contents in bytes, including self.
+        mlen: len,
+        /// Name
+        name: ZTString<'a>,
+        /// Value
+        value: ZTString<'a>,
+    }
+
     /// The `CommandComplete` struct represents a message indicating the successful completion of a command.
     struct CommandComplete<'a>: Message {
         /// Identifies the message as a command-completed response.
@@ -149,6 +171,30 @@ mod tests {
         let buf = FixedLengthBuilder::default().to_vec();
         let fixed_length = FixedLength::new(&buf).expect("Failed to parse fixed length");
         assert_eq!(*fixed_length.mlen(), 5);
+    }
+
+    #[test]
+    fn test_lstring() {
+        let buf = ParameterBuilder {
+            name: "hello",
+            value: "world",
+        }
+        .to_vec();
+        let parameter = Parameter::new(&buf).expect("Failed to parse parameter message");
+        assert_eq!(parameter.name, "hello");
+        assert_eq!(parameter.value, "world");
+    }
+
+    #[test]
+    fn test_ztstring() {
+        let buf = ParameterBuilder {
+            name: "hello",
+            value: "world",
+        }
+        .to_vec();
+        let parameter = Parameter::new(&buf).expect("Failed to parse parameter message");
+        assert_eq!(parameter.name, "hello");
+        assert_eq!(parameter.value, "world");
     }
 
     #[test]
