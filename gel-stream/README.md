@@ -40,7 +40,7 @@ use futures::TryStreamExt;
 #[tokio::main]
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Create a server that listens on all interfaces on a random port.
-    let acceptor = Acceptor::new_tcp(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0));
+    let acceptor = Acceptor::new_tcp(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0));
     let mut server = acceptor.bind().await?;
     let addr = server.local_address()?;
 
@@ -84,7 +84,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         include_bytes!("../tests/certs/server.cert.pem"),
     )?);
     let acceptor = Acceptor::new_tcp_tls(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0),
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
         TlsServerParameterProvider::new(tls_params),
     );
     let mut server = acceptor.bind().await?;
