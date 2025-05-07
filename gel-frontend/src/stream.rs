@@ -5,7 +5,6 @@ use crate::{
 };
 use core::str;
 use hyper::{HeaderMap, Version};
-use openssl::{ssl::NameType, x509::X509};
 use std::{
     collections::HashMap,
     io::{ErrorKind, IoSlice},
@@ -103,9 +102,9 @@ stream_properties! {
     /// The stream parameters (for PG/EDB connections)
     pub stream_params: Option<HashMap<String, String>>,
     /// The peer's SSL certificate (for SSL connections)
-    pub peer_certificate: Option<X509>,
+    pub peer_certificate: Option<x509_parser::x509::X509>,
     /// The SSL/TLS version.
-    pub ssl_version: Option<openssl::ssl::SslVersion>,
+    pub ssl_version: Option<gel_stream::SslVersion>,
     /// The SSL/TLS version.
     pub ssl_cipher_name: Option<&'static str>,
     /// The Server Name Indication (SNI) provided by the client (for SSL connections)
