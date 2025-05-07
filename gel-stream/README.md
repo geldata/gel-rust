@@ -84,7 +84,11 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         include_bytes!("../tests/certs/server.cert.pem"),
     )?);
     let acceptor = Acceptor::new_tcp_tls(
+<<<<<<< HEAD
         SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
+=======
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0),
+>>>>>>> 4c3ccc3 (Improve gel-stream API and docs)
         TlsServerParameterProvider::new(tls_params),
     );
     let mut server = acceptor.bind().await?;
