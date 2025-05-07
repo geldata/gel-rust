@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 // We don't want to warn about unused code when 1) either client or server is not
 // enabled, or 2) no crypto backend is enabled.
 #![cfg_attr(
@@ -44,6 +45,16 @@ pub enum ConnectionError {
     SslError(#[from] SslError),
 }
 
+impl From<ConnectionError> for std::io::Error {
+    fn from(err: ConnectionError) -> Self {
+        match err {
+            ConnectionError::Io(e) => e,
+            ConnectionError::Utf8Error(e) => std::io::Error::new(std::io::ErrorKind::Other, e),
+            ConnectionError::SslError(e) => e.into(),
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum SslError {
     #[error("SSL is not supported by this client transport")]
@@ -78,6 +89,15 @@ pub enum SslError {
 
     #[error("SSL I/O error: {0}")]
     SslIoError(#[from] std::io::Error),
+}
+
+impl Into<std::io::Error> for SslError {
+    fn into(self) -> std::io::Error {
+        match self {
+            SslError::SslIoError(e) => e,
+            other => std::io::Error::new(std::io::ErrorKind::Other, other),
+        }
+    }
 }
 
 impl SslError {

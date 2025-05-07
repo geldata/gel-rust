@@ -348,12 +348,20 @@ impl TlsDriver for OpensslDriver {
             .map(|cert| cert.to_der())
             .transpose()?;
         let cert = cert.map(CertificateDer::from);
+        let version = match stream.ssl().version2() {
+            Some(openssl::ssl::SslVersion::TLS1) => Some(SslVersion::Tls1),
+            Some(openssl::ssl::SslVersion::TLS1_1) => Some(SslVersion::Tls1_1),
+            Some(openssl::ssl::SslVersion::TLS1_2) => Some(SslVersion::Tls1_2),
+            Some(openssl::ssl::SslVersion::TLS1_3) => Some(SslVersion::Tls1_3),
+            _ => None,
+        };
         Ok((
             TlsStream(stream),
             TlsHandshake {
                 alpn,
                 sni: None,
                 cert,
+                version,
             },
         ))
     }
@@ -405,7 +413,14 @@ impl TlsDriver for OpensslDriver {
         if let Some(cert) = cert {
             handshake.cert = Some(CertificateDer::from(cert));
         }
-
+        let version = match stream.ssl().version2() {
+            Some(openssl::ssl::SslVersion::TLS1) => Some(SslVersion::Tls1),
+            Some(openssl::ssl::SslVersion::TLS1_1) => Some(SslVersion::Tls1_1),
+            Some(openssl::ssl::SslVersion::TLS1_2) => Some(SslVersion::Tls1_2),
+            Some(openssl::ssl::SslVersion::TLS1_3) => Some(SslVersion::Tls1_3),
+            _ => None,
+        };
+        handshake.version = version;
         Ok((TlsStream(stream), handshake))
     }
 }

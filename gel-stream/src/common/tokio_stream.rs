@@ -12,7 +12,7 @@ use super::target::{LocalAddress, ResolvedTarget};
 
 pub(crate) struct Resolver {
     #[cfg(feature = "hickory")]
-    resolver: hickory_resolver::TokioAsyncResolver,
+    resolver: hickory_resolver::TokioResolver,
 }
 
 #[allow(unused)]
@@ -33,7 +33,7 @@ impl Resolver {
     pub fn new() -> Result<Self, std::io::Error> {
         Ok(Self {
             #[cfg(feature = "hickory")]
-            resolver: hickory_resolver::AsyncResolver::tokio_from_system_conf()?,
+            resolver: hickory_resolver::Resolver::builder_tokio()?.build(),
         })
     }
 

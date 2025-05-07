@@ -14,7 +14,7 @@ use rustls_tokio_stream::TlsStream;
 
 use super::tokio_stream::TokioStream;
 use crate::{
-    RewindStream, SslError, Stream, TlsClientCertVerify, TlsDriver, TlsHandshake,
+    RewindStream, SslError, SslVersion, Stream, TlsClientCertVerify, TlsDriver, TlsHandshake,
     TlsServerParameterProvider, TlsServerParameters,
 };
 use crate::{TlsCert, TlsParameters, TlsServerCertVerify};
@@ -142,12 +142,20 @@ impl TlsDriver for RustlsDriver {
                     .connection()
                     .and_then(|c| c.peer_certificates())
                     .and_then(|c| c.first().map(|cert| cert.to_owned()));
+                let version = stream.connection().and_then(|c| c.protocol_version());
                 Ok((
                     stream,
                     TlsHandshake {
                         alpn: handshake.alpn.map(|alpn| Cow::Owned(alpn.to_vec())),
                         sni: handshake.sni.map(|sni| Cow::Owned(sni.to_string())),
                         cert,
+                        version: match version {
+                            Some(rustls::ProtocolVersion::TLSv1_0) => Some(SslVersion::Tls1),
+                            Some(rustls::ProtocolVersion::TLSv1_1) => Some(SslVersion::Tls1_1),
+                            Some(rustls::ProtocolVersion::TLSv1_2) => Some(SslVersion::Tls1_2),
+                            Some(rustls::ProtocolVersion::TLSv1_3) => Some(SslVersion::Tls1_3),
+                            _ => None,
+                        },
                     },
                 ))
             }
@@ -205,12 +213,20 @@ impl TlsDriver for RustlsDriver {
                     .connection()
                     .and_then(|c| c.peer_certificates())
                     .and_then(|c| c.first().map(|cert| cert.to_owned()));
+                let version = stream.connection().and_then(|c| c.protocol_version());
                 Ok((
                     stream,
                     TlsHandshake {
                         alpn: handshake.alpn.map(|alpn| Cow::Owned(alpn.to_vec())),
                         sni: handshake.sni.map(|sni| Cow::Owned(sni.to_string())),
                         cert,
+                        version: match version {
+                            Some(rustls::ProtocolVersion::TLSv1_0) => Some(SslVersion::Tls1),
+                            Some(rustls::ProtocolVersion::TLSv1_1) => Some(SslVersion::Tls1_1),
+                            Some(rustls::ProtocolVersion::TLSv1_2) => Some(SslVersion::Tls1_2),
+                            Some(rustls::ProtocolVersion::TLSv1_3) => Some(SslVersion::Tls1_3),
+                            _ => None,
+                        },
                     },
                 ))
             }

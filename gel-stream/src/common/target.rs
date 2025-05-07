@@ -135,6 +135,8 @@ impl TargetName {
     }
 }
 
+/// A target describes the TCP or Unix socket that a client will connect to,
+/// along with any optional TLS parameters.
 #[derive(Clone)]
 pub struct Target {
     inner: TargetInner,
@@ -510,6 +512,7 @@ impl ResolvedTarget {
     }
 }
 
+/// A trait for types that have a local address.
 pub trait LocalAddress {
     fn local_address(&self) -> std::io::Result<ResolvedTarget>;
 }
