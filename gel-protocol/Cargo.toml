@@ -35,7 +35,7 @@ all-types = ["with-num-bigint", "with-bigdecimal", "with-chrono"]
 with-serde = ["serde", "serde_json"]
 
 [dev-dependencies]
-rand = "0.8"
+rand = "0.9"
 pretty_assertions = "1.2.1"
 test-case = "3.0.0"
 humantime = "2.1.0"

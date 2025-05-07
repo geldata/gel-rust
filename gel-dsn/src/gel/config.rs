@@ -136,9 +136,9 @@ impl Default for Config {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Error, derive_more::Display)]
 pub enum CredentialsError {
-    #[error("no TCP address")]
+    #[display("no TCP address")]
     NoTcpAddress,
 }
 
