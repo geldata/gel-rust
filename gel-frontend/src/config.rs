@@ -60,8 +60,7 @@ pub trait ListenerConfig: std::fmt::Debug + Send + Sync + 'static {
     /// Process the SSL SNI, returning the SSL configuration and an optional tenant ID.
     fn ssl_config_sni(&self, hostname: Option<&str>) -> Result<(SslConfig, Option<String>), ()>;
 
-    fn jwt_key(&self)
-        -> Result<gel_jwt::KeyRegistry<Key>, ()>;
+    fn jwt_key(&self) -> Result<gel_jwt::KeyRegistry<Key>, ()>;
 
     /// Returns true if the given [`StreamType`] is supported at this
     /// time.
