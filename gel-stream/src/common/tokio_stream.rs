@@ -8,6 +8,7 @@ use tokio::net::{TcpListener, TcpStream};
 #[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
 
+use super::stream::Stream;
 use super::target::{LocalAddress, ResolvedTarget};
 
 pub(crate) struct Resolver {
@@ -147,6 +148,19 @@ pub enum TokioStream {
     /// Unix stream (only available on Unix systems)
     #[cfg(unix)]
     Unix(UnixStream),
+}
+
+impl Stream for TokioStream {
+    fn with_socket2(
+        &self,
+        f: &mut dyn for<'a> FnMut(socket2::SockRef<'a>) -> Result<(), std::io::Error>,
+    ) -> Result<(), std::io::Error> {
+        match self {
+            TokioStream::Tcp(stream) => f(socket2::SockRef::from(&stream)),
+            #[cfg(unix)]
+            TokioStream::Unix(stream) => f(socket2::SockRef::from(&stream)),
+        }
+    }
 }
 
 impl TokioStream {
