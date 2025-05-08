@@ -1,7 +1,7 @@
 [package]
 name = "gel-protocol"
 license = "MIT/Apache-2.0"
-version = "0.8.3"
+version = "0.8.4"
 authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2018"
 description = """
@@ -23,8 +23,8 @@ chrono = {version="0.4.23", optional=true, features=["std"], default-features=fa
 bitflags = "2.4.0"
 serde = {version="1.0.190", features = ["derive"], optional=true}
 serde_json = {version="1", optional=true}
-gel-errors = {path = "../gel-errors", version = "^0.5.2" }
-gel-db-protocol = {path = "../gel-db-protocol", version = "0.1"}
+gel-errors = {path = "../gel-errors", version = "^0.5.3" }
+gel-db-protocol = {path = "../gel-db-protocol", version = "^0.1.1" }
 
 [features]
 default = []
