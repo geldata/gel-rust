@@ -12,6 +12,7 @@ use std::{
 
 use crate::{Ssl, SslError, TlsDriver, TlsHandshake, TlsServerParameterProvider};
 
+/// A convenience trait for streams from this crate.
 #[cfg(feature = "tokio")]
 pub trait Stream: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static {
     fn downcast<S: Stream + 'static>(self) -> Result<S, Self>
@@ -39,6 +40,7 @@ impl<S: Stream, D: TlsDriver> Stream for UpgradableStream<S, D> {}
 #[cfg(not(feature = "tokio"))]
 impl Stream for () {}
 
+/// A trait for streams that can be upgraded to a TLS stream.
 pub trait StreamUpgrade: Stream {
     fn secure_upgrade(&mut self) -> impl Future<Output = Result<(), SslError>> + Send;
     fn handshake(&self) -> Option<&TlsHandshake>;

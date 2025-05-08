@@ -20,6 +20,30 @@ pub struct Acceptor {
 }
 
 impl Acceptor {
+    pub fn new(target: ResolvedTarget) -> Self {
+        Self {
+            resolved_target: target,
+            tls_provider: None,
+            should_upgrade: false,
+        }
+    }
+
+    pub fn new_tls(target: ResolvedTarget, provider: TlsServerParameterProvider) -> Self {
+        Self {
+            resolved_target: target,
+            tls_provider: Some(provider),
+            should_upgrade: true,
+        }
+    }
+
+    pub fn new_starttls(target: ResolvedTarget, provider: TlsServerParameterProvider) -> Self {
+        Self {
+            resolved_target: target,
+            tls_provider: Some(provider),
+            should_upgrade: false,
+        }
+    }
+
     pub fn new_tcp(addr: SocketAddr) -> Self {
         Self {
             resolved_target: ResolvedTarget::SocketAddr(addr),

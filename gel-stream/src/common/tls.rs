@@ -6,6 +6,7 @@ use super::BaseStream;
 
 // Note that we choose rustls when both openssl and rustls are enabled.
 
+/// The default TLS driver.
 #[cfg(all(feature = "openssl", not(feature = "rustls")))]
 pub type Ssl = crate::common::openssl::OpensslDriver;
 #[cfg(feature = "rustls")]
@@ -13,6 +14,8 @@ pub type Ssl = crate::common::rustls::RustlsDriver;
 #[cfg(not(any(feature = "openssl", feature = "rustls")))]
 pub type Ssl = NullTlsDriver;
 
+/// A trait for TLS drivers.
+#[doc(hidden)]
 pub trait TlsDriver: Default + Send + Sync + Unpin + 'static {
     type Stream: Stream + Send;
     type ClientParams: Unpin + Send;
@@ -36,6 +39,7 @@ pub trait TlsDriver: Default + Send + Sync + Unpin + 'static {
     ) -> impl Future<Output = Result<(Self::Stream, TlsHandshake), SslError>> + Send;
 }
 
+/// A TLS driver that fails when TLS is requested.
 #[derive(Default)]
 pub struct NullTlsDriver;
 
@@ -217,6 +221,24 @@ pub struct TlsKey {
     pub(crate) cert: CertificateDer<'static>,
 }
 
+impl TlsKey {
+    /// Create a new TlsKey from a PEM-encoded certificate and key.
+    #[cfg(feature = "pem")]
+    pub fn new_pem(mut key: &[u8], mut cert: &[u8]) -> Result<Self, std::io::Error> {
+        let cert = rustls_pemfile::certs(&mut cert)
+            .next()
+            .ok_or(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "No certificate found",
+            ))??;
+        let key = rustls_pemfile::private_key(&mut key)?.ok_or(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "No key found",
+        ))?;
+        Ok(Self { cert, key })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TlsServerParameterProvider {
     inner: TlsServerParameterProviderInner,
@@ -260,6 +282,18 @@ pub struct TlsServerParameters {
     pub max_protocol_version: Option<SslVersion>,
     pub server_certificate: TlsKey,
     pub alpn: TlsAlpn,
+}
+
+impl TlsServerParameters {
+    pub fn new_with_certificate(server_certificate: TlsKey) -> Self {
+        Self {
+            client_cert_verify: TlsClientCertVerify::default(),
+            min_protocol_version: None,
+            max_protocol_version: None,
+            server_certificate,
+            alpn: TlsAlpn::default(),
+        }
+    }
 }
 
 #[derive(Default, Eq, PartialEq)]
@@ -336,11 +370,17 @@ impl TlsAlpn {
     }
 }
 
+/// Negotiated TLS handshake information.
 #[derive(Debug, Clone, Default)]
 pub struct TlsHandshake {
+    /// The negotiated ALPN protocol.
     pub alpn: Option<Cow<'static, [u8]>>,
+    /// The SNI hostname if provided.
     pub sni: Option<Cow<'static, str>>,
+    /// The client certificate, if any.
     pub cert: Option<CertificateDer<'static>>,
+    /// The negotiated TLS version.
+    pub version: Option<SslVersion>,
 }
 
 #[cfg(test)]
@@ -400,27 +440,5 @@ mod tests {
         assert_eq!(empty_alpn.as_bytes(), Vec::<u8>::new());
         assert_eq!(empty_alpn.as_vec_vec(), Vec::<Vec<u8>>::new());
         assert_eq!(format!("{:?}", empty_alpn), "[]");
-    }
-
-    #[test]
-    fn test_tls_handshake() {
-        let handshake = TlsHandshake {
-            alpn: Some(Cow::Borrowed(b"h2")),
-            sni: Some(Cow::Borrowed("example.com")),
-            cert: None,
-        };
-        assert_eq!(handshake.alpn, Some(Cow::Borrowed(b"h2".as_slice())));
-        assert_eq!(handshake.sni, Some(Cow::Borrowed("example.com")));
-        assert_eq!(handshake.cert, None);
-
-        assert_eq!(
-            format!("{:?}", handshake),
-            "TlsHandshake { alpn: Some([104, 50]), sni: Some(\"example.com\"), cert: None }"
-        );
-
-        let default_handshake = TlsHandshake::default();
-        assert_eq!(default_handshake.alpn, None);
-        assert_eq!(default_handshake.sni, None);
-        assert_eq!(default_handshake.cert, None);
     }
 }

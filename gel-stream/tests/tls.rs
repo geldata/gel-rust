@@ -92,6 +92,7 @@ async fn spawn_tls_server<S: TlsDriver>(
         let handshake = connection
             .handshake()
             .unwrap_or_else(|| panic!("handshake was not available on {connection:?}"));
+        assert!(handshake.version.is_some());
         assert_eq!(
             handshake.alpn.as_ref().map(|b| b.as_ref().to_vec()),
             expected_alpn
