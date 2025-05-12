@@ -1,5 +1,5 @@
 use futures::{stream, Stream, StreamExt};
-use gel_jwt::Key;
+use gel_jwt::{Key, KeyRegistry};
 use std::{
     hash::Hash,
     net::{SocketAddr, ToSocketAddrs},
@@ -89,27 +89,15 @@ impl SslConfig {
         let mut inner = self.inner.lock().unwrap();
         match &mut *inner {
             SslConfigInner::Unconfigured { cert, key } => {
-                use openssl::pkey::PKey;
-                use openssl::ssl::SslContext;
-                use openssl::x509::X509;
-                use std::fs::File;
-                use std::io::Read;
-
-                let mut ctx_builder = SslContext::builder(openssl::ssl::SslMethod::tls()).unwrap();
-
                 // Load the certificate
                 let mut cert_file = File::open(cert).unwrap();
                 let mut cert_contents = Vec::new();
                 cert_file.read_to_end(&mut cert_contents).unwrap();
-                let cert = X509::from_pem(&cert_contents).unwrap();
-                ctx_builder.set_certificate(&cert).unwrap();
 
                 // Load the private key
                 let mut key_file = File::open(key).unwrap();
                 let mut key_contents = Vec::new();
                 key_file.read_to_end(&mut key_contents).unwrap();
-                let key = PKey::private_key_from_pem(&key_contents).unwrap();
-                ctx_builder.set_private_key(&key).unwrap();
 
                 // Apply any additional configuration
                 f(&mut ctx_builder);
@@ -154,12 +142,10 @@ impl ListenerConfig for TestListenerConfig {
         true
     }
 
-    fn jwt_key(&self) -> Result<jwt::PKeyWithDigest<openssl::pkey::Public>, ()> {
-        let key = mock_key_public();
-        Ok(jwt::PKeyWithDigest {
-            digest: openssl::hash::MessageDigest::sha256(),
-            key,
-        })
+    fn jwt_key(&self) -> Result<KeyRegistry<Key>, ()> {
+        let mut key = KeyRegistry::new();
+        key.generate_key(None, gel_jwt::KeyType::ES256);
+        Ok(key)
     }
 
     fn ssl_config_sni(&self, hostname: Option<&str>) -> Result<(SslConfig, Option<String>), ()> {

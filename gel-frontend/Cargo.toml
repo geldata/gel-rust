@@ -11,7 +11,7 @@ pyo3.workspace = true
 tokio.workspace = true
 
 # We should offer openssl/rustls as separate features
-gel-stream = { path = "../gel-stream", version = "0.3", features = ["rustls"] }
+gel-stream = { path = "../gel-stream", version = "0.4", features = ["rustls", "pem"] }
 gel-auth = { path = "../gel-auth", version = "0.1" }
 gel-pg-protocol = { path = "../gel-pg-protocol", version = "0.1" }
 gel-jwt = { path = "../gel-jwt", version = "0.1" }

@@ -12,7 +12,6 @@ use crate::{
 };
 use futures::StreamExt;
 use hyper::{upgrade::OnUpgrade, Request, Response, StatusCode};
-use openssl::ssl::{AlpnError, NameType, SniError, Ssl, SslAlert, SslContext, SslMethod};
 use scopeguard::defer;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -948,7 +947,6 @@ mod tests {
     use gel_auth::CredentialData;
     use hyper::Uri;
     use hyper_util::rt::TokioIo;
-    use openssl::ssl::{Ssl, SslContext, SslMethod};
     use rstest::rstest;
     use tokio::net::TcpStream;
 
@@ -1114,15 +1112,15 @@ mod tests {
 
     #[test]
     fn test_raw_postgres() {
-        use pgrust::protocol::postgres::builder::{StartupMessage, StartupNameValue};
+        use gel_pg_protocol::protocol::{StartupMessageBuilder, StartupNameValueBuilder};
         run_test_service(TestMode::Tcp, |mut stm| async move {
-            let msg = StartupMessage {
+            let msg = StartupMessageBuilder {
                 params: &[
-                    StartupNameValue {
+                    StartupNameValueBuilder {
                         name: "database",
                         value: "name",
                     },
-                    StartupNameValue {
+                    StartupNameValueBuilder {
                         name: "user",
                         value: "me",
                     },

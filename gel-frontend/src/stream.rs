@@ -113,83 +113,6 @@ stream_properties! {
     pub protocol: Option<&'static str>,
 }
 
-pub struct RewindStream<S> {
-    buffer: Vec<u8>,
-    inner: S,
-}
-
-impl<S> RewindStream<S> {
-    pub fn new(inner: S) -> Self {
-        RewindStream {
-            buffer: Vec::new(),
-            inner,
-        }
-    }
-
-    pub fn rewind(&mut self, data: &[u8]) {
-        self.buffer.extend_from_slice(data);
-    }
-}
-
-impl<S: AsyncRead + Unpin> AsyncRead for RewindStream<S> {
-    #[inline(always)]
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        if !self.buffer.is_empty() {
-            let to_read = std::cmp::min(buf.remaining(), self.buffer.len());
-            let data = self.buffer.drain(..to_read).collect::<Vec<_>>();
-            buf.put_slice(&data);
-            Poll::Ready(Ok(()))
-        } else {
-            Pin::new(&mut self.inner).poll_read(cx, buf)
-        }
-    }
-}
-
-impl<S: AsyncWrite + Unpin> AsyncWrite for RewindStream<S> {
-    #[inline(always)]
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        Pin::new(&mut self.inner).poll_write(cx, buf)
-    }
-
-    #[inline(always)]
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.inner).poll_flush(cx)
-    }
-
-    #[inline(always)]
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.inner).poll_shutdown(cx)
-    }
-
-    #[inline(always)]
-    fn is_write_vectored(&self) -> bool {
-        self.inner.is_write_vectored()
-    }
-
-    #[inline(always)]
-    fn poll_write_vectored(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        bufs: &[IoSlice<'_>],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        Pin::new(&mut self.inner).poll_write_vectored(cx, bufs)
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TransportType {
     Tcp,
@@ -208,7 +131,7 @@ pub struct ListenerStream {
 
 enum ListenerStreamInner {
     /// Raw TCP stream.
-    Tcp(RewindStream<TcpStream>),
+    Channel(gel_stream::RawStream),
     /// Raw Unix stream.
     #[cfg(unix)]
     Unix(RewindStream<UnixStream>),
