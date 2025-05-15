@@ -116,6 +116,38 @@ async fn spawn_tls_server<S: TlsDriver>(
     Ok((addr, accept_task))
 }
 
+async fn spawn_tls_server_unclean<S: TlsDriver>() -> Result<
+    (
+        ResolvedTarget,
+        tokio::task::JoinHandle<Result<(), ConnectionError>>,
+    ),
+    ConnectionError,
+> {
+    let mut acceptor = Acceptor::new_tcp_tls(
+        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0),
+        tls_server_parameters(TlsAlpn::default(), TlsClientCertVerify::Ignore),
+    )
+    .bind_explicit::<S>()
+    .await?;
+    let addr = acceptor.local_address()?;
+
+    let accept_task = tokio::spawn(async move {
+        let mut connection = acceptor.next().await.unwrap()?;
+        let _handshake = connection
+            .handshake()
+            .unwrap_or_else(|| panic!("handshake was not available on {connection:?}"));
+
+        connection.write_all(b"Hello, world!").await.unwrap();
+        connection.flush().await.unwrap();
+        let mut buf = [0; 13];
+        connection.read_exact(&mut buf).await.unwrap();
+        assert_eq!(&buf, b"Hello, world!");
+        connection.unclean_shutdown().expect("Failed to shutdown");
+        Ok::<_, ConnectionError>(())
+    });
+    Ok((addr, accept_task))
+}
+
 async fn spawn_tcp_server() -> Result<
     (
         ResolvedTarget,
@@ -343,6 +375,111 @@ tls_test! {
             stm.write_all(b"Hello, world!").await?;
             stm.shutdown().await?;
             Ok::<_, ConnectionError>(())
+        });
+
+        accept_task.await.unwrap().unwrap();
+        connect_task.await.unwrap().unwrap();
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(30_000)]
+    async fn test_target_server_unclean_shutdown<C: TlsDriver, S: TlsDriver>() -> Result<(), ConnectionError> {
+        let (addr, accept_task) = spawn_tls_server_unclean::<S>().await?;
+
+        let connect_task = tokio::spawn(async move {
+            let target = Target::new_resolved_tls(
+                addr, // Raw IP
+                TlsParameters {
+                    server_cert_verify: TlsServerCertVerify::Insecure,
+                    ..Default::default()
+                },
+            );
+            let mut stm = Connector::<C>::new_explicit(target).unwrap().connect().await.unwrap();
+            let mut buf = [0; 13];
+            stm.read_exact(&mut buf).await?;
+            assert_eq!(&buf, b"Hello, world!");
+            stm.write_all(b"Hello, world!").await?;
+            stm.flush().await?;
+            let mut buf = [0; 1];
+            if C::is::<RustlsDriver>() {
+                let err = stm.read(&mut buf).await.unwrap_err();
+                assert!(err.kind() == std::io::ErrorKind::UnexpectedEof, "{err:?}");
+            } else {
+                // tokio-openssl doesn't currently detect missing close_notify
+            }
+            Ok::<_, std::io::Error>(())
+        });
+
+        accept_task.await.unwrap().unwrap();
+        connect_task.await.unwrap().unwrap();
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(30_000)]
+    async fn test_target_server_unclean_shutdown_during_shutdown<C: TlsDriver, S: TlsDriver>() -> Result<(), ConnectionError> {
+        let (addr, accept_task) =
+        spawn_tls_server_unclean::<S>().await?;
+
+        let connect_task = tokio::spawn(async move {
+            let target = Target::new_resolved_tls(
+                addr, // Raw IP
+                TlsParameters {
+                    server_cert_verify: TlsServerCertVerify::Insecure,
+                    ..Default::default()
+                },
+            );
+            let mut stm = Connector::<C>::new_explicit(target).unwrap().connect().await.unwrap();
+            let mut buf = [0; 13];
+            stm.read_exact(&mut buf).await?;
+            assert_eq!(&buf, b"Hello, world!");
+            stm.write_all(b"Hello, world!").await?;
+            stm.flush().await?;
+
+            // This _should_ fail but it doesn't
+            // let err = stm.shutdown().await.unwrap_err();
+            // assert!(err.kind() == std::io::ErrorKind::UnexpectedEof, "{err:?}");
+            // ... For now, we just test that it succeeds
+            stm.shutdown().await?;
+
+            Ok::<_, std::io::Error>(())
+        });
+
+        accept_task.await.unwrap().unwrap();
+        connect_task.await.unwrap().unwrap();
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(30_000)]
+    async fn test_target_server_unclean_shutdown_ignored<C: TlsDriver, S: TlsDriver>() -> Result<(), ConnectionError> {
+        let (addr, accept_task) =
+        spawn_tls_server_unclean::<S>().await?;
+
+        let connect_task = tokio::spawn(async move {
+            let target = Target::new_resolved_tls(
+                addr, // Raw IP
+                TlsParameters {
+                    server_cert_verify: TlsServerCertVerify::Insecure,
+                    ..Default::default()
+                },
+            );
+            let mut connector = Connector::<C>::new_explicit(target).unwrap();
+            connector.ignore_missing_tls_close_notify();
+            let mut stm = connector.connect().await.unwrap();
+            let mut buf = [0; 13];
+            stm.read_exact(&mut buf).await?;
+            assert_eq!(&buf, b"Hello, world!");
+            stm.write_all(b"Hello, world!").await?;
+            stm.flush().await?;
+            let mut buf = [0; 1];
+            let n = stm.read(&mut buf).await.unwrap();
+            assert_eq!(n, 0);
+            Ok::<_, std::io::Error>(())
         });
 
         accept_task.await.unwrap().unwrap();

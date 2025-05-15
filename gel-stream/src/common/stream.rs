@@ -46,10 +46,16 @@ pub trait StreamUpgrade: Stream {
     fn handshake(&self) -> Option<&TlsHandshake>;
 }
 
+#[derive(Default, Debug)]
+struct UpgradableStreamOptions {
+    ignore_missing_close_notify: bool,
+}
+
 #[allow(private_bounds)]
 #[derive(derive_more::Debug)]
 pub struct UpgradableStream<S: Stream, D: TlsDriver = Ssl> {
     inner: UpgradableStreamInner<S, D>,
+    options: UpgradableStreamOptions,
 }
 
 #[allow(private_bounds)]
@@ -58,6 +64,7 @@ impl<S: Stream, D: TlsDriver> UpgradableStream<S, D> {
     pub(crate) fn new_client(base: S, config: Option<D::ClientParams>) -> Self {
         UpgradableStream {
             inner: UpgradableStreamInner::BaseClient(base, config),
+            options: Default::default(),
         }
     }
 
@@ -65,6 +72,7 @@ impl<S: Stream, D: TlsDriver> UpgradableStream<S, D> {
     pub(crate) fn new_server(base: S, config: Option<TlsServerParameterProvider>) -> Self {
         UpgradableStream {
             inner: UpgradableStreamInner::BaseServer(base, config),
+            options: Default::default(),
         }
     }
 
@@ -82,6 +90,30 @@ impl<S: Stream, D: TlsDriver> UpgradableStream<S, D> {
         match &self.inner {
             UpgradableStreamInner::Upgraded(_, handshake) => Some(handshake),
             _ => None,
+        }
+    }
+
+    pub fn ignore_missing_close_notify(&mut self) {
+        self.options.ignore_missing_close_notify = true;
+    }
+
+    /// Uncleanly shut down the stream. This may cause errors on the peer side
+    /// when using TLS.
+    pub fn unclean_shutdown(self) -> Result<(), Self> {
+        match self.inner {
+            UpgradableStreamInner::BaseClient(..) => Ok(()),
+            UpgradableStreamInner::BaseServer(..) => Ok(()),
+            UpgradableStreamInner::Upgraded(upgraded, cfg) => {
+                if let Err(e) = D::unclean_shutdown(upgraded) {
+                    Err(Self {
+                        inner: UpgradableStreamInner::Upgraded(e, cfg),
+                        options: self.options,
+                    })
+                } else {
+                    Ok(())
+                }
+            }
+            UpgradableStreamInner::Upgrading => Err(self),
         }
     }
 }
@@ -126,8 +158,9 @@ impl<S: Stream, D: TlsDriver> tokio::io::AsyncRead for UpgradableStream<S, D> {
         cx: &mut std::task::Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> std::task::Poll<std::io::Result<()>> {
+        let ignore_missing_close_notify = self.options.ignore_missing_close_notify;
         let inner = &mut self.get_mut().inner;
-        match inner {
+        let res = match inner {
             UpgradableStreamInner::BaseClient(base, _) => Pin::new(base).poll_read(cx, buf),
             UpgradableStreamInner::BaseServer(base, _) => Pin::new(base).poll_read(cx, buf),
             UpgradableStreamInner::Upgraded(upgraded, _) => Pin::new(upgraded).poll_read(cx, buf),
@@ -135,7 +168,15 @@ impl<S: Stream, D: TlsDriver> tokio::io::AsyncRead for UpgradableStream<S, D> {
                 std::io::ErrorKind::InvalidInput,
                 "Cannot read while upgrading",
             ))),
+        };
+        if ignore_missing_close_notify {
+            if matches!(res, std::task::Poll::Ready(Err(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof)
+            {
+                eprintln!("Unexpected EOF");
+                return std::task::Poll::Ready(Ok(()));
+            }
         }
+        res
     }
 }
 

@@ -29,6 +29,7 @@ impl TlsDriver for RustlsDriver {
     type Stream = TlsStream;
     type ClientParams = ClientConnection;
     type ServerParams = Arc<ServerConfig>;
+    const DRIVER_NAME: &'static str = "rustls";
 
     fn init_client(
         params: &TlsParameters,
@@ -242,6 +243,11 @@ impl TlsDriver for RustlsDriver {
                 }
             }
         }
+    }
+
+    fn unclean_shutdown(this: Self::Stream) -> Result<(), Self::Stream> {
+        // Skip the shutdown logic by tearing this down into its parts.
+        this.try_into_inner().map(drop)
     }
 }
 

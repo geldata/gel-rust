@@ -295,6 +295,10 @@ async fn connect2(
 ) -> Result<Connection, Error> {
     let mut connector = Connector::new(target.clone()).map_err(ClientConnectionError::with_source)?;
     connector.set_keepalive(cfg.tcp_keepalive.as_keepalive());
+    // Ignore missing close notify on Windows. This is unfortunately reasonably
+    // common on that platform.
+    #[cfg(windows)]
+    connector.ignore_missing_tls_close_notify();
     let mut res = connector.connect().await;
 
     // Allow plaintext reconnection if and only if ClientSecurity is InsecureDevMode and

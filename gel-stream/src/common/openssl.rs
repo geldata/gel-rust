@@ -1,7 +1,7 @@
 use openssl::{
     ssl::{
         AlpnError, ClientHelloResponse, NameType, SniError, Ssl, SslAcceptor, SslContextBuilder,
-        SslMethod, SslRef, SslVerifyMode,
+        SslMethod, SslOptions, SslRef, SslVerifyMode,
     },
     x509::{verify::X509VerifyFlags, X509VerifyResult},
 };
@@ -129,6 +129,7 @@ impl TlsDriver for OpensslDriver {
     type Stream = TlsStream;
     type ClientParams = openssl::ssl::Ssl;
     type ServerParams = openssl::ssl::SslContext;
+    const DRIVER_NAME: &'static str = "openssl";
 
     fn init_client(
         params: &TlsParameters,
@@ -149,6 +150,9 @@ impl TlsDriver for OpensslDriver {
 
         // let mut ssl = SslConnector::builder(SslMethod::tls_client())?;
         let mut ssl = SslContextBuilder::new(SslMethod::tls_client())?;
+
+        // Clear SSL_OP_IGNORE_UNEXPECTED_EOF
+        ssl.clear_options(SslOptions::from_bits_retain(1 << 7));
 
         // Load additional root certs
         match root_cert {
@@ -422,6 +426,11 @@ impl TlsDriver for OpensslDriver {
         };
         handshake.version = version;
         Ok((TlsStream(stream), handshake))
+    }
+
+    fn unclean_shutdown(_this: Self::Stream) -> Result<(), Self::Stream> {
+        // Do nothing
+        Ok(())
     }
 }
 
