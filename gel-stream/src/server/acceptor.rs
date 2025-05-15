@@ -17,6 +17,7 @@ pub struct Acceptor {
     resolved_target: ResolvedTarget,
     tls_provider: Option<TlsServerParameterProvider>,
     should_upgrade: bool,
+    ignore_missing_tls_close_notify: bool,
 }
 
 impl Acceptor {
@@ -25,6 +26,7 @@ impl Acceptor {
             resolved_target: target,
             tls_provider: None,
             should_upgrade: false,
+            ignore_missing_tls_close_notify: false,
         }
     }
 
@@ -33,6 +35,7 @@ impl Acceptor {
             resolved_target: target,
             tls_provider: Some(provider),
             should_upgrade: true,
+            ignore_missing_tls_close_notify: false,
         }
     }
 
@@ -41,6 +44,7 @@ impl Acceptor {
             resolved_target: target,
             tls_provider: Some(provider),
             should_upgrade: false,
+            ignore_missing_tls_close_notify: false,
         }
     }
 
@@ -49,6 +53,7 @@ impl Acceptor {
             resolved_target: ResolvedTarget::SocketAddr(addr),
             tls_provider: None,
             should_upgrade: false,
+            ignore_missing_tls_close_notify: false,
         }
     }
 
@@ -57,6 +62,7 @@ impl Acceptor {
             resolved_target: ResolvedTarget::SocketAddr(addr),
             tls_provider: Some(provider),
             should_upgrade: true,
+            ignore_missing_tls_close_notify: false,
         }
     }
 
@@ -65,6 +71,7 @@ impl Acceptor {
             resolved_target: ResolvedTarget::SocketAddr(addr),
             tls_provider: Some(provider),
             should_upgrade: false,
+            ignore_missing_tls_close_notify: false,
         }
     }
 
@@ -77,6 +84,7 @@ impl Acceptor {
                 ),
                 tls_provider: None,
                 should_upgrade: false,
+                ignore_missing_tls_close_notify: false,
             })
         }
         #[cfg(not(unix))]
@@ -98,6 +106,7 @@ impl Acceptor {
                 ),
                 tls_provider: None,
                 should_upgrade: false,
+                ignore_missing_tls_close_notify: false,
             })
         }
         #[cfg(not(any(target_os = "linux", target_os = "android")))]
@@ -119,6 +128,7 @@ impl Acceptor {
         Ok(AcceptedStream {
             stream,
             should_upgrade: self.should_upgrade,
+            ignore_missing_tls_close_notify: self.ignore_missing_tls_close_notify,
             upgrade_future: None,
             tls_provider: self.tls_provider,
             _phantom: None,
@@ -135,6 +145,7 @@ impl Acceptor {
         let stream = self.resolved_target.listen_raw().await?;
         Ok(AcceptedStream {
             stream,
+            ignore_missing_tls_close_notify: self.ignore_missing_tls_close_notify,
             should_upgrade: self.should_upgrade,
             upgrade_future: None,
             tls_provider: self.tls_provider,
@@ -145,16 +156,21 @@ impl Acceptor {
     pub async fn accept_one(self) -> Result<Connection, std::io::Error> {
         let mut stream = self.resolved_target.listen().await?;
         let (stream, _target) = stream.next().await.unwrap()?;
-        Ok(UpgradableStream::new_server(
+        let mut stm = UpgradableStream::new_server(
             RewindStream::new(stream),
             None::<TlsServerParameterProvider>,
-        ))
+        );
+        if self.ignore_missing_tls_close_notify {
+            stm.ignore_missing_close_notify();
+        }
+        Ok(stm)
     }
 }
 
 struct AcceptedStream<D: TlsDriver = Ssl> {
     stream: TokioListenerStream,
     should_upgrade: bool,
+    ignore_missing_tls_close_notify: bool,
     tls_provider: Option<TlsServerParameterProvider>,
     #[allow(clippy::type_complexity)]
     upgrade_future:
@@ -197,6 +213,9 @@ impl<D: TlsDriver> futures::Stream for AcceptedStream<D> {
         let (stream, _target) = r?;
         let mut stream =
             UpgradableStream::new_server(RewindStream::new(stream), self.tls_provider.clone());
+        if self.ignore_missing_tls_close_notify {
+            stream.ignore_missing_close_notify();
+        }
         if self.should_upgrade {
             let mut upgrade_future = Box::pin(async move {
                 stream.secure_upgrade().await?;

@@ -20,6 +20,7 @@ pub trait TlsDriver: Default + Send + Sync + Unpin + 'static {
     type Stream: Stream + Send;
     type ClientParams: Unpin + Send;
     type ServerParams: Unpin + Send;
+    const DRIVER_NAME: &'static str;
 
     #[allow(unused)]
     fn init_client(
@@ -37,6 +38,11 @@ pub trait TlsDriver: Default + Send + Sync + Unpin + 'static {
         params: TlsServerParameterProvider,
         stream: S,
     ) -> impl Future<Output = Result<(Self::Stream, TlsHandshake), SslError>> + Send;
+    fn unclean_shutdown(this: Self::Stream) -> Result<(), Self::Stream>;
+
+    fn is<D: TlsDriver>() -> bool {
+        D::DRIVER_NAME == Self::DRIVER_NAME
+    }
 }
 
 /// A TLS driver that fails when TLS is requested.
@@ -48,6 +54,7 @@ impl TlsDriver for NullTlsDriver {
     type Stream = BaseStream;
     type ClientParams = ();
     type ServerParams = ();
+    const DRIVER_NAME: &'static str = "null";
 
     fn init_client(
         params: &TlsParameters,
@@ -72,6 +79,11 @@ impl TlsDriver for NullTlsDriver {
         stream: S,
     ) -> Result<(Self::Stream, TlsHandshake), SslError> {
         Err(SslError::SslUnsupportedByClient)
+    }
+
+    fn unclean_shutdown(_this: Self::Stream) -> Result<(), Self::Stream> {
+        // Do nothing
+        Ok(())
     }
 }
 
