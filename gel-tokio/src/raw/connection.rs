@@ -688,7 +688,7 @@ async fn _wait_message(
         buf.reserve(5);
         if _read_buf(stream, buf).await.map_err(conn_err)? == 0 {
             return Err(ClientConnectionEosError::with_message(
-                "end of stream while reading message",
+                format!("end of stream while reading message (received {buf:?} <eof>)"),
             ));
         }
     }
@@ -699,7 +699,9 @@ async fn _wait_message(
         buf.reserve(frame_len - buf.len());
         if _read_buf(stream, buf).await.map_err(conn_err)? == 0 {
             return Err(ClientConnectionEosError::with_message(
-                "end of stream while reading message",
+                format!("end of stream while reading message (received {buf:?} <{n} bytes> <eof>)",
+                buf=&buf[..5],
+                n=buf.len() - 5),
             ));
         }
     }
