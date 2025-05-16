@@ -172,7 +172,6 @@ impl<S: Stream, D: TlsDriver> tokio::io::AsyncRead for UpgradableStream<S, D> {
         if ignore_missing_close_notify {
             if matches!(res, std::task::Poll::Ready(Err(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof)
             {
-                eprintln!("Unexpected EOF");
                 return std::task::Poll::Ready(Ok(()));
             }
         }
