@@ -10,6 +10,7 @@ use rustls_pki_types::ServerName;
 
 use crate::TlsParameters;
 
+#[derive(Clone)]
 /// A target name describes the TCP or Unix socket that a client will connect to.
 pub struct TargetName {
     inner: MaybeResolvedTarget,
@@ -503,12 +504,42 @@ pub enum ResolvedTarget {
     UnixSocketAddr(std::os::unix::net::SocketAddr),
 }
 
+impl Eq for ResolvedTarget {}
+
+impl PartialEq for ResolvedTarget {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ResolvedTarget::SocketAddr(a), ResolvedTarget::SocketAddr(b)) => a == b,
+            #[cfg(unix)]
+            (ResolvedTarget::UnixSocketAddr(a), ResolvedTarget::UnixSocketAddr(b)) => {
+                if let (Some(a), Some(b)) = (a.as_pathname(), b.as_pathname()) {
+                    a == b
+                } else {
+                    #[cfg(any(target_os = "linux", target_os = "android"))]
+                    {
+                        use std::os::linux::net::SocketAddrExt;
+                        if let (Some(a), Some(b)) = (a.as_abstract_name(), b.as_abstract_name()) {
+                            return a == b;
+                        }
+                    }
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+}
+
 impl ResolvedTarget {
     pub fn tcp(&self) -> Option<SocketAddr> {
         match self {
             ResolvedTarget::SocketAddr(addr) => Some(*addr),
             _ => None,
         }
+    }
+
+    pub fn is_tcp(&self) -> bool {
+        self.tcp().is_some()
     }
 }
 
@@ -517,7 +548,7 @@ pub trait LocalAddress {
     fn local_address(&self) -> std::io::Result<ResolvedTarget>;
 }
 
-trait TcpResolve {
+pub(crate) trait TcpResolve {
     fn into(self) -> MaybeResolvedTarget;
 }
 

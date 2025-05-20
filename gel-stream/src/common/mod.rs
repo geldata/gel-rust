@@ -1,3 +1,4 @@
+pub mod resolver;
 pub mod stream;
 pub mod target;
 pub mod tls;

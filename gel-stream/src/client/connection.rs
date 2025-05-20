@@ -1,17 +1,26 @@
 use std::marker::PhantomData;
-use std::net::SocketAddr;
 
-use crate::common::tokio_stream::{Resolver, TokioStream};
-use crate::{ConnectionError, Ssl, StreamUpgrade, TlsDriver, UpgradableStream};
-use crate::{MaybeResolvedTarget, ResolvedTarget, Target};
+use crate::common::resolver::Resolver;
+use crate::common::tokio_stream::TokioStream;
+use crate::Target;
+use crate::{ConnectionError, ResolvedTarget, Ssl, StreamUpgrade, TlsDriver, UpgradableStream};
 
 type Connection<S, D> = UpgradableStream<S, D>;
 
+#[derive(derive_more::Debug, Clone)]
+enum ConnectorInner {
+    #[debug("{:?}", _0)]
+    Unresolved(Target, Resolver),
+    #[debug("{:?}", _0)]
+    Resolved(ResolvedTarget),
+}
+
 /// A connector can be used to connect multiple times to the same target.
+#[derive(derive_more::Debug, Clone)]
 #[allow(private_bounds)]
 pub struct Connector<D: TlsDriver = Ssl> {
-    target: Target,
-    resolver: Resolver,
+    target: ConnectorInner,
+    #[debug(skip)]
     driver: PhantomData<D>,
     ignore_missing_close_notify: bool,
     #[cfg(feature = "keepalive")]
@@ -19,22 +28,55 @@ pub struct Connector<D: TlsDriver = Ssl> {
 }
 
 impl Connector<Ssl> {
+    /// Create a new connector with the given target and default resolver.
     pub fn new(target: Target) -> Result<Self, std::io::Error> {
         Self::new_explicit(target)
+    }
+
+    /// Create a new connector with the given resolved target.
+    pub fn new_resolved(target: ResolvedTarget) -> Self {
+        Self::new_explicit_resolved(target.into())
+    }
+
+    /// Create a new connector with the given target and resolver.
+    pub fn new_with_resolver(target: Target, resolver: Resolver) -> Self {
+        Self::new_explicit_with_resolver(target, resolver)
     }
 }
 
 #[allow(private_bounds)]
 impl<D: TlsDriver> Connector<D> {
+    /// Create a new connector with the given TLS driver and default resolver.
     pub fn new_explicit(target: Target) -> Result<Self, std::io::Error> {
         Ok(Self {
-            target,
-            resolver: Resolver::new()?,
+            target: ConnectorInner::Unresolved(target, Resolver::new()?),
             driver: PhantomData,
             ignore_missing_close_notify: false,
             #[cfg(feature = "keepalive")]
             keepalive: None,
         })
+    }
+
+    /// Create a new connector with the given TLS driver and resolved target.
+    pub fn new_explicit_resolved(target: ResolvedTarget) -> Self {
+        Self {
+            target: ConnectorInner::Resolved(target),
+            driver: PhantomData,
+            ignore_missing_close_notify: false,
+            #[cfg(feature = "keepalive")]
+            keepalive: None,
+        }
+    }
+
+    /// Create a new connector with the given TLS driver and resolver.
+    pub fn new_explicit_with_resolver(target: Target, resolver: Resolver) -> Self {
+        Self {
+            target: ConnectorInner::Unresolved(target, resolver),
+            driver: PhantomData,
+            ignore_missing_close_notify: false,
+            #[cfg(feature = "keepalive")]
+            keepalive: None,
+        }
     }
 
     /// Set a keepalive for the connection. This is only supported for TCP
@@ -55,37 +97,37 @@ impl<D: TlsDriver> Connector<D> {
         self.ignore_missing_close_notify = true;
     }
 
+    /// Connect to the target.
     pub async fn connect(&self) -> Result<Connection<TokioStream, D>, ConnectionError> {
-        let stream = match self.target.maybe_resolved() {
-            MaybeResolvedTarget::Resolved(target) => target.connect().await?,
-            MaybeResolvedTarget::Unresolved(host, port, _) => {
-                let ip = self
-                    .resolver
-                    .resolve_remote(host.clone().into_owned())
-                    .await?;
-                ResolvedTarget::SocketAddr(SocketAddr::new(ip, *port))
-                    .connect()
-                    .await?
+        let target = match &self.target {
+            ConnectorInner::Unresolved(target, resolver) => {
+                resolver.resolve_remote(target.maybe_resolved()).await?
             }
+            ConnectorInner::Resolved(target) => target.clone(),
         };
+        let stream = target.connect().await?;
 
         #[cfg(feature = "keepalive")]
         if let Some(keepalive) = self.keepalive {
-            if self.target.is_tcp() {
+            if target.is_tcp() {
                 stream.set_keepalive(Some(keepalive))?;
             }
         }
 
-        if let Some(ssl) = self.target.maybe_ssl() {
-            let ssl = D::init_client(ssl, self.target.name())?;
-            let mut stm = UpgradableStream::new_client(stream, Some(ssl));
-            if self.ignore_missing_close_notify {
-                stm.ignore_missing_close_notify();
+        if let ConnectorInner::Unresolved(target, _) = &self.target {
+            if let Some(ssl) = target.maybe_ssl() {
+                let ssl = D::init_client(ssl, target.name())?;
+                let mut stm = UpgradableStream::new_client(stream, Some(ssl));
+                if self.ignore_missing_close_notify {
+                    stm.ignore_missing_close_notify();
+                }
+                if !target.is_starttls() {
+                    stm.secure_upgrade().await?;
+                }
+                Ok(stm)
+            } else {
+                Ok(UpgradableStream::new_client(stream, None))
             }
-            if !self.target.is_starttls() {
-                stm.secure_upgrade().await?;
-            }
-            Ok(stm)
         } else {
             Ok(UpgradableStream::new_client(stream, None))
         }

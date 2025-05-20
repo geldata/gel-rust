@@ -67,18 +67,18 @@ impl TlsDriver for NullTlsDriver {
         Err(SslError::SslUnsupportedByClient)
     }
 
-    async fn upgrade_client<S: Stream>(
+    fn upgrade_client<S: Stream>(
         params: Self::ClientParams,
         stream: S,
-    ) -> Result<(Self::Stream, TlsHandshake), SslError> {
-        Err(SslError::SslUnsupportedByClient)
+    ) -> impl Future<Output = Result<(Self::Stream, TlsHandshake), SslError>> + Send {
+        async { Err(SslError::SslUnsupportedByClient) }
     }
 
-    async fn upgrade_server<S: Stream>(
+    fn upgrade_server<S: Stream>(
         params: TlsServerParameterProvider,
         stream: S,
-    ) -> Result<(Self::Stream, TlsHandshake), SslError> {
-        Err(SslError::SslUnsupportedByClient)
+    ) -> impl Future<Output = Result<(Self::Stream, TlsHandshake), SslError>> + Send {
+        async { Err(SslError::SslUnsupportedByClient) }
     }
 
     fn unclean_shutdown(_this: Self::Stream) -> Result<(), Self::Stream> {
