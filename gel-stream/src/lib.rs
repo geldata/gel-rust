@@ -25,7 +25,7 @@ mod common;
 pub use common::openssl::OpensslDriver;
 #[cfg(feature = "rustls")]
 pub use common::rustls::RustlsDriver;
-pub use common::{stream::*, target::*, tls::*, BaseStream};
+pub use common::{resolver::*, stream::*, target::*, tls::*, BaseStream};
 pub use rustls_pki_types as pki_types;
 
 pub type RawStream = UpgradableStream<BaseStream>;

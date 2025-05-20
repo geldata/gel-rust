@@ -118,27 +118,29 @@ impl<S: Stream, D: TlsDriver> UpgradableStream<S, D> {
     }
 }
 
-impl<S: Stream, D: TlsDriver> StreamUpgrade for UpgradableStream<S, D> {
-    async fn secure_upgrade(&mut self) -> Result<(), SslError> {
-        match std::mem::replace(&mut self.inner, UpgradableStreamInner::Upgrading) {
-            UpgradableStreamInner::BaseClient(base, config) => {
-                let Some(config) = config else {
-                    return Err(SslError::SslUnsupportedByClient);
-                };
-                let (upgraded, handshake) = D::upgrade_client(config, base).await?;
-                self.inner = UpgradableStreamInner::Upgraded(upgraded, handshake);
-                Ok(())
+impl<S: Stream + Send, D: TlsDriver> StreamUpgrade for UpgradableStream<S, D> {
+    fn secure_upgrade(&mut self) -> impl Future<Output = Result<(), SslError>> + Send {
+        async {
+            match std::mem::replace(&mut self.inner, UpgradableStreamInner::Upgrading) {
+                UpgradableStreamInner::BaseClient(base, config) => {
+                    let Some(config) = config else {
+                        return Err(SslError::SslUnsupportedByClient);
+                    };
+                    let (upgraded, handshake) = D::upgrade_client(config, base).await?;
+                    self.inner = UpgradableStreamInner::Upgraded(upgraded, handshake);
+                    Ok(())
+                }
+                UpgradableStreamInner::BaseServer(base, config) => {
+                    let Some(config) = config else {
+                        return Err(SslError::SslUnsupportedByClient);
+                    };
+                    let (upgraded, handshake) = D::upgrade_server(config, base).await?;
+                    self.inner = UpgradableStreamInner::Upgraded(upgraded, handshake);
+                    Ok(())
+                }
+                UpgradableStreamInner::Upgraded(..) => Err(SslError::SslAlreadyUpgraded),
+                UpgradableStreamInner::Upgrading => Err(SslError::SslAlreadyUpgraded),
             }
-            UpgradableStreamInner::BaseServer(base, config) => {
-                let Some(config) = config else {
-                    return Err(SslError::SslUnsupportedByClient);
-                };
-                let (upgraded, handshake) = D::upgrade_server(config, base).await?;
-                self.inner = UpgradableStreamInner::Upgraded(upgraded, handshake);
-                Ok(())
-            }
-            UpgradableStreamInner::Upgraded(..) => Err(SslError::SslAlreadyUpgraded),
-            UpgradableStreamInner::Upgrading => Err(SslError::SslAlreadyUpgraded),
         }
     }
 
