@@ -60,25 +60,25 @@ impl TlsDriver for NullTlsDriver {
         params: &TlsParameters,
         name: Option<ServerName>,
     ) -> Result<Self::ClientParams, SslError> {
-        Err(SslError::SslUnsupportedByClient)
+        Err(SslError::SslUnsupported)
     }
 
     fn init_server(params: &TlsServerParameters) -> Result<Self::ServerParams, SslError> {
-        Err(SslError::SslUnsupportedByClient)
+        Err(SslError::SslUnsupported)
     }
 
     fn upgrade_client<S: Stream>(
         params: Self::ClientParams,
         stream: S,
     ) -> impl Future<Output = Result<(Self::Stream, TlsHandshake), SslError>> + Send {
-        async { Err(SslError::SslUnsupportedByClient) }
+        async { Err(SslError::SslUnsupported) }
     }
 
     fn upgrade_server<S: Stream>(
         params: TlsServerParameterProvider,
         stream: S,
     ) -> impl Future<Output = Result<(Self::Stream, TlsHandshake), SslError>> + Send {
-        async { Err(SslError::SslUnsupportedByClient) }
+        async { Err(SslError::SslUnsupported) }
     }
 
     fn unclean_shutdown(_this: Self::Stream) -> Result<(), Self::Stream> {
@@ -234,7 +234,7 @@ pub struct TlsKey {
 }
 
 impl TlsKey {
-    /// Create a new TlsKey from a PEM-encoded certificate and key.
+    /// Create a new `TlsKey` from a PEM-encoded certificate and key.
     #[cfg(feature = "pem")]
     pub fn new_pem(mut key: &[u8], mut cert: &[u8]) -> Result<Self, std::io::Error> {
         let cert = rustls_pemfile::certs(&mut cert)
@@ -248,6 +248,30 @@ impl TlsKey {
             "No key found",
         ))?;
         Ok(Self { cert, key })
+    }
+
+    /// Create a new `TlsKey` from the test certificate and key.
+    #[cfg(test)]
+    pub fn test_key() -> Self {
+        fn load_test_cert() -> rustls_pki_types::CertificateDer<'static> {
+            rustls_pemfile::certs(&mut include_str!("../../tests/certs/server.cert.pem").as_bytes())
+                .next()
+                .expect("no cert")
+                .expect("cert is bad")
+        }
+
+        fn load_test_key() -> rustls_pki_types::PrivateKeyDer<'static> {
+            rustls_pemfile::private_key(
+                &mut include_str!("../../tests/certs/server.key.pem").as_bytes(),
+            )
+            .expect("no server key")
+            .expect("server key is bad")
+        }
+
+        Self {
+            key: load_test_key(),
+            cert: load_test_cert(),
+        }
     }
 }
 

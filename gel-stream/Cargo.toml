@@ -25,9 +25,10 @@ pem = ["dep:rustls-pemfile"]
 __manual_tests = []
 
 [dependencies]
-derive_more = { version = "2", features = ["full"] }
+derive_more = { version = "2", default-features = false, features = ["debug", "constructor", "from", "display", "error"] }
 thiserror = "2"
 futures = "0.3"
+smallvec = "1"
 
 # Given that this library may be used in multiple contexts, we want to limit the
 # features we enable by default.
@@ -66,6 +67,9 @@ rustls-pemfile = { version = "2", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 openssl-sys = { version = "0.9", optional = true, default-features = false, features = ["vendored"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 # Run tests with all features enabled

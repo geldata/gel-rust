@@ -13,14 +13,11 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, OnceLock},
     task::{ready, Poll},
 };
-use tokio::{
-    io::{AsyncRead, AsyncWrite, ReadBuf},
-    net::TcpStream,
-};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::{
-    RewindStream, SslError, SslVersion, Stream, TlsCert, TlsClientCertVerify, TlsDriver,
-    TlsHandshake, TlsParameters, TlsServerCertVerify, TlsServerParameterProvider,
+    PeekableStream, RewindStream, SslError, SslVersion, Stream, TlsCert, TlsClientCertVerify,
+    TlsDriver, TlsHandshake, TlsParameters, TlsServerCertVerify, TlsServerParameterProvider,
     TlsServerParameters,
 };
 
@@ -51,7 +48,11 @@ fn get_ssl_ex_data_index() -> openssl::ex_data::Index<Ssl, Arc<Mutex<HandshakeDa
 
 pub struct OpensslDriver;
 
-pub struct TlsStream(tokio_openssl::SslStream<TcpStream>);
+/// A TLS stream that wraps a `tokio-openssl` stream.
+///
+/// At this time we use a Box<dyn Stream> because we cannot feed prefix bytes
+/// from a previewed connection back into a `tokio-openssl` stream.
+pub struct TlsStream(tokio_openssl::SslStream<Box<dyn Stream>>);
 
 impl AsyncRead for TlsStream {
     #[inline(always)]
@@ -329,12 +330,13 @@ impl TlsDriver for OpensslDriver {
     ) -> Result<(Self::Stream, TlsHandshake), SslError> {
         let stream = stream
             .downcast::<TokioStream>()
-            .map_err(|_| crate::SslError::SslUnsupportedByClient)?;
+            .map_err(|_| crate::SslError::SslUnsupported)?;
         let TokioStream::Tcp(stream) = stream else {
-            return Err(crate::SslError::SslUnsupportedByClient);
+            return Err(crate::SslError::SslUnsupported);
         };
 
-        let mut stream = tokio_openssl::SslStream::new(params, stream)?;
+        let mut stream =
+            tokio_openssl::SslStream::new(params, Box::new(stream) as Box<dyn Stream>)?;
         let res = Pin::new(&mut stream).do_handshake().await;
         if res.is_err() && stream.ssl().verify_result() != X509VerifyResult::OK {
             return Err(SslError::OpenSslErrorVerify(stream.ssl().verify_result()));
@@ -374,18 +376,6 @@ impl TlsDriver for OpensslDriver {
         params: TlsServerParameterProvider,
         stream: S,
     ) -> Result<(Self::Stream, TlsHandshake), SslError> {
-        let stream = stream
-            .downcast::<RewindStream<TokioStream>>()
-            .map_err(|_| crate::SslError::SslUnsupportedByClient)?;
-        let (stream, buffer) = stream.into_inner();
-        if !buffer.is_empty() {
-            // TODO: We should also be able to support rewinding
-            return Err(crate::SslError::SslUnsupportedByClient);
-        }
-        let TokioStream::Tcp(stream) = stream else {
-            return Err(crate::SslError::SslUnsupportedByClient);
-        };
-
         let handshake = Arc::new(Mutex::new(HandshakeData::default()));
 
         let mut ssl = SslContextBuilder::new(SslMethod::tls_server())?;
@@ -405,7 +395,21 @@ impl TlsDriver for OpensslDriver {
         ssl.set_accept_state();
         ssl.set_ex_data(get_ssl_ex_data_index(), handshake.clone());
 
-        let mut stream = tokio_openssl::SslStream::new(ssl, stream)?;
+        let mut stream = match stream.downcast::<RewindStream<TokioStream>>() {
+            Ok(stream) => tokio_openssl::SslStream::new(ssl, Box::new(stream) as Box<dyn Stream>)?,
+            Err(stream) => match stream.downcast::<TokioStream>() {
+                Ok(stream) => {
+                    let TokioStream::Tcp(stream) = stream else {
+                        return Err(crate::SslError::SslUnsupported);
+                    };
+                    tokio_openssl::SslStream::new(ssl, Box::new(stream) as Box<dyn Stream>)?
+                }
+                Err(_) => {
+                    return Err(crate::SslError::SslUnsupported);
+                }
+            },
+        };
+
         let res = Pin::new(&mut stream).do_handshake().await;
         res.map_err(SslError::OpenSslError)?;
 
@@ -512,6 +516,26 @@ impl From<SslVersion> for openssl::ssl::SslVersion {
         }
     }
 }
+
+impl PeekableStream for TlsStream {
+    #[cfg(feature = "tokio")]
+    fn poll_peek(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        // Classic &mut MaybeUninit -> &mut [u8] that is technically unsound,
+        // but Tokio already does this in TcpSocket::poll_peek (at least as of
+        // v1.44). This is potentially going to be marked as sound in the
+        // future, per this comment:
+        // https://github.com/tokio-rs/mio/issues/1574#issuecomment-1126997097
+        let buf = unsafe { &mut *(buf.unfilled_mut() as *mut _ as *mut [u8]) };
+        Pin::new(&mut self.0)
+            .poll_peek(cx, buf)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

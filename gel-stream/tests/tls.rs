@@ -25,7 +25,7 @@ fn load_client_test_ca() -> rustls_pki_types::CertificateDer<'static> {
         .expect("ca cert is bad")
 }
 
-fn load_test_cert() -> rustls_pki_types::CertificateDer<'static> {
+pub(crate) fn load_test_cert() -> rustls_pki_types::CertificateDer<'static> {
     rustls_pemfile::certs(&mut include_str!("../tests/certs/server.cert.pem").as_bytes())
         .next()
         .expect("no cert")
@@ -39,7 +39,7 @@ fn load_test_ca() -> rustls_pki_types::CertificateDer<'static> {
         .expect("ca cert is bad")
 }
 
-fn load_test_key() -> rustls_pki_types::PrivateKeyDer<'static> {
+pub(crate) fn load_test_key() -> rustls_pki_types::PrivateKeyDer<'static> {
     rustls_pemfile::private_key(&mut include_str!("../tests/certs/server.key.pem").as_bytes())
         .expect("no server key")
         .expect("server key is bad")
