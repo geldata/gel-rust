@@ -30,6 +30,13 @@ pub use rustls_pki_types as pki_types;
 
 pub type RawStream = UpgradableStream<BaseStream>;
 
+/// The default TCP backlog for the server.
+pub const DEFAULT_TCP_BACKLOG: u32 = 1024;
+/// The default TLS backlog for the server.
+pub const DEFAULT_TLS_BACKLOG: u32 = 128;
+/// The default preview buffer size for the server.
+pub const DEFAULT_PREVIEW_BUFFER_SIZE: u32 = 8;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionError {
     /// I/O error encountered during connection operations.
@@ -57,8 +64,8 @@ impl From<ConnectionError> for std::io::Error {
 
 #[derive(Debug, thiserror::Error)]
 pub enum SslError {
-    #[error("SSL is not supported by this client transport")]
-    SslUnsupportedByClient,
+    #[error("SSL is not supported by this transport")]
+    SslUnsupported,
     #[error("SSL is already upgraded or is in the process of upgrading")]
     SslAlreadyUpgraded,
 

@@ -131,9 +131,9 @@ impl TlsDriver for RustlsDriver {
         // Note that we only support Tokio TcpStream for rustls.
         let stream = stream
             .downcast::<TokioStream>()
-            .map_err(|_| crate::SslError::SslUnsupportedByClient)?;
+            .map_err(|_| crate::SslError::SslUnsupported)?;
         let TokioStream::Tcp(stream) = stream else {
-            return Err(crate::SslError::SslUnsupportedByClient);
+            return Err(crate::SslError::SslUnsupported);
         };
 
         let mut stream = TlsStream::new_client_side(stream, params, None);
@@ -178,16 +178,25 @@ impl TlsDriver for RustlsDriver {
         params: TlsServerParameterProvider,
         stream: S,
     ) -> Result<(Self::Stream, TlsHandshake), SslError> {
-        let stream = stream
-            .downcast::<RewindStream<TokioStream>>()
-            .map_err(|_| crate::SslError::SslUnsupportedByClient)?;
-        let (stream, buffer) = stream.into_inner();
-        let TokioStream::Tcp(stream) = stream else {
-            return Err(crate::SslError::SslUnsupportedByClient);
+        let (stream, acceptor) = match stream.downcast::<RewindStream<TokioStream>>() {
+            Ok(stream) => {
+                let (stream, buffer) = stream.into_inner();
+                let mut acceptor = Acceptor::default();
+                acceptor.read_tls(&mut buffer.as_slice())?;
+                (stream, acceptor)
+            }
+            Err(stream) => {
+                let Ok(stream) = stream.downcast::<TokioStream>() else {
+                    return Err(crate::SslError::SslUnsupported);
+                };
+                (stream, Acceptor::default())
+            }
         };
 
-        let mut acceptor = Acceptor::default();
-        acceptor.read_tls(&mut buffer.as_slice())?;
+        let TokioStream::Tcp(stream) = stream else {
+            return Err(crate::SslError::SslUnsupported);
+        };
+
         let server_config_provider = Arc::new(move |client_hello: ClientHello| {
             let params = params.clone();
             let server_name = client_hello

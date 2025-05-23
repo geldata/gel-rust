@@ -7,6 +7,8 @@ use tokio::net::{TcpListener, TcpStream};
 #[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
 
+use crate::PeekableStream;
+
 use super::target::{LocalAddress, ResolvedTarget};
 
 impl ResolvedTarget {
@@ -34,16 +36,50 @@ impl ResolvedTarget {
     ) -> std::io::Result<
         impl futures::Stream<Item = std::io::Result<(TokioStream, ResolvedTarget)>> + LocalAddress,
     > {
-        self.listen_raw().await
+        self.listen_raw(None).await
+    }
+
+    #[cfg(feature = "server")]
+    pub async fn listen_backlog(
+        &self,
+        backlog: usize,
+    ) -> std::io::Result<
+        impl futures::Stream<Item = std::io::Result<(TokioStream, ResolvedTarget)>> + LocalAddress,
+    > {
+        if !self.is_tcp() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Unix sockets do not support a connectionbacklog",
+            ));
+        }
+        let backlog = u32::try_from(backlog)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+        self.listen_raw(Some(backlog)).await
     }
 
     /// Listens for incoming connections on the socket address and returns a
     /// [`futures::Stream`] of [`TokioStream`]s and the incoming address.
     #[cfg(feature = "server")]
-    pub(crate) async fn listen_raw(&self) -> std::io::Result<TokioListenerStream> {
+    pub(crate) async fn listen_raw(
+        &self,
+        backlog: Option<u32>,
+    ) -> std::io::Result<TokioListenerStream> {
+        use std::net::SocketAddr;
+
+        use tokio::net::TcpSocket;
+
+        use crate::DEFAULT_TCP_BACKLOG;
+
         match self {
             ResolvedTarget::SocketAddr(addr) => {
-                let listener = TcpListener::bind(addr).await?;
+                let backlog = backlog.unwrap_or(DEFAULT_TCP_BACKLOG);
+                let socket = match addr {
+                    SocketAddr::V4(..) => TcpSocket::new_v4()?,
+                    SocketAddr::V6(..) => TcpSocket::new_v6()?,
+                };
+                socket.bind(*addr)?;
+                let listener = socket.listen(backlog)?;
+
                 Ok(TokioListenerStream::Tcp(listener))
             }
             #[cfg(unix)]
@@ -203,6 +239,30 @@ impl AsyncWrite for TokioStream {
             TokioStream::Tcp(stream) => Pin::new(stream).poll_write_vectored(cx, bufs),
             #[cfg(unix)]
             TokioStream::Unix(stream) => Pin::new(stream).poll_write_vectored(cx, bufs),
+        }
+    }
+}
+
+impl PeekableStream for TokioStream {
+    fn poll_peek(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> Poll<std::io::Result<usize>> {
+        match self.get_mut() {
+            TokioStream::Tcp(stream) => Pin::new(stream).poll_peek(cx, buf),
+            #[cfg(unix)]
+            TokioStream::Unix(stream) => loop {
+                ready!(stream.poll_read_ready(cx))?;
+                let sock = socket2::SockRef::from(&*stream);
+                break match sock.recv_with_flags(unsafe { buf.unfilled_mut() }, libc::MSG_PEEK) {
+                    Ok(n) => Poll::Ready(Ok(n)),
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        continue;
+                    }
+                    Err(e) => Poll::Ready(Err(e)),
+                };
+            },
         }
     }
 }
