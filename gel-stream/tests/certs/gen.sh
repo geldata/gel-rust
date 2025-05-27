@@ -28,6 +28,11 @@ openssl genrsa -out server.key.pem 4096
 openssl req -new -key server.key.pem -out server.csr.pem -subj "/C=US/ST=California/L=San Francisco/O=EdgeDB Inc./OU=EdgeDB tests/CN=localhost/emailAddress=hello@edgedb.com" -batch
 openssl x509 -req -in server.csr.pem -CA ca.cert.pem -CAkey ca.key.pem -CAcreateserial -out server.cert.pem -days 7300 -extensions v3_req -extfile ca.conf
 
+# Server alt cert
+openssl genrsa -out server-alt.key.pem 4096
+openssl req -new -key server-alt.key.pem -out server-alt.csr.pem -subj "/C=US/ST=California/L=San Francisco/O=EdgeDB Inc./OU=EdgeDB tests/CN=localhost-alt/emailAddress=hello@edgedb.com" -batch
+openssl x509 -req -in server-alt.csr.pem -CA ca.cert.pem -CAkey ca.key.pem -CAcreateserial -out server-alt.cert.pem -days 7300 -extensions v3_req -extfile ca.conf
+
 # Client CA
 openssl genrsa -out client_ca.key.pem 4096
 openssl req -new -x509 -key client_ca.key.pem -out client_ca.cert.pem -days 7300 -subj "/C=US/ST=California/L=San Francisco/O=EdgeDB Inc./OU=EdgeDB tests/CN=EdgeDB test client CA/emailAddress=hello@edgedb.com" -batch

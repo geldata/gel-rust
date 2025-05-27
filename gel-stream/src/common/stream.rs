@@ -12,29 +12,51 @@ use std::{
 use std::{future::Future, num::NonZeroUsize, ops::Deref};
 
 use crate::{
-    Ssl, SslError, TlsDriver, TlsHandshake, TlsServerParameterProvider, DEFAULT_PREVIEW_BUFFER_SIZE,
+    LocalAddress, RemoteAddress, ResolvedTarget, Ssl, SslError, StreamMetadata, TlsDriver,
+    TlsHandshake, TlsServerParameterProvider, Transport, DEFAULT_PREVIEW_BUFFER_SIZE,
 };
 
 /// A convenience trait for streams from this crate.
 #[cfg(feature = "tokio")]
-pub trait Stream: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static {
+pub trait Stream:
+    tokio::io::AsyncRead + tokio::io::AsyncWrite + StreamMetadata + Unpin + 'static
+{
+    /// Attempt to downcast a generic stream to a specific stream type.
     fn downcast<S: Stream + 'static>(self) -> Result<S, Self>
     where
         Self: Sized + 'static,
     {
-        // Note that we only support Tokio TcpStream for rustls.
         let mut holder = Some(self);
         let stream = &mut holder as &mut dyn Any;
-        let Some(stream) = stream.downcast_mut::<Option<S>>() else {
-            return Err(holder.take().unwrap());
-        };
-        let stream = stream.take().unwrap();
-        Ok(stream)
+        if let Some(stream) = stream.downcast_mut::<Option<S>>() {
+            return Ok(stream.take().unwrap());
+        }
+        if let Some(stream) = stream.downcast_mut::<Option<Box<S>>>() {
+            return Ok(*stream.take().unwrap());
+        }
+        Err(holder.take().unwrap())
+    }
+
+    /// Box the stream.
+    fn boxed(self) -> Box<dyn Stream>
+    where
+        Self: Sized + 'static,
+    {
+        let mut holder = Some(self);
+        let stream = &mut holder as &mut dyn Any;
+        if let Some(stream) = stream.downcast_mut::<Option<Box<dyn Stream>>>() {
+            stream.take().unwrap()
+        } else {
+            Box::new(holder.take().unwrap())
+        }
     }
 }
 
 #[cfg(feature = "tokio")]
-impl<T> Stream for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static {}
+impl<T> Stream for T where
+    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + StreamMetadata + Unpin + Send + 'static
+{
+}
 
 #[cfg(not(feature = "tokio"))]
 pub trait Stream: 'static {}
@@ -44,14 +66,14 @@ impl<S: Stream, D: TlsDriver> Stream for UpgradableStream<S, D> {}
 impl Stream for () {}
 
 /// A trait for streams that can be upgraded to a TLS stream.
-pub trait StreamUpgrade: Stream {
+pub trait StreamUpgrade: Stream + Sized {
     /// Upgrade the stream to a TLS stream.
-    fn secure_upgrade(&mut self) -> impl Future<Output = Result<(), SslError>> + Send;
+    fn secure_upgrade(self) -> impl Future<Output = Result<Self, SslError>> + Send;
     /// Upgrade the stream to a TLS stream, and preview the initial bytes.
     fn secure_upgrade_preview(
-        &mut self,
+        self,
         options: PreviewConfiguration,
-    ) -> impl Future<Output = Result<Preview, SslError>> + Send;
+    ) -> impl Future<Output = Result<(Preview, Self), SslError>> + Send;
     /// Get the TLS handshake information, if the stream is upgraded.
     fn handshake(&self) -> Option<&TlsHandshake>;
 }
@@ -187,7 +209,6 @@ impl<S: Stream, D: TlsDriver> UpgradableStream<S, D> {
             UpgradableStreamInner::BaseServerPreview(base, _) => Ok(Box::new(base)),
             UpgradableStreamInner::Upgraded(upgraded, _) => Ok(Box::new(upgraded)),
             UpgradableStreamInner::UpgradedPreview(upgraded, _) => Ok(Box::new(upgraded)),
-            UpgradableStreamInner::Upgrading => Err(self),
         }
     }
 
@@ -236,81 +257,83 @@ impl<S: Stream, D: TlsDriver> UpgradableStream<S, D> {
                     Ok(())
                 }
             }
-            UpgradableStreamInner::Upgrading => Err(self),
         }
     }
 }
 
 impl<S: Stream, D: TlsDriver> StreamUpgrade for UpgradableStream<S, D> {
-    fn secure_upgrade(&mut self) -> impl Future<Output = Result<(), SslError>> + Send {
+    fn secure_upgrade(self) -> impl Future<Output = Result<Self, SslError>> + Send {
         async move {
-            let (upgraded, handshake) =
-                match std::mem::replace(&mut self.inner, UpgradableStreamInner::Upgrading) {
-                    UpgradableStreamInner::BaseClient(base, config) => {
-                        let Some(config) = config else {
-                            return Err(SslError::SslUnsupported);
-                        };
-                        D::upgrade_client(config, base).await?
-                    }
-                    UpgradableStreamInner::BaseServer(base, config) => {
-                        let Some(config) = config else {
-                            return Err(SslError::SslUnsupported);
-                        };
-                        D::upgrade_server(config, base).await?
-                    }
-                    UpgradableStreamInner::BaseServerPreview(base, config) => {
-                        let Some(config) = config else {
-                            return Err(SslError::SslUnsupported);
-                        };
-                        D::upgrade_server(config, base).await?
-                    }
-                    other => {
-                        self.inner = other;
-                        return Err(SslError::SslAlreadyUpgraded);
-                    }
-                };
-            self.inner = UpgradableStreamInner::Upgraded(upgraded, handshake);
-            Ok(())
+            let (upgraded, handshake) = match self.inner {
+                UpgradableStreamInner::BaseClient(base, config) => {
+                    let Some(config) = config else {
+                        return Err(SslError::SslUnsupported);
+                    };
+                    D::upgrade_client(config, base).await?
+                }
+                UpgradableStreamInner::BaseServer(base, config) => {
+                    let Some(config) = config else {
+                        return Err(SslError::SslUnsupported);
+                    };
+                    D::upgrade_server(config, base).await?
+                }
+                UpgradableStreamInner::BaseServerPreview(base, config) => {
+                    let Some(config) = config else {
+                        return Err(SslError::SslUnsupported);
+                    };
+                    D::upgrade_server(config, base).await?
+                }
+                _ => {
+                    return Err(SslError::SslAlreadyUpgraded);
+                }
+            };
+            Ok(Self {
+                inner: UpgradableStreamInner::Upgraded(upgraded, handshake),
+                options: self.options,
+            })
         }
     }
 
     fn secure_upgrade_preview(
-        &mut self,
+        self,
         options: PreviewConfiguration,
-    ) -> impl Future<Output = Result<Preview, SslError>> + Send {
+    ) -> impl Future<Output = Result<(Preview, Self), SslError>> + Send {
         async move {
-            let (mut upgraded, handshake) =
-                match std::mem::replace(&mut self.inner, UpgradableStreamInner::Upgrading) {
-                    UpgradableStreamInner::BaseClient(base, config) => {
-                        let Some(config) = config else {
-                            return Err(SslError::SslUnsupported);
-                        };
-                        D::upgrade_client(config, base).await?
-                    }
-                    UpgradableStreamInner::BaseServer(base, config) => {
-                        let Some(config) = config else {
-                            return Err(SslError::SslUnsupported);
-                        };
-                        D::upgrade_server(config, base).await?
-                    }
-                    UpgradableStreamInner::BaseServerPreview(base, config) => {
-                        let Some(config) = config else {
-                            return Err(SslError::SslUnsupported);
-                        };
-                        D::upgrade_server(config, base).await?
-                    }
-                    other => {
-                        self.inner = other;
-                        return Err(SslError::SslAlreadyUpgraded);
-                    }
-                };
+            let (mut upgraded, handshake) = match self.inner {
+                UpgradableStreamInner::BaseClient(base, config) => {
+                    let Some(config) = config else {
+                        return Err(SslError::SslUnsupported);
+                    };
+                    D::upgrade_client(config, base).await?
+                }
+                UpgradableStreamInner::BaseServer(base, config) => {
+                    let Some(config) = config else {
+                        return Err(SslError::SslUnsupported);
+                    };
+                    D::upgrade_server(config, base).await?
+                }
+                UpgradableStreamInner::BaseServerPreview(base, config) => {
+                    let Some(config) = config else {
+                        return Err(SslError::SslUnsupported);
+                    };
+                    D::upgrade_server(config, base).await?
+                }
+                _ => {
+                    return Err(SslError::SslAlreadyUpgraded);
+                }
+            };
             let mut buffer = smallvec::SmallVec::with_capacity(options.max_preview_bytes.get());
             buffer.resize(options.max_preview_bytes.get(), 0);
             upgraded.read_exact(&mut buffer).await?;
             let mut rewind = RewindStream::new(upgraded);
             rewind.rewind(&buffer);
-            self.inner = UpgradableStreamInner::UpgradedPreview(rewind, handshake);
-            Ok(Preview { buffer })
+            Ok((
+                Preview { buffer },
+                Self {
+                    inner: UpgradableStreamInner::UpgradedPreview(rewind, handshake),
+                    options: self.options,
+                },
+            ))
         }
     }
 
@@ -340,10 +363,6 @@ impl<S: Stream, D: TlsDriver> tokio::io::AsyncRead for UpgradableStream<S, D> {
             UpgradableStreamInner::UpgradedPreview(upgraded, _) => {
                 Pin::new(upgraded).poll_read(cx, buf)
             }
-            UpgradableStreamInner::Upgrading => std::task::Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Cannot read while upgrading",
-            ))),
         };
         if ignore_missing_close_notify {
             if matches!(res, std::task::Poll::Ready(Err(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof)
@@ -372,10 +391,6 @@ impl<S: Stream, D: TlsDriver> tokio::io::AsyncWrite for UpgradableStream<S, D> {
             UpgradableStreamInner::UpgradedPreview(upgraded, _) => {
                 Pin::new(upgraded).poll_write(cx, buf)
             }
-            UpgradableStreamInner::Upgrading => std::task::Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Cannot write while upgrading",
-            ))),
         }
     }
 
@@ -393,10 +408,6 @@ impl<S: Stream, D: TlsDriver> tokio::io::AsyncWrite for UpgradableStream<S, D> {
             UpgradableStreamInner::UpgradedPreview(upgraded, _) => {
                 Pin::new(upgraded).poll_flush(cx)
             }
-            UpgradableStreamInner::Upgrading => std::task::Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Cannot flush while upgrading",
-            ))),
         }
     }
 
@@ -414,10 +425,6 @@ impl<S: Stream, D: TlsDriver> tokio::io::AsyncWrite for UpgradableStream<S, D> {
             UpgradableStreamInner::UpgradedPreview(upgraded, _) => {
                 Pin::new(upgraded).poll_shutdown(cx)
             }
-            UpgradableStreamInner::Upgrading => std::task::Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Cannot shutdown while upgrading",
-            ))),
         }
     }
 
@@ -429,7 +436,6 @@ impl<S: Stream, D: TlsDriver> tokio::io::AsyncWrite for UpgradableStream<S, D> {
             UpgradableStreamInner::BaseServerPreview(base, _) => base.is_write_vectored(),
             UpgradableStreamInner::Upgraded(upgraded, _) => upgraded.is_write_vectored(),
             UpgradableStreamInner::UpgradedPreview(upgraded, _) => upgraded.is_write_vectored(),
-            UpgradableStreamInner::Upgrading => false,
         }
     }
 
@@ -456,11 +462,27 @@ impl<S: Stream, D: TlsDriver> tokio::io::AsyncWrite for UpgradableStream<S, D> {
             UpgradableStreamInner::UpgradedPreview(upgraded, _) => {
                 Pin::new(upgraded).poll_write_vectored(cx, bufs)
             }
-            UpgradableStreamInner::Upgrading => std::task::Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Cannot write vectored while upgrading",
-            ))),
         }
+    }
+}
+
+impl<S: Stream, D: TlsDriver> LocalAddress for UpgradableStream<S, D> {
+    fn local_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.inner
+            .with_inner_metadata(|inner| inner.local_address())
+    }
+}
+
+impl<S: Stream, D: TlsDriver> RemoteAddress for UpgradableStream<S, D> {
+    fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.inner
+            .with_inner_metadata(|inner| inner.remote_address())
+    }
+}
+
+impl<S: Stream, D: TlsDriver> StreamMetadata for UpgradableStream<S, D> {
+    fn transport(&self) -> Transport {
+        self.inner.with_inner_metadata(|inner| inner.transport())
     }
 }
 
@@ -476,8 +498,18 @@ enum UpgradableStreamInner<S: Stream, D: TlsDriver> {
     Upgraded(D::Stream, TlsHandshake),
     #[debug("Upgraded(..)")]
     UpgradedPreview(RewindStream<D::Stream>, TlsHandshake),
-    #[debug("Upgrading")]
-    Upgrading,
+}
+
+impl<S: Stream, D: TlsDriver> UpgradableStreamInner<S, D> {
+    fn with_inner_metadata<T>(&self, f: impl FnOnce(&dyn StreamMetadata) -> T) -> T {
+        match self {
+            UpgradableStreamInner::BaseClient(base, _) => f(base),
+            UpgradableStreamInner::BaseServer(base, _) => f(base),
+            UpgradableStreamInner::BaseServerPreview(base, _) => f(base),
+            UpgradableStreamInner::Upgraded(upgraded, _) => f(upgraded),
+            UpgradableStreamInner::UpgradedPreview(upgraded, _) => f(upgraded),
+        }
+    }
 }
 
 pub trait Rewindable {
@@ -575,6 +607,24 @@ impl<S: Stream> Rewindable for RewindStream<S> {
     }
 }
 
+impl<S: LocalAddress> LocalAddress for RewindStream<S> {
+    fn local_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.inner.local_address()
+    }
+}
+
+impl<S: RemoteAddress> RemoteAddress for RewindStream<S> {
+    fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.inner.remote_address()
+    }
+}
+
+impl<S: StreamMetadata> StreamMetadata for RewindStream<S> {
+    fn transport(&self) -> Transport {
+        self.inner.transport()
+    }
+}
+
 impl<S: PeekableStream> PeekableStream for RewindStream<S> {
     fn poll_peek(
         mut self: Pin<&mut Self>,
@@ -602,10 +652,6 @@ where
             UpgradableStreamInner::BaseServerPreview(stm, _) => Ok(stm.rewind(bytes)),
             UpgradableStreamInner::Upgraded(stm, _) => stm.rewind(bytes),
             UpgradableStreamInner::UpgradedPreview(stm, _) => Ok(stm.rewind(bytes)),
-            UpgradableStreamInner::Upgrading => Err(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
-                "Cannot rewind a stream that is upgrading",
-            )),
         }
     }
 }
@@ -628,10 +674,6 @@ where
             UpgradableStreamInner::UpgradedPreview(upgraded, _) => {
                 Pin::new(upgraded).poll_peek(cx, buf)
             }
-            UpgradableStreamInner::Upgrading => Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
-                "Cannot peek a stream that is upgrading",
-            ))),
         }
     }
 }

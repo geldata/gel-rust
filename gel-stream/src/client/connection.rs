@@ -122,7 +122,7 @@ impl<D: TlsDriver> Connector<D> {
                     stm.ignore_missing_close_notify();
                 }
                 if !target.is_starttls() {
-                    stm.secure_upgrade().await?;
+                    stm = stm.secure_upgrade().await?;
                 }
                 Ok(stm)
             } else {

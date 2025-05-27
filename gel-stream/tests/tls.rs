@@ -1,5 +1,6 @@
 use futures::StreamExt;
 use gel_stream::*;
+use rustls_pki_types::DnsName;
 use std::borrow::Cow;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
@@ -32,6 +33,13 @@ pub(crate) fn load_test_cert() -> rustls_pki_types::CertificateDer<'static> {
         .expect("cert is bad")
 }
 
+pub(crate) fn load_test_cert_alt() -> rustls_pki_types::CertificateDer<'static> {
+    rustls_pemfile::certs(&mut include_str!("../tests/certs/server-alt.cert.pem").as_bytes())
+        .next()
+        .expect("no cert")
+        .expect("cert is bad")
+}
+
 fn load_test_ca() -> rustls_pki_types::CertificateDer<'static> {
     rustls_pemfile::certs(&mut include_str!("../tests/certs/ca.cert.pem").as_bytes())
         .next()
@@ -41,6 +49,12 @@ fn load_test_ca() -> rustls_pki_types::CertificateDer<'static> {
 
 pub(crate) fn load_test_key() -> rustls_pki_types::PrivateKeyDer<'static> {
     rustls_pemfile::private_key(&mut include_str!("../tests/certs/server.key.pem").as_bytes())
+        .expect("no server key")
+        .expect("server key is bad")
+}
+
+fn load_test_key_alt() -> rustls_pki_types::PrivateKeyDer<'static> {
+    rustls_pemfile::private_key(&mut include_str!("../tests/certs/server-alt.key.pem").as_bytes())
         .expect("no server key")
         .expect("server key is bad")
 }
@@ -61,6 +75,31 @@ fn tls_server_parameters(
         min_protocol_version: None,
         max_protocol_version: None,
         alpn,
+    })
+}
+
+fn tls_server_parameters_lookup() -> TlsServerParameterProvider {
+    TlsServerParameterProvider::with_lookup(|sni, _stream| {
+        let primary = sni == Some(DnsName::try_from_str("localhost").unwrap());
+        let mut params = if primary {
+            TlsServerParameters::new_with_certificate(TlsKey::new(
+                load_test_key(),
+                load_test_cert(),
+            ))
+        } else {
+            TlsServerParameters::new_with_certificate(TlsKey::new(
+                load_test_key_alt(),
+                load_test_cert_alt(),
+            ))
+        };
+
+        params.alpn = if primary {
+            TlsAlpn::new_str(&["localhost"])
+        } else {
+            TlsAlpn::new_str(&["localhost-alt"])
+        };
+
+        params.into()
     })
 }
 
@@ -97,7 +136,10 @@ async fn spawn_tls_server<S: TlsDriver>(
             handshake.alpn.as_ref().map(|b| b.as_ref().to_vec()),
             expected_alpn
         );
-        assert_eq!(handshake.sni.as_deref(), expected_hostname.as_deref());
+        assert_eq!(
+            handshake.sni.as_ref().map(|s| s.as_ref()),
+            expected_hostname.as_deref()
+        );
         if validate_cert {
             assert!(handshake.cert.is_some());
             let cert = parse_cert(handshake.cert.as_ref().unwrap());
@@ -739,6 +781,53 @@ tls_test! {
         Ok(())
     }
 
+    #[tokio::test]
+    #[ntest::timeout(30_000)]
+    async fn test_cert_selection<C: TlsDriver, S: TlsDriver>() -> Result<(), ConnectionError> {
+        let mut acceptor = Acceptor::new_tcp_tls(
+            SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0),
+            tls_server_parameters_lookup(),
+        )
+            .bind_explicit::<S>()
+            .await?;
+
+        let local_address = acceptor.local_address().unwrap();
+
+        tokio::task::spawn(async move {
+            for _ in 0..2 {
+                let mut stm = acceptor.next().await.unwrap().unwrap();
+                stm.write_all(b"Hello, world!").await.unwrap();
+                stm.read_u8().await.unwrap();
+                stm.shutdown().await.unwrap();
+            }
+        });
+
+        for host in ["localhost", "localhost-alt"] {
+            let mut params = TlsParameters::insecure();
+            params.sni_override = Some(Cow::Borrowed(host));
+            params.alpn = TlsAlpn::new_str(&["localhost", "localhost-alt"]);
+
+            let connector = Connector::<C>::new_explicit(Target::new_resolved_tls(
+                local_address.clone(),
+                params,
+            ))
+            .unwrap();
+
+            let mut stm = connector.connect().await.unwrap();
+            let handshake = stm.handshake().unwrap();
+            let cert = parse_cert(handshake.cert.as_ref().unwrap());
+            let subject = cert.subject().to_string();
+            assert!(subject.contains(format!("CN={host},").as_str()), "{subject} ~= CN={host}");
+            assert_eq!(handshake.alpn, Some(Cow::Borrowed(host.as_bytes())));
+
+            stm.write_all(b"x").await.unwrap();
+            let mut dst = String::new();
+            stm.read_to_string(&mut dst).await.unwrap();
+            assert_eq!(dst, "Hello, world!");
+        }
+
+        Ok(())
+    }
 }
 
 macro_rules! tls_client_test (

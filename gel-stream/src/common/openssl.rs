@@ -5,7 +5,7 @@ use openssl::{
     },
     x509::{verify::X509VerifyFlags, X509VerifyResult},
 };
-use rustls_pki_types::{CertificateDer, ServerName};
+use rustls_pki_types::{CertificateDer, DnsName, ServerName};
 use std::{
     borrow::Cow,
     io::IoSlice,
@@ -16,18 +16,21 @@ use std::{
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::{
-    PeekableStream, RewindStream, SslError, SslVersion, Stream, TlsCert, TlsClientCertVerify,
-    TlsDriver, TlsHandshake, TlsParameters, TlsServerCertVerify, TlsServerParameterProvider,
-    TlsServerParameters,
+    LocalAddress, PeekableStream, RemoteAddress, ResolvedTarget, SslError, SslVersion, Stream,
+    StreamMetadata, TlsCert, TlsClientCertVerify, TlsDriver, TlsHandshake, TlsParameters,
+    TlsServerCertVerify, TlsServerParameterProvider, TlsServerParameters, Transport,
 };
 
 use super::tokio_stream::TokioStream;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct HandshakeData {
     server_alpn: Option<Vec<u8>>,
     handshake: TlsHandshake,
+    stream: *const Box<dyn Stream>,
 }
+
+unsafe impl Send for HandshakeData {}
 
 impl HandshakeData {
     fn from_ssl(ssl: &SslRef) -> Option<MutexGuard<Self>> {
@@ -376,7 +379,7 @@ impl TlsDriver for OpensslDriver {
         params: TlsServerParameterProvider,
         stream: S,
     ) -> Result<(Self::Stream, TlsHandshake), SslError> {
-        let handshake = Arc::new(Mutex::new(HandshakeData::default()));
+        let stream = stream.boxed();
 
         let mut ssl = SslContextBuilder::new(SslMethod::tls_server())?;
         create_alpn_callback(&mut ssl);
@@ -393,22 +396,14 @@ impl TlsDriver for OpensslDriver {
 
         let mut ssl = Ssl::new(&ssl.build())?;
         ssl.set_accept_state();
+        let handshake = Arc::new(Mutex::new(HandshakeData {
+            server_alpn: None,
+            handshake: TlsHandshake::default(),
+            stream: &stream as *const _,
+        }));
         ssl.set_ex_data(get_ssl_ex_data_index(), handshake.clone());
 
-        let mut stream = match stream.downcast::<RewindStream<TokioStream>>() {
-            Ok(stream) => tokio_openssl::SslStream::new(ssl, Box::new(stream) as Box<dyn Stream>)?,
-            Err(stream) => match stream.downcast::<TokioStream>() {
-                Ok(stream) => {
-                    let TokioStream::Tcp(stream) = stream else {
-                        return Err(crate::SslError::SslUnsupported);
-                    };
-                    tokio_openssl::SslStream::new(ssl, Box::new(stream) as Box<dyn Stream>)?
-                }
-                Err(_) => {
-                    return Err(crate::SslError::SslUnsupported);
-                }
-            },
-        };
+        let mut stream = tokio_openssl::SslStream::new(ssl, stream)?;
 
         let res = Pin::new(&mut stream).do_handshake().await;
         res.map_err(SslError::OpenSslError)?;
@@ -486,11 +481,18 @@ fn create_sni_callback(ssl: &mut SslContextBuilder, params: TlsServerParameterPr
         };
 
         if let Some(servername) = ssl_ref.servername_raw(NameType::HOST_NAME) {
-            handshake.handshake.sni =
-                Some(Cow::Owned(String::from_utf8_lossy(servername).to_string()));
+            handshake.handshake.sni = DnsName::try_from(servername).ok().map(|s| s.to_owned());
         }
+        let name = handshake.handshake.sni.as_ref().map(|s| s.borrow());
 
-        let params = params.lookup(None);
+        // SAFETY: We know that there are no active &mut references to the stream
+        // because we are within an OpenSSL callback which means that the stream
+        // is not being used.
+        let params = unsafe {
+            let stream = handshake.stream.as_ref().unwrap();
+            params.lookup(name, stream.as_ref())
+        };
+
         if !params.alpn.is_empty() {
             handshake.server_alpn = Some(params.alpn.as_bytes().to_vec());
         }
@@ -533,6 +535,24 @@ impl PeekableStream for TlsStream {
         Pin::new(&mut self.0)
             .poll_peek(cx, buf)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    }
+}
+
+impl StreamMetadata for TlsStream {
+    fn transport(&self) -> Transport {
+        self.0.get_ref().transport()
+    }
+}
+
+impl LocalAddress for TlsStream {
+    fn local_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.0.get_ref().local_address()
+    }
+}
+
+impl RemoteAddress for TlsStream {
+    fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.0.get_ref().remote_address()
     }
 }
 

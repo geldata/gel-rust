@@ -332,8 +332,8 @@ impl<D: TlsDriver> futures::Stream for AcceptedStream<Connection<D>, D> {
 
             let tls_provider = self.tls_provider.clone();
             self.tls_backlog.push(async move {
-                let mut stream = make_stream(tls_provider, stream);
-                stream.secure_upgrade().await?;
+                let stream = make_stream(tls_provider, stream);
+                let stream = stream.secure_upgrade().await?;
                 Ok(stream)
             })
         }
@@ -471,10 +471,10 @@ mod tests {
             conn.write_all(b"HELLO WORLD").await
         });
 
-        let (preview, mut conn) = conns.next().await.unwrap()?;
+        let (preview, conn) = conns.next().await.unwrap()?;
         assert_eq!(preview.len(), 8);
         assert!(matches!(preview.as_ref(), [0x16, 3, 1, ..]));
-        let preview = conn
+        let (preview, mut conn) = conn
             .secure_upgrade_preview(PreviewConfiguration::default())
             .await?;
         assert_eq!(preview.len(), 8);
