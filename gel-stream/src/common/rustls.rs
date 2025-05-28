@@ -1,7 +1,6 @@
-use futures::FutureExt;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::client::WebPkiServerVerifier;
-use rustls::server::{Acceptor, ClientHello, WebPkiClientVerifier};
+use rustls::server::{Acceptor, WebPkiClientVerifier};
 use rustls::{
     ClientConfig, ClientConnection, DigitallySignedStruct, RootCertStore, ServerConfig,
     SignatureScheme,
@@ -11,14 +10,17 @@ use rustls_pki_types::{
 };
 use rustls_platform_verifier::Verifier;
 use rustls_tokio_stream::TlsStream;
+use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadBuf};
 
 use super::tokio_stream::TokioStream;
 use crate::{
-    RewindStream, SslError, SslVersion, Stream, TlsClientCertVerify, TlsDriver, TlsHandshake,
-    TlsServerParameterProvider, TlsServerParameters,
+    LocalAddress, RemoteAddress, ResolvedTarget, RewindStream, SslError, SslVersion, Stream,
+    StreamMetadata, TlsClientCertVerify, TlsDriver, TlsHandshake, TlsServerParameterProvider,
+    TlsServerParameters, Transport,
 };
 use crate::{TlsCert, TlsParameters, TlsServerCertVerify};
 use std::borrow::Cow;
+use std::mem::MaybeUninit;
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
 
@@ -148,7 +150,7 @@ impl TlsDriver for RustlsDriver {
                     stream,
                     TlsHandshake {
                         alpn: handshake.alpn.map(|alpn| Cow::Owned(alpn.to_vec())),
-                        sni: handshake.sni.map(|sni| Cow::Owned(sni.to_string())),
+                        sni: handshake.sni.and_then(|s| DnsName::try_from(s).ok()),
                         cert,
                         version: match version {
                             Some(rustls::ProtocolVersion::TLSv1_0) => Some(SslVersion::Tls1),
@@ -178,7 +180,7 @@ impl TlsDriver for RustlsDriver {
         params: TlsServerParameterProvider,
         stream: S,
     ) -> Result<(Self::Stream, TlsHandshake), SslError> {
-        let (stream, acceptor) = match stream.downcast::<RewindStream<TokioStream>>() {
+        let (stream, mut acceptor) = match stream.downcast::<RewindStream<TokioStream>>() {
             Ok(stream) => {
                 let (stream, buffer) = stream.into_inner();
                 let mut acceptor = Acceptor::default();
@@ -193,29 +195,56 @@ impl TlsDriver for RustlsDriver {
             }
         };
 
-        let TokioStream::Tcp(stream) = stream else {
+        let TokioStream::Tcp(mut stream) = stream else {
             return Err(crate::SslError::SslUnsupported);
         };
 
-        let server_config_provider = Arc::new(move |client_hello: ClientHello| {
-            let params = params.clone();
-            let server_name = client_hello
-                .server_name()
-                .map(|name| ServerName::DnsName(DnsName::try_from(name.to_string()).unwrap()));
-            async move {
-                let params = params.lookup(server_name);
-                let config = RustlsDriver::init_server(&params)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
-                Ok::<_, std::io::Error>(config)
+        let mut buf = [MaybeUninit::uninit(); 1024];
+        let accepted = loop {
+            match acceptor.accept() {
+                Ok(Some(accept)) => break accept,
+                Ok(None) => {
+                    let mut buf = ReadBuf::uninit(&mut buf);
+                    stream.read_buf(&mut buf).await?;
+                    acceptor.read_tls(&mut buf.filled())?;
+                }
+                Err((e, mut b)) => {
+                    let mut buf = [0_u8; 1024];
+                    loop {
+                        let w = b.write(&mut buf.as_mut_slice())?;
+                        if w == 0 {
+                            break;
+                        }
+                        stream.write_all(&buf[..w]).await?;
+                    }
+                    return Err(e.into());
+                }
             }
-            .boxed()
-        });
-        let mut stream = TlsStream::new_server_side_from_acceptor(
-            acceptor,
-            stream,
-            server_config_provider,
-            None,
-        );
+        };
+
+        let hello = accepted.client_hello();
+        let server_name = hello
+            .server_name()
+            .and_then(|name| DnsName::try_from(name).ok());
+
+        let params = params.lookup(server_name, &stream);
+        let config = RustlsDriver::init_server(&params)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+        let conn = match accepted.into_connection(config) {
+            Ok(conn) => conn,
+            Err((e, mut b)) => {
+                let mut buf = [0_u8; 1024];
+                loop {
+                    let w = b.write(&mut buf.as_mut_slice())?;
+                    if w == 0 {
+                        break;
+                    }
+                    stream.write_all(&buf[..w]).await?;
+                }
+                return Err(e.into());
+            }
+        };
+        let mut stream = TlsStream::new_server_side_from(stream, conn, None);
 
         match stream.handshake().await {
             Ok(handshake) => {
@@ -228,7 +257,9 @@ impl TlsDriver for RustlsDriver {
                     stream,
                     TlsHandshake {
                         alpn: handshake.alpn.map(|alpn| Cow::Owned(alpn.to_vec())),
-                        sni: handshake.sni.map(|sni| Cow::Owned(sni.to_string())),
+                        sni: handshake
+                            .sni
+                            .and_then(|s| DnsName::try_from(s.to_string()).ok()),
                         cert,
                         version: match version {
                             Some(rustls::ProtocolVersion::TLSv1_0) => Some(SslVersion::Tls1),
@@ -604,5 +635,23 @@ impl ServerCertVerifier for ErrorFilteringVerifier {
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
         self.verifier.supported_verify_schemes()
+    }
+}
+
+impl LocalAddress for TlsStream {
+    fn local_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.local_addr().map(|addr| ResolvedTarget::from(addr))
+    }
+}
+
+impl RemoteAddress for TlsStream {
+    fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.peer_addr().map(|addr| ResolvedTarget::from(addr))
+    }
+}
+
+impl StreamMetadata for TlsStream {
+    fn transport(&self) -> Transport {
+        Transport::Tcp
     }
 }

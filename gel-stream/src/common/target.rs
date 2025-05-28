@@ -548,6 +548,23 @@ pub trait LocalAddress {
     fn local_address(&self) -> std::io::Result<ResolvedTarget>;
 }
 
+/// A trait for types that have a local address.
+pub trait RemoteAddress {
+    fn remote_address(&self) -> std::io::Result<ResolvedTarget>;
+}
+
+/// The transport of a stream.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Transport {
+    Tcp,
+    Unix,
+}
+
+/// A trait for stream metadata.
+pub trait StreamMetadata: LocalAddress + RemoteAddress + Send {
+    fn transport(&self) -> Transport;
+}
+
 pub(crate) trait TcpResolve {
     fn into(self) -> MaybeResolvedTarget;
 }

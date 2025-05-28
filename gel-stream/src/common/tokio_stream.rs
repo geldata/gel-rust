@@ -7,7 +7,7 @@ use tokio::net::{TcpListener, TcpStream};
 #[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
 
-use crate::PeekableStream;
+use crate::{PeekableStream, RemoteAddress, StreamMetadata, Transport};
 
 use super::target::{LocalAddress, ResolvedTarget};
 
@@ -264,5 +264,75 @@ impl PeekableStream for TokioStream {
                 };
             },
         }
+    }
+}
+
+impl LocalAddress for TokioStream {
+    fn local_address(&self) -> std::io::Result<ResolvedTarget> {
+        match self {
+            TokioStream::Tcp(stream) => <TcpStream as LocalAddress>::local_address(stream),
+            #[cfg(unix)]
+            TokioStream::Unix(stream) => <UnixStream as LocalAddress>::local_address(stream),
+        }
+    }
+}
+
+impl RemoteAddress for TokioStream {
+    fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
+        match self {
+            TokioStream::Tcp(stream) => <TcpStream as RemoteAddress>::remote_address(stream),
+            #[cfg(unix)]
+            TokioStream::Unix(stream) => <UnixStream as RemoteAddress>::remote_address(stream),
+        }
+    }
+}
+
+impl StreamMetadata for TokioStream {
+    fn transport(&self) -> Transport {
+        match self {
+            TokioStream::Tcp(_) => Transport::Tcp,
+            #[cfg(unix)]
+            TokioStream::Unix(_) => Transport::Unix,
+        }
+    }
+}
+impl LocalAddress for TcpStream {
+    fn local_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.local_addr().map(ResolvedTarget::SocketAddr)
+    }
+}
+
+impl RemoteAddress for TcpStream {
+    fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.peer_addr().map(ResolvedTarget::SocketAddr)
+    }
+}
+
+impl StreamMetadata for TcpStream {
+    fn transport(&self) -> Transport {
+        Transport::Tcp
+    }
+}
+
+#[cfg(unix)]
+impl LocalAddress for UnixStream {
+    fn local_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.local_addr()
+            .map(|addr| ResolvedTarget::UnixSocketAddr(addr.into()))
+    }
+}
+
+#[cfg(unix)]
+impl RemoteAddress for UnixStream {
+    fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.peer_addr()
+            .map(|addr| ResolvedTarget::UnixSocketAddr(addr.into()))
+    }
+}
+
+#[cfg(unix)]
+impl StreamMetadata for UnixStream {
+    fn transport(&self) -> Transport {
+        Transport::Unix
     }
 }

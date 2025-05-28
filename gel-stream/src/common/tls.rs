@@ -1,5 +1,7 @@
-use crate::{SslError, Stream};
-use rustls_pki_types::{CertificateDer, CertificateRevocationListDer, PrivateKeyDer, ServerName};
+use crate::{SslError, Stream, StreamMetadata};
+use rustls_pki_types::{
+    CertificateDer, CertificateRevocationListDer, DnsName, PrivateKeyDer, ServerName,
+};
 use std::{borrow::Cow, future::Future, sync::Arc};
 
 use super::BaseStream;
@@ -273,6 +275,32 @@ impl TlsKey {
             cert: load_test_cert(),
         }
     }
+
+    /// Create a new `TlsKey` from the test certificate and key.
+    #[cfg(test)]
+    pub fn test_key_alt() -> Self {
+        fn load_test_cert() -> rustls_pki_types::CertificateDer<'static> {
+            rustls_pemfile::certs(
+                &mut include_str!("../../tests/certs/server-alt.cert.pem").as_bytes(),
+            )
+            .next()
+            .expect("no cert")
+            .expect("cert is bad")
+        }
+
+        fn load_test_key() -> rustls_pki_types::PrivateKeyDer<'static> {
+            rustls_pemfile::private_key(
+                &mut include_str!("../../tests/certs/server-alt.key.pem").as_bytes(),
+            )
+            .expect("no server key")
+            .expect("server key is bad")
+        }
+
+        Self {
+            key: load_test_key(),
+            cert: load_test_cert(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -288,27 +316,41 @@ impl TlsServerParameterProvider {
     }
 
     pub fn with_lookup(
-        lookup: impl Fn(Option<ServerName>) -> Arc<TlsServerParameters> + Send + Sync + 'static,
+        lookup: impl Fn(Option<DnsName>, &dyn StreamMetadata) -> Arc<TlsServerParameters>
+            + Send
+            + Sync
+            + 'static,
     ) -> Self {
         Self {
             inner: TlsServerParameterProviderInner::Lookup(Arc::new(lookup)),
         }
     }
 
-    pub fn lookup(&self, name: Option<ServerName>) -> Arc<TlsServerParameters> {
+    pub fn lookup(
+        &self,
+        name: Option<DnsName>,
+        stream: &dyn StreamMetadata,
+    ) -> Arc<TlsServerParameters> {
         match &self.inner {
             TlsServerParameterProviderInner::Static(params) => params.clone(),
-            TlsServerParameterProviderInner::Lookup(lookup) => lookup(name),
+            TlsServerParameterProviderInner::Lookup(lookup) => lookup(name, stream),
         }
     }
 }
+
+/// A function that looks up TLS server parameters based on the server name and/or
+/// stream metadata.
+pub type TlsServerParameterLookupFn = dyn Fn(Option<DnsName>, &dyn StreamMetadata) -> Arc<TlsServerParameters>
+    + Send
+    + Sync
+    + 'static;
 
 #[derive(derive_more::Debug, Clone)]
 enum TlsServerParameterProviderInner {
     Static(Arc<TlsServerParameters>),
     #[debug("Lookup(...)")]
     #[allow(clippy::type_complexity)]
-    Lookup(Arc<dyn Fn(Option<ServerName>) -> Arc<TlsServerParameters> + Send + Sync + 'static>),
+    Lookup(Arc<TlsServerParameterLookupFn>),
 }
 
 #[derive(Debug)]
@@ -406,13 +448,29 @@ impl TlsAlpn {
     }
 }
 
+impl<T, U> From<T> for TlsAlpn
+where
+    U: AsRef<[u8]>,
+    T: IntoIterator<Item = U>,
+{
+    fn from(alpn: T) -> Self {
+        Self {
+            alpn_parts: Cow::Owned(
+                alpn.into_iter()
+                    .map(|s| Cow::Owned(s.as_ref().to_vec()))
+                    .collect(),
+            ),
+        }
+    }
+}
+
 /// Negotiated TLS handshake information.
 #[derive(Debug, Clone, Default)]
 pub struct TlsHandshake {
     /// The negotiated ALPN protocol.
     pub alpn: Option<Cow<'static, [u8]>>,
     /// The SNI hostname if provided.
-    pub sni: Option<Cow<'static, str>>,
+    pub sni: Option<DnsName<'static>>,
     /// The client certificate, if any.
     pub cert: Option<CertificateDer<'static>>,
     /// The negotiated TLS version.
