@@ -13,17 +13,17 @@ pub enum ServerAuthResponse {
     Error(ServerAuthError),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Error, derive_more::Display, derive_more::From)]
 pub enum ServerAuthError {
-    #[error("Invalid authorization specification")]
+    #[display("Invalid authorization specification")]
     InvalidAuthorizationSpecification,
-    #[error("Invalid password")]
+    #[display("Invalid password")]
     InvalidPassword,
-    #[error("Invalid SASL message ({0})")]
-    InvalidSaslMessage(SCRAMError),
-    #[error("Unsupported authentication type")]
+    #[display("Invalid SASL message ({_0})")]
+    InvalidSaslMessage(#[from] SCRAMError),
+    #[display("Unsupported authentication type")]
     UnsupportedAuthType,
-    #[error("Invalid message type")]
+    #[display("Invalid message type")]
     InvalidMessageType,
 }
 

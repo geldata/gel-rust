@@ -1,5 +1,6 @@
 use ephemeral_port::EphemeralPort;
 use gel_auth::AuthType;
+use gel_stream::ResolvedTarget;
 use std::io::{BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::num::NonZeroUsize;
@@ -197,13 +198,16 @@ impl PostgresBuilder {
         let ssl_config = self.ssl_cert_and_key;
 
         let (socket_address, socket_path) = if self.unix_enabled {
+            #[cfg(windows)]
+            unreachable!("Unix mode is not supported on Windows");
+            #[cfg(unix)]
             (
-                ListenAddress::Unix(get_unix_socket_path(&data_dir, port)),
+                ResolvedTarget::try_from(get_unix_socket_path(&data_dir, port))?,
                 Some(&data_dir),
             )
         } else {
             (
-                ListenAddress::Tcp(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port)),
+                ResolvedTarget::SocketAddr(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port)),
                 None,
             )
         };
@@ -245,13 +249,10 @@ impl PostgresBuilder {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum ListenAddress {
-    Tcp(SocketAddr),
-    Unix(PathBuf),
-}
-
 fn spawn(command: &mut Command) -> std::io::Result<()> {
+    command.stdout(Stdio::piped());
+    command.stderr(Stdio::piped());
+
     let program = Path::new(command.get_program())
         .file_name()
         .unwrap_or_default()
@@ -514,23 +515,40 @@ fn run_postgres(
 }
 
 fn test_data_dir() -> std::path::PathBuf {
-    let cargo_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests");
+    let cargo_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../gel-stream/tests");
     if cargo_path.exists() {
         cargo_path
     } else {
-        Path::new("../../tests")
+        Path::new("../gel-stream/tests")
             .canonicalize()
             .expect("Failed to canonicalize tests directory path")
     }
 }
 
 fn postgres_bin_dir() -> std::io::Result<std::path::PathBuf> {
-    let cargo_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../build/postgres/install/bin");
-    if cargo_path.exists() {
-        cargo_path.canonicalize()
-    } else {
-        Path::new("../../build/postgres/install/bin").canonicalize()
+    let portable_bin_path = std::env::home_dir()
+        .ok_or(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Home directory not found",
+        ))?
+        .join(".local/share/edgedb/portable");
+    eprintln!("Portable path: {portable_bin_path:?}");
+    let mut versions = Vec::new();
+    for entry in std::fs::read_dir(portable_bin_path)?.flatten() {
+        let path = entry.path().join("bin").to_path_buf();
+        if path.exists() {
+            eprintln!("Found postgres bin path: {path:?}");
+            versions.push(path);
+        }
     }
+
+    versions.sort();
+    let latest = versions.iter().rev().next().ok_or(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        "No postgres versions found",
+    ))?;
+
+    Ok(latest.to_path_buf())
 }
 
 fn get_unix_socket_path(socket_path: impl AsRef<Path>, port: u16) -> PathBuf {
@@ -607,7 +625,7 @@ impl PostgresCluster {
 #[derive(Debug)]
 pub struct PostgresProcess {
     child: Option<std::process::Child>,
-    pub socket_address: ListenAddress,
+    pub socket_address: ResolvedTarget,
     pub tcp_address: SocketAddr,
     #[allow(unused)]
     temp_dir: TempDir,
@@ -680,6 +698,7 @@ impl Drop for PostgresProcess {
         // process exit.
 
         let id = Pid::from_raw(child.id() as _);
+        eprintln!("Shutting down Postgres process with pid {id}");
         if let Ok(Some(_)) = child.try_wait() {
             eprintln!("Process {id} already exited (crashed?).");
             return;

@@ -16,7 +16,7 @@ full = ["client", "server", "tokio", "rustls", "openssl", "hickory", "keepalive"
 client = []
 server = []
 serde = ["dep:serde"]
-tokio = ["dep:tokio"]
+tokio = ["dep:tokio", "dep:socket2"]
 rustls = ["tokio", "dep:rustls", "dep:rustls-tokio-stream", "dep:rustls-platform-verifier", "dep:webpki", "dep:webpki-roots"]
 openssl = ["tokio", "dep:openssl", "dep:tokio-openssl", "dep:foreign-types", "dep:openssl-sys", "dep:openssl-probe", "dep:webpki-root-certs"]
 hickory = ["dep:hickory-resolver"]
@@ -25,7 +25,7 @@ pem = ["dep:rustls-pemfile"]
 __manual_tests = []
 
 [dependencies]
-derive_more = { version = "2", default-features = false, features = ["debug", "constructor", "from", "display", "error"] }
+derive_more = { version = "2", default-features = false, features = ["debug", "constructor", "from", "try_from", "display", "error"] }
 thiserror = "2"
 futures = "0.3"
 smallvec = "1"
@@ -39,7 +39,7 @@ rustls-pki-types = { version = "1", default-features = false, features = ["std"]
 socket2 = { version = "0.5.2", optional = true }
 
 # feature = "tokio"
-tokio = { version = "1", optional = true, default-features = false, features = ["net", "rt"] }
+tokio = { version = "1", optional = true, default-features = false, features = ["net", "rt", "io-util"] }
 hickory-resolver = { version = "0.25.2", optional = true, default-features = false, features = ["tokio", "system-config"] }
 
 # feature = "rustls"

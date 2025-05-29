@@ -38,11 +38,11 @@ impl<const N: usize, T: DataType> DataTypeFixedSize for [T; N] {
     const SIZE: usize = std::mem::size_of::<T>() * N;
 }
 
-#[derive(thiserror::Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(derive_more::Error, derive_more::Display, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseError {
-    #[error("Buffer is too short")]
+    #[display("Buffer is too short")]
     TooShort,
-    #[error("Invalid data")]
+    #[display("Invalid data")]
     InvalidData,
 }
 

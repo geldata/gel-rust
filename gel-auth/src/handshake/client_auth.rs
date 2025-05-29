@@ -17,15 +17,15 @@ pub enum ClientAuthResponse {
     Error(ClientAuthError),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Error, derive_more::Display, derive_more::From)]
 pub enum ClientAuthError {
-    #[error("SCRAM protocol error: {0}")]
+    #[display("SCRAM protocol error: {_0}")]
     ScramError(#[from] SCRAMError),
-    #[error("Invalid authentication state")]
+    #[display("Invalid authentication state")]
     InvalidState,
-    #[error("Invalid credentials")]
+    #[display("Invalid credentials")]
     InvalidCredentials,
-    #[error("Unexpected message during authentication")]
+    #[display("Unexpected message during authentication")]
     UnexpectedMessage,
 }
 
