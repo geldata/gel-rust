@@ -24,7 +24,7 @@ where
         unreachable!("encode usize")
     }
     #[allow(unused)]
-    fn decode_usize<'a>(buf: &mut &'a [u8]) -> Result<usize, ParseError> {
+    fn decode_usize(buf: &mut &[u8]) -> Result<usize, ParseError> {
         unreachable!("decode usize")
     }
 }

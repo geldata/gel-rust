@@ -36,7 +36,7 @@ macro_rules! declare_type {
             type BuilderForStruct<'unused> = $ty;
             type BuilderForEncode = $ty;
             type DecodeLifetime<'a> = $ty;
-            fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self, $crate::prelude::ParseError> {
+            fn decode(buf: &mut &[u8]) -> Result<Self, $crate::prelude::ParseError> {
                 if let Some((chunk, next)) = buf.split_first_chunk::<{std::mem::size_of::<$ty>()}>() {
                     let res = {
                         let $ebuf = *chunk;
@@ -59,7 +59,7 @@ macro_rules! declare_type {
                     let value = $to_usize;
                     Self::encode(buf, &value);
                 }
-                fn decode_usize<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<usize, $crate::prelude::ParseError> {
+                fn decode_usize(buf: &mut &[u8]) -> Result<usize, $crate::prelude::ParseError> {
                     let $eusize2 = Self::decode(buf)?;
                     Ok($from_usize)
                 }

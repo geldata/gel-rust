@@ -450,9 +450,8 @@ fn run_postgres(
         std::thread::sleep(HOT_LOOP_INTERVAL);
         match child.try_wait() {
             Ok(Some(status)) => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("PostgreSQL exited with status: {}", status),
+                return Err(std::io::Error::other(
+                format!("PostgreSQL exited with status: {}", status),
                 ))
             }
             Err(e) => return Err(e),
@@ -543,7 +542,7 @@ fn postgres_bin_dir() -> std::io::Result<std::path::PathBuf> {
     }
 
     versions.sort();
-    let latest = versions.iter().rev().next().ok_or(std::io::Error::new(
+    let latest = versions.iter().next_back().ok_or(std::io::Error::new(
         std::io::ErrorKind::NotFound,
         "No postgres versions found",
     ))?;
