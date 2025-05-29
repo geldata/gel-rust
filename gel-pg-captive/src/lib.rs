@@ -208,7 +208,7 @@ impl PostgresBuilder {
         } else {
             (
                 ResolvedTarget::SocketAddr(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port)),
-                None,
+                None::<&PathBuf>,
             )
         };
 
