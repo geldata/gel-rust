@@ -521,6 +521,10 @@ enum ResolvedTargetInner<'a> {
     UnixSocketPath(&'a std::path::Path),
     #[cfg(any(target_os = "linux", target_os = "android"))]
     UnixSocketAbstract(&'a [u8]),
+    /// Windows doesn't need the lifetime, so we create a fake enum variant
+    /// to use it.
+    #[allow(dead_code)]
+    Phantom(std::marker::PhantomData<&'a ()>),
 }
 
 #[cfg(unix)]
