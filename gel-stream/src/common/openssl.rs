@@ -8,12 +8,10 @@ use openssl::{
 use rustls_pki_types::{CertificateDer, DnsName, ServerName};
 use std::{
     borrow::Cow,
-    io::IoSlice,
     pin::Pin,
     sync::{Arc, Mutex, MutexGuard, OnceLock},
     task::{ready, Poll},
 };
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::{
     LocalAddress, PeekableStream, RemoteAddress, ResolvedTarget, SslError, SslVersion, Stream,
@@ -55,75 +53,36 @@ pub struct OpensslDriver;
 ///
 /// At this time we use a Box<dyn Stream> because we cannot feed prefix bytes
 /// from a previewed connection back into a `tokio-openssl` stream.
-pub struct TlsStream(tokio_openssl::SslStream<Box<dyn Stream>>);
+#[derive(derive_io::AsyncRead, derive_io::AsyncWrite)]
+pub struct TlsStream(
+    #[read]
+    #[write(poll_shutdown=poll_shutdown)]
+    tokio_openssl::SslStream<Box<dyn Stream>>,
+);
 
-impl AsyncRead for TlsStream {
-    #[inline(always)]
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
-        Pin::new(&mut self.0).poll_read(cx, buf)
-    }
-}
+fn poll_shutdown(
+    this: Pin<&mut tokio_openssl::SslStream<Box<dyn Stream>>>,
+    cx: &mut std::task::Context<'_>,
+) -> std::task::Poll<std::io::Result<()>> {
+    use tokio::io::AsyncWrite;
+    let res = ready!(this.poll_shutdown(cx));
+    if let Err(e) = &res {
+        // Swallow NotConnected errors here
+        if e.kind() == std::io::ErrorKind::NotConnected {
+            return Poll::Ready(Ok(()));
+        }
 
-impl AsyncWrite for TlsStream {
-    #[inline(always)]
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &[u8],
-    ) -> std::task::Poll<std::io::Result<usize>> {
-        Pin::new(&mut self.0).poll_write(cx, buf)
-    }
-
-    #[inline(always)]
-    fn poll_write_vectored(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        bufs: &[IoSlice<'_>],
-    ) -> std::task::Poll<std::io::Result<usize>> {
-        Pin::new(&mut self.0).poll_write_vectored(cx, bufs)
-    }
-
-    #[inline(always)]
-    fn is_write_vectored(&self) -> bool {
-        self.0.is_write_vectored()
-    }
-
-    #[inline(always)]
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
-        Pin::new(&mut self.0).poll_flush(cx)
-    }
-
-    #[inline(always)]
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
-        let res = ready!(Pin::new(&mut self.0).poll_shutdown(cx));
-        if let Err(e) = &res {
-            // Swallow NotConnected errors here
-            if e.kind() == std::io::ErrorKind::NotConnected {
+        // Treat OpenSSL syscall errors during shutdown as graceful
+        if let Some(ssl_err) = e
+            .get_ref()
+            .and_then(|e| e.downcast_ref::<openssl::ssl::Error>())
+        {
+            if ssl_err.code() == openssl::ssl::ErrorCode::SYSCALL {
                 return Poll::Ready(Ok(()));
             }
-
-            // Treat OpenSSL syscall errors during shutdown as graceful
-            if let Some(ssl_err) = e
-                .get_ref()
-                .and_then(|e| e.downcast_ref::<openssl::ssl::Error>())
-            {
-                if ssl_err.code() == openssl::ssl::ErrorCode::SYSCALL {
-                    return Poll::Ready(Ok(()));
-                }
-            }
         }
-        Poll::Ready(res)
     }
+    Poll::Ready(res)
 }
 
 /// Cache for the WebPKI roots

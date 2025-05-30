@@ -435,7 +435,7 @@ impl<C> TlsAcceptBacklog<C> {
 mod tests {
     use super::*;
     use crate::{
-        Connector, OpensslDriver, RustlsDriver, Target, TlsKey, TlsParameters, TlsServerParameters,
+        Connector, OpensslDriver, RustlsDriver, Target, TlsParameters, TlsServerParameters,
     };
     use std::net::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -445,7 +445,7 @@ mod tests {
             SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
             PreviewConfiguration::default(),
             TlsServerParameterProvider::new(TlsServerParameters::new_with_certificate(
-                TlsKey::test_key(),
+                crate::test_keys::SERVER_KEY.clone_key(),
             )),
         );
 

@@ -79,10 +79,9 @@ use futures::TryStreamExt;
 #[tokio::main]
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Create a server that listens on all interfaces on a random port.
-    let tls_params = TlsServerParameters::new_with_certificate(TlsKey::new_pem(
-        include_bytes!("../tests/certs/server.key.pem"),
-        include_bytes!("../tests/certs/server.cert.pem"),
-    )?);
+    let tls_params = TlsServerParameters::new_with_certificate(
+        gel_stream::test_keys::SERVER_KEY.clone_key()
+    );
     let acceptor = Acceptor::new_tcp_tls(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
         TlsServerParameterProvider::new(tls_params),

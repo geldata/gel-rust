@@ -1,11 +1,10 @@
 use tokio::io::AsyncReadExt;
 #[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::io::{AsyncRead, ReadBuf};
 
 #[cfg(feature = "tokio")]
 use std::{
     any::Any,
-    io::IoSlice,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -166,8 +165,9 @@ struct UpgradableStreamOptions {
 }
 
 #[allow(private_bounds)]
-#[derive(derive_more::Debug)]
+#[derive(derive_more::Debug, derive_io::AsyncWrite)]
 pub struct UpgradableStream<S: Stream, D: TlsDriver = Ssl> {
+    #[write]
     inner: UpgradableStreamInner<S, D>,
     options: UpgradableStreamOptions,
 }
@@ -374,98 +374,6 @@ impl<S: Stream, D: TlsDriver> tokio::io::AsyncRead for UpgradableStream<S, D> {
     }
 }
 
-#[cfg(feature = "tokio")]
-impl<S: Stream, D: TlsDriver> tokio::io::AsyncWrite for UpgradableStream<S, D> {
-    #[inline(always)]
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &[u8],
-    ) -> std::task::Poll<Result<usize, std::io::Error>> {
-        let inner = &mut self.get_mut().inner;
-        match inner {
-            UpgradableStreamInner::BaseClient(base, _) => Pin::new(base).poll_write(cx, buf),
-            UpgradableStreamInner::BaseServer(base, _) => Pin::new(base).poll_write(cx, buf),
-            UpgradableStreamInner::BaseServerPreview(base, _) => Pin::new(base).poll_write(cx, buf),
-            UpgradableStreamInner::Upgraded(upgraded, _) => Pin::new(upgraded).poll_write(cx, buf),
-            UpgradableStreamInner::UpgradedPreview(upgraded, _) => {
-                Pin::new(upgraded).poll_write(cx, buf)
-            }
-        }
-    }
-
-    #[inline(always)]
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), std::io::Error>> {
-        let inner = &mut self.get_mut().inner;
-        match inner {
-            UpgradableStreamInner::BaseClient(base, _) => Pin::new(base).poll_flush(cx),
-            UpgradableStreamInner::BaseServer(base, _) => Pin::new(base).poll_flush(cx),
-            UpgradableStreamInner::BaseServerPreview(base, _) => Pin::new(base).poll_flush(cx),
-            UpgradableStreamInner::Upgraded(upgraded, _) => Pin::new(upgraded).poll_flush(cx),
-            UpgradableStreamInner::UpgradedPreview(upgraded, _) => {
-                Pin::new(upgraded).poll_flush(cx)
-            }
-        }
-    }
-
-    #[inline(always)]
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), std::io::Error>> {
-        let inner = &mut self.get_mut().inner;
-        match inner {
-            UpgradableStreamInner::BaseClient(base, _) => Pin::new(base).poll_shutdown(cx),
-            UpgradableStreamInner::BaseServer(base, _) => Pin::new(base).poll_shutdown(cx),
-            UpgradableStreamInner::BaseServerPreview(base, _) => Pin::new(base).poll_shutdown(cx),
-            UpgradableStreamInner::Upgraded(upgraded, _) => Pin::new(upgraded).poll_shutdown(cx),
-            UpgradableStreamInner::UpgradedPreview(upgraded, _) => {
-                Pin::new(upgraded).poll_shutdown(cx)
-            }
-        }
-    }
-
-    #[inline(always)]
-    fn is_write_vectored(&self) -> bool {
-        match &self.inner {
-            UpgradableStreamInner::BaseClient(base, _) => base.is_write_vectored(),
-            UpgradableStreamInner::BaseServer(base, _) => base.is_write_vectored(),
-            UpgradableStreamInner::BaseServerPreview(base, _) => base.is_write_vectored(),
-            UpgradableStreamInner::Upgraded(upgraded, _) => upgraded.is_write_vectored(),
-            UpgradableStreamInner::UpgradedPreview(upgraded, _) => upgraded.is_write_vectored(),
-        }
-    }
-
-    #[inline(always)]
-    fn poll_write_vectored(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        bufs: &[std::io::IoSlice<'_>],
-    ) -> std::task::Poll<Result<usize, std::io::Error>> {
-        let inner = &mut self.get_mut().inner;
-        match inner {
-            UpgradableStreamInner::BaseClient(base, _) => {
-                Pin::new(base).poll_write_vectored(cx, bufs)
-            }
-            UpgradableStreamInner::BaseServer(base, _) => {
-                Pin::new(base).poll_write_vectored(cx, bufs)
-            }
-            UpgradableStreamInner::BaseServerPreview(base, _) => {
-                Pin::new(base).poll_write_vectored(cx, bufs)
-            }
-            UpgradableStreamInner::Upgraded(upgraded, _) => {
-                Pin::new(upgraded).poll_write_vectored(cx, bufs)
-            }
-            UpgradableStreamInner::UpgradedPreview(upgraded, _) => {
-                Pin::new(upgraded).poll_write_vectored(cx, bufs)
-            }
-        }
-    }
-}
-
 impl<S: Stream, D: TlsDriver> LocalAddress for UpgradableStream<S, D> {
     fn local_address(&self) -> std::io::Result<ResolvedTarget> {
         self.inner
@@ -486,18 +394,43 @@ impl<S: Stream, D: TlsDriver> StreamMetadata for UpgradableStream<S, D> {
     }
 }
 
-#[derive(derive_more::Debug)]
+#[derive(derive_more::Debug, derive_io::AsyncRead, derive_io::AsyncWrite)]
 enum UpgradableStreamInner<S: Stream, D: TlsDriver> {
     #[debug("BaseClient(..)")]
-    BaseClient(S, Option<D::ClientParams>),
+    BaseClient(
+        #[read]
+        #[write]
+        S,
+        Option<D::ClientParams>,
+    ),
     #[debug("BaseServer(..)")]
-    BaseServer(S, Option<TlsServerParameterProvider>),
+    BaseServer(
+        #[read]
+        #[write]
+        S,
+        Option<TlsServerParameterProvider>,
+    ),
     #[debug("Preview(..)")]
-    BaseServerPreview(RewindStream<S>, Option<TlsServerParameterProvider>),
+    BaseServerPreview(
+        #[read]
+        #[write]
+        RewindStream<S>,
+        Option<TlsServerParameterProvider>,
+    ),
     #[debug("Upgraded(..)")]
-    Upgraded(D::Stream, TlsHandshake),
+    Upgraded(
+        #[read]
+        #[write]
+        D::Stream,
+        TlsHandshake,
+    ),
     #[debug("Upgraded(..)")]
-    UpgradedPreview(RewindStream<D::Stream>, TlsHandshake),
+    UpgradedPreview(
+        #[read]
+        #[write]
+        RewindStream<D::Stream>,
+        TlsHandshake,
+    ),
 }
 
 impl<S: Stream, D: TlsDriver> UpgradableStreamInner<S, D> {
@@ -517,8 +450,10 @@ pub trait Rewindable {
 }
 
 /// A stream that can be rewound.
+#[derive(derive_io::AsyncWrite)]
 pub(crate) struct RewindStream<S> {
     buffer: Vec<u8>,
+    #[write]
     inner: S,
 }
 
@@ -555,48 +490,6 @@ impl<S: AsyncRead + Unpin> AsyncRead for RewindStream<S> {
         } else {
             Pin::new(&mut self.inner).poll_read(cx, buf)
         }
-    }
-}
-
-#[cfg(feature = "tokio")]
-impl<S: AsyncWrite + Unpin> AsyncWrite for RewindStream<S> {
-    #[inline(always)]
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        Pin::new(&mut self.inner).poll_write(cx, buf)
-    }
-
-    #[inline(always)]
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.inner).poll_flush(cx)
-    }
-
-    #[inline(always)]
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.inner).poll_shutdown(cx)
-    }
-
-    #[inline(always)]
-    fn is_write_vectored(&self) -> bool {
-        self.inner.is_write_vectored()
-    }
-
-    #[inline(always)]
-    fn poll_write_vectored(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        bufs: &[IoSlice<'_>],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        Pin::new(&mut self.inner).poll_write_vectored(cx, bufs)
     }
 }
 

@@ -37,7 +37,7 @@ pub struct PostgresBuilder {
     bin_path: PostgresBinPath,
     data_dir: Option<PathBuf>,
     server_options: HashMap<String, String>,
-    ssl_cert_and_key: Option<(PathBuf, PathBuf)>,
+    ssl_cert_and_key: Option<(String, String)>,
     unix_enabled: bool,
     debug_level: Option<u8>,
     standby_of_port: Option<u16>,
@@ -78,10 +78,8 @@ impl PostgresBuilder {
                 // No special configuration needed for TCP mode
             }
             Mode::TcpSsl => {
-                let certs_dir = test_data_dir().join("certs");
-                let cert = certs_dir.join("server.cert.pem");
-                let key = certs_dir.join("server.key.pem");
-                self.ssl_cert_and_key = Some((cert, key));
+                use gel_stream::test_keys::raw::*;
+                self.ssl_cert_and_key = Some((SERVER_CERT.to_string(), SERVER_KEY.to_string()));
             }
             Mode::Unix => {
                 self.unix_enabled = true;
@@ -127,8 +125,8 @@ impl PostgresBuilder {
         self
     }
 
-    pub fn enable_ssl(mut self, cert_path: PathBuf, key_path: PathBuf) -> Self {
-        self.ssl_cert_and_key = Some((cert_path, key_path));
+    pub fn enable_ssl(mut self, cert: String, key: String) -> Self {
+        self.ssl_cert_and_key = Some((cert, key));
         self
     }
 
@@ -386,16 +384,16 @@ fn run_postgres(
     mut command: Command,
     data_dir: &Path,
     socket_path: Option<impl AsRef<Path>>,
-    ssl: Option<(PathBuf, PathBuf)>,
+    ssl: Option<(String, String)>,
     port: u16,
 ) -> std::io::Result<std::process::Child> {
     let socket_path = socket_path.map(|path| path.as_ref().to_owned());
 
-    if let Some((cert_path, key_path)) = ssl {
+    if let Some((cert_pem, key_pem)) = ssl {
         let postgres_cert_path = data_dir.join("server.crt");
         let postgres_key_path = data_dir.join("server.key");
-        std::fs::copy(cert_path, &postgres_cert_path)?;
-        std::fs::copy(key_path, &postgres_key_path)?;
+        std::fs::write(&postgres_cert_path, cert_pem)?;
+        std::fs::write(&postgres_key_path, key_pem)?;
 
         #[cfg(unix)]
         {
@@ -512,17 +510,6 @@ fn run_postgres(
         std::io::ErrorKind::TimedOut,
         "PostgreSQL failed to start within 30 seconds",
     ))
-}
-
-fn test_data_dir() -> std::path::PathBuf {
-    let cargo_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../gel-stream/tests");
-    if cargo_path.exists() {
-        cargo_path
-    } else {
-        Path::new("../gel-stream/tests")
-            .canonicalize()
-            .expect("Failed to canonicalize tests directory path")
-    }
 }
 
 fn postgres_bin_dir() -> std::io::Result<std::path::PathBuf> {

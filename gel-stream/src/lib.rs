@@ -37,18 +37,18 @@ pub const DEFAULT_TLS_BACKLOG: u32 = 128;
 /// The default preview buffer size for the server.
 pub const DEFAULT_PREVIEW_BUFFER_SIZE: u32 = 8;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Error, derive_more::Display, derive_more::From)]
 pub enum ConnectionError {
     /// I/O error encountered during connection operations.
-    #[error("I/O error: {0}")]
+    #[display("I/O error: {_0}")]
     Io(#[from] std::io::Error),
 
     /// UTF-8 decoding error.
-    #[error("UTF8 error: {0}")]
+    #[display("UTF8 error: {_0}")]
     Utf8Error(#[from] std::str::Utf8Error),
 
     /// SSL-related error.
-    #[error("SSL error: {0}")]
+    #[display("SSL error: {_0}")]
     SslError(#[from] SslError),
 }
 
@@ -62,39 +62,43 @@ impl From<ConnectionError> for std::io::Error {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Error, derive_more::Display, derive_more::From)]
 pub enum SslError {
-    #[error("SSL is not supported by this transport")]
+    #[display("SSL is not supported by this transport")]
     SslUnsupported,
-    #[error("SSL is already upgraded or is in the process of upgrading")]
+    #[display("SSL is already upgraded or is in the process of upgrading")]
     SslAlreadyUpgraded,
 
     #[cfg(feature = "openssl")]
-    #[error("OpenSSL error: {0}")]
+    #[display("OpenSSL error: {_0}")]
     OpenSslError(#[from] ::openssl::ssl::Error),
     #[cfg(feature = "openssl")]
-    #[error("OpenSSL error: {0}")]
+    #[display("OpenSSL error: {_0}")]
     OpenSslErrorStack(#[from] ::openssl::error::ErrorStack),
     #[cfg(feature = "openssl")]
-    #[error("OpenSSL certificate verification error: {0}")]
+    #[display("OpenSSL certificate verification error: {_0}")]
     OpenSslErrorVerify(#[from] ::openssl::x509::X509VerifyResult),
 
     #[cfg(feature = "rustls")]
-    #[error("Rustls error: {0}")]
+    #[display("Rustls error: {_0}")]
     RustlsError(#[from] ::rustls::Error),
 
     #[cfg(feature = "rustls")]
-    #[error("Webpki error: {0}")]
-    WebpkiError(::webpki::Error),
+    #[display("Webpki error: {_0}")]
+    WebpkiError(
+        #[from]
+        #[error(not(source))]
+        ::webpki::Error,
+    ),
 
     #[cfg(feature = "rustls")]
-    #[error("Verifier builder error: {0}")]
+    #[display("Verifier builder error: {_0}")]
     VerifierBuilderError(#[from] ::rustls::server::VerifierBuilderError),
 
-    #[error("Invalid DNS name: {0}")]
+    #[display("Invalid DNS name: {_0}")]
     InvalidDnsNameError(#[from] ::rustls_pki_types::InvalidDnsNameError),
 
-    #[error("SSL I/O error: {0}")]
+    #[display("SSL I/O error: {_0}")]
     SslIoError(#[from] std::io::Error),
 }
 
@@ -175,16 +179,88 @@ impl SslError {
     }
 }
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
+#[derive(
+    Debug,
+    derive_more::Error,
+    derive_more::Display,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Clone,
+    Copy,
+    Hash,
+)]
 pub enum CommonError {
-    #[error("The certificate's subject name(s) do not match the name of the host")]
+    #[display("The certificate's subject name(s) do not match the name of the host")]
     InvalidCertificateForName,
-    #[error("The certificate has been revoked")]
+    #[display("The certificate has been revoked")]
     CertificateRevoked,
-    #[error("The certificate has expired")]
+    #[display("The certificate has expired")]
     CertificateExpired,
-    #[error("The certificate was issued by an untrusted authority")]
+    #[display("The certificate was issued by an untrusted authority")]
     InvalidIssuer,
-    #[error("TLS protocol error")]
+    #[display("TLS protocol error")]
     InvalidTlsProtocolData,
+}
+
+#[cfg(feature = "__test_keys")]
+pub mod test_keys {
+    macro_rules! include_files {
+        ($($name:ident : $type:path => $path:literal),*) => {
+            /// Raw PEM text from the test files.
+            pub mod raw {
+                $(
+                    #[doc = concat!("Test key: ", $path)]
+                    pub static $name: &str = include_str!(concat!("../tests/", $path));
+                )*
+            }
+
+            #[cfg(feature = "pem")]
+            pub mod binary {
+                use std::sync::LazyLock;
+                $(
+                    #[doc = concat!("Test key: ", $path)]
+                    pub static $name: LazyLock<$type> = LazyLock::new(
+                        || rustls_pki_types::pem::PemObject::from_pem_slice($crate::test_keys::raw::$name.as_bytes()).unwrap()
+                    );
+                )*
+            }
+        }
+    }
+
+    include_files!(
+        SERVER_KEY: rustls_pki_types::PrivateKeyDer => "certs/server.key.pem",
+        SERVER_CERT: rustls_pki_types::CertificateDer => "certs/server.cert.pem",
+        SERVER_ALT_KEY: rustls_pki_types::PrivateKeyDer => "certs/server-alt.key.pem",
+        SERVER_ALT_CERT: rustls_pki_types::CertificateDer => "certs/server-alt.cert.pem",
+        CLIENT_KEY_PROTECTED: rustls_pki_types::PrivateKeyDer => "certs/client.key.protected.pem",
+        CLIENT_KEY: rustls_pki_types::PrivateKeyDer => "certs/client.key.pem",
+        CLIENT_CERT: rustls_pki_types::CertificateDer => "certs/client.cert.pem",
+        CLIENT_CA_KEY: rustls_pki_types::PrivateKeyDer => "certs/client_ca.key.pem",
+        CLIENT_CA_CERT: rustls_pki_types::CertificateDer => "certs/client_ca.cert.pem",
+        CA_KEY: rustls_pki_types::PrivateKeyDer => "certs/ca.key.pem",
+        CA_CRL: rustls_pki_types::CertificateRevocationListDer => "certs/ca.crl.pem",
+        CA_CERT: rustls_pki_types::CertificateDer => "certs/ca.cert.pem"
+    );
+
+    use std::sync::LazyLock;
+
+    #[cfg(feature = "pem")]
+    pub static SERVER_KEY: LazyLock<crate::TlsKey> = LazyLock::new(|| {
+        crate::TlsKey::new(binary::SERVER_KEY.clone_key(), binary::SERVER_CERT.clone())
+    });
+
+    #[cfg(feature = "pem")]
+    pub static SERVER_ALT_KEY: LazyLock<crate::TlsKey> = LazyLock::new(|| {
+        crate::TlsKey::new(
+            binary::SERVER_ALT_KEY.clone_key(),
+            binary::SERVER_ALT_CERT.clone(),
+        )
+    });
+
+    #[cfg(feature = "pem")]
+    pub static CLIENT_KEY: LazyLock<crate::TlsKey> = LazyLock::new(|| {
+        crate::TlsKey::new(binary::CLIENT_KEY.clone_key(), binary::CLIENT_CERT.clone())
+    });
 }
