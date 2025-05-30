@@ -14,8 +14,8 @@ use std::{
 };
 
 use crate::{
-    LocalAddress, PeekableStream, RemoteAddress, ResolvedTarget, SslError, SslVersion, Stream,
-    StreamMetadata, TlsCert, TlsClientCertVerify, TlsDriver, TlsHandshake, TlsParameters,
+    LocalAddress, PeekableStream, PeerCred, RemoteAddress, ResolvedTarget, SslError, SslVersion,
+    Stream, StreamMetadata, TlsCert, TlsClientCertVerify, TlsDriver, TlsHandshake, TlsParameters,
     TlsServerCertVerify, TlsServerParameterProvider, TlsServerParameters, Transport,
 };
 
@@ -500,6 +500,13 @@ impl PeekableStream for TlsStream {
 impl StreamMetadata for TlsStream {
     fn transport(&self) -> Transport {
         self.0.get_ref().transport()
+    }
+}
+
+impl PeerCred for TlsStream {
+    #[cfg(all(unix, feature = "tokio"))]
+    fn peer_cred(&self) -> std::io::Result<tokio::net::unix::UCred> {
+        self.0.get_ref().peer_cred()
     }
 }
 

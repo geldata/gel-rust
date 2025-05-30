@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
-use std::sync::Arc;
 use std::{future::Future, str::FromStr, task::Poll};
 
 use crate::{MaybeResolvedTarget, ResolvedTarget, TargetName, TcpResolve};
@@ -9,7 +8,7 @@ use crate::{MaybeResolvedTarget, ResolvedTarget, TargetName, TcpResolve};
 #[derive(Clone)]
 pub struct Resolver {
     #[cfg(feature = "hickory")]
-    resolver: Arc<hickory_resolver::TokioResolver>,
+    resolver: std::sync::Arc<hickory_resolver::TokioResolver>,
 }
 
 #[cfg(feature = "tokio")]

@@ -14,9 +14,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadBuf};
 
 use super::tokio_stream::TokioStream;
 use crate::{
-    LocalAddress, RemoteAddress, ResolvedTarget, RewindStream, SslError, SslVersion, Stream,
-    StreamMetadata, TlsClientCertVerify, TlsDriver, TlsHandshake, TlsServerParameterProvider,
-    TlsServerParameters, Transport,
+    LocalAddress, PeerCred, RemoteAddress, ResolvedTarget, RewindStream, SslError, SslVersion,
+    Stream, StreamMetadata, TlsClientCertVerify, TlsDriver, TlsHandshake,
+    TlsServerParameterProvider, TlsServerParameters, Transport,
 };
 use crate::{TlsCert, TlsParameters, TlsServerCertVerify};
 use std::borrow::Cow;
@@ -647,6 +647,16 @@ impl LocalAddress for TlsStream {
 impl RemoteAddress for TlsStream {
     fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
         self.peer_addr().map(|addr| ResolvedTarget::from(addr))
+    }
+}
+
+impl PeerCred for TlsStream {
+    #[cfg(all(unix, feature = "tokio"))]
+    fn peer_cred(&self) -> std::io::Result<tokio::net::unix::UCred> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "TCP streams do not support peer credentials",
+        ))
     }
 }
 

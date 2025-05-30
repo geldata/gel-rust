@@ -102,9 +102,9 @@ pub enum SslError {
     SslIoError(#[from] std::io::Error),
 }
 
-impl Into<std::io::Error> for SslError {
-    fn into(self) -> std::io::Error {
-        match self {
+impl From<SslError> for std::io::Error {
+    fn from(err: SslError) -> Self {
+        match err {
             SslError::SslIoError(e) => e,
             other => std::io::Error::new(std::io::ErrorKind::Other, other),
         }
