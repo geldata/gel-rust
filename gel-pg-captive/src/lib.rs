@@ -276,7 +276,7 @@ fn spawn(command: &mut Command) -> std::io::Result<()> {
         while start.elapsed() < Duration::from_secs(30) {
             if handle.is_finished() {
                 let handle = handle.join().map_err(|e| {
-                    std::io::Error::new(std::io::ErrorKind::Other, format!("{e:?}"))
+                    std::io::Error::other(format!("{e:?}"))
                 })??;
                 return Ok(handle);
             }
@@ -290,7 +290,7 @@ fn spawn(command: &mut Command) -> std::io::Result<()> {
         }
         handle
             .join()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{e:?}")))?
+            .map_err(|e| std::io::Error::other(format!("{e:?}")))?
     })?;
     eprintln!("{program}: {}", output.status);
     let status = output.status;
@@ -317,8 +317,7 @@ fn spawn(command: &mut Command) -> std::io::Result<()> {
         eprintln!("{program}: No output\n");
     }
     if !status.success() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        return Err(std::io::Error::other(
             format!("{program} failed with: {}", status),
         ));
     }
