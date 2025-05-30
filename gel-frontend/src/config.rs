@@ -3,7 +3,7 @@ use gel_jwt::{Key, KeyRegistry};
 use gel_stream::{ResolvedTarget, TlsKey, TlsServerParameterProvider, TlsServerParameters};
 use std::{
     net::{SocketAddr, ToSocketAddrs},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
@@ -95,9 +95,18 @@ impl ListenerConfig for TestListenerConfig {
         true
     }
 
+    fn ssl_config(&self) -> Result<TlsServerParameterProvider, ()> {
+        Ok(TlsServerParameterProvider::new(
+            TlsServerParameters::new_with_certificate(
+                gel_stream::test_keys::SERVER_KEY.clone_key(),
+            ),
+        ))
+    }
+
     fn jwt_key(&self) -> Result<KeyRegistry<Key>, ()> {
         let mut key = KeyRegistry::new();
-        key.generate_key(None, gel_jwt::KeyType::ES256);
+        key.generate_key(None, gel_jwt::KeyType::ES256)
+            .map_err(|_| ())?;
         Ok(key)
     }
 

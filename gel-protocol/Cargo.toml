@@ -13,6 +13,9 @@ readme = "README.md"
 rust-version.workspace = true
 
 [dependencies]
+gel-errors = {path = "../gel-errors", version = "^0.5.3" }
+gel-db-protocol = {path = "../gel-db-protocol", version = "^0.1.1" }
+
 bytes = "1.5.0"
 snafu = {version="0.8.0", features=["backtrace"]}
 uuid = "1.1.2"
@@ -23,8 +26,7 @@ chrono = {version="0.4.23", optional=true, features=["std"], default-features=fa
 bitflags = "2.4.0"
 serde = {version="1.0.190", features = ["derive"], optional=true}
 serde_json = {version="1", optional=true}
-gel-errors = {path = "../gel-errors", version = "^0.5.3" }
-gel-db-protocol = {path = "../gel-db-protocol", version = "^0.1.1" }
+derive_more = { version = "2", default-features = false, features = ["error", "display", "debug"] }
 
 [features]
 default = []
@@ -33,6 +35,7 @@ with-bigdecimal = ["bigdecimal", "num-bigint", "num-traits"]
 with-chrono = ["chrono"]
 all-types = ["with-num-bigint", "with-bigdecimal", "with-chrono"]
 with-serde = ["serde", "serde_json"]
+__new-protocol = []
 
 [dev-dependencies]
 rand = "0.9"

@@ -604,6 +604,11 @@ pub trait RemoteAddress {
     fn remote_address(&self) -> std::io::Result<ResolvedTarget>;
 }
 
+pub trait PeerCred {
+    #[cfg(all(unix, feature = "tokio"))]
+    fn peer_cred(&self) -> std::io::Result<tokio::net::unix::UCred>;
+}
+
 /// The transport of a stream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Transport {
@@ -612,7 +617,7 @@ pub enum Transport {
 }
 
 /// A trait for stream metadata.
-pub trait StreamMetadata: LocalAddress + RemoteAddress + Send {
+pub trait StreamMetadata: LocalAddress + RemoteAddress + PeerCred + Send {
     fn transport(&self) -> Transport;
 }
 

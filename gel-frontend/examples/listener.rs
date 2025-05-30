@@ -1,11 +1,11 @@
 use std::{future::Future, time::Duration};
 
-use edb_frontend::config::*;
-use edb_frontend::listener::*;
-use edb_frontend::service::*;
-use edb_frontend::stream::*;
 use gel_auth::AuthType;
 use gel_auth::CredentialData;
+use gel_frontend::config::TestListenerConfig;
+use gel_frontend::listener::BoundServer;
+use gel_frontend::service::{AuthTarget, BabelfishService, ConnectionIdentity, StreamLanguage};
+use gel_frontend::stream::ListenerStream;
 use hyper::Response;
 use tokio::io::AsyncReadExt;
 use tokio::io::ReadBuf;

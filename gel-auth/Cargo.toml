@@ -14,10 +14,11 @@ workspace = true
 [features]
 full = ["postgres", "gel"]
 postgres = ["dep:gel-pg-protocol"]
-gel = []
+gel = ["dep:gel-protocol"]
 
 [dependencies]
 gel-pg-protocol = { version = "0.1", path = "../gel-pg-protocol", optional = true }
+gel-protocol = { version = "0.8", path = "../gel-protocol", optional = true, features = ["__new-protocol"] }
 
 tracing.workspace = true
 md5 = "0.7.0"

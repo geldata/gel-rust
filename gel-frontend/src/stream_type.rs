@@ -372,9 +372,6 @@ pub async fn identify_stream(
         }
     }
 
-    // Rewind the stream
-    socket.rewind(&preface[..read]);
-
     // Identify the connection
     let res = identify_connection(state, &preface);
     trace!(

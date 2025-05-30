@@ -216,6 +216,41 @@ impl Acceptor<true> {
         }
     }
 
+    /// Create a new acceptor that will preview the first
+    /// [`PreviewConfiguration::max_preview_bytes`] bytes of the connection.
+    pub fn new_tls_previewing(
+        addr: ResolvedTarget,
+        preview_configuration: PreviewConfiguration,
+        provider: TlsServerParameterProvider,
+    ) -> Self {
+        Self {
+            resolved_target: addr,
+            tls_provider: Some(provider),
+            should_upgrade: false,
+            options: StreamOptions {
+                preview_configuration: Some(preview_configuration),
+                ..Default::default()
+            },
+        }
+    }
+
+    /// Create a new acceptor that will preview the first
+    /// [`PreviewConfiguration::max_preview_bytes`] bytes of the connection.
+    pub fn new_previewing(
+        addr: ResolvedTarget,
+        preview_configuration: PreviewConfiguration,
+    ) -> Self {
+        Self {
+            resolved_target: addr,
+            tls_provider: None,
+            should_upgrade: false,
+            options: StreamOptions {
+                preview_configuration: Some(preview_configuration),
+                ..Default::default()
+            },
+        }
+    }
+
     pub async fn bind(
         self,
     ) -> Result<

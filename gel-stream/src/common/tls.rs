@@ -374,7 +374,7 @@ impl TlsAlpn {
         }
     }
 
-    pub fn new_str(alpn: &'static [&'static str]) -> Self {
+    pub fn new_str(alpn: &[&'static str]) -> Self {
         let alpn = alpn
             .iter()
             .map(|s| Cow::Borrowed(s.as_bytes()))

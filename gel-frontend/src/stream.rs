@@ -2,13 +2,13 @@ use crate::{
     hyper::{HyperStream, HyperUpgradedStream},
     stream_type::{known_protocol, StreamType},
 };
-use gel_stream::ResolvedTarget;
+use gel_stream::{
+    Preview, PreviewConfiguration, RawStream, RemoteAddress, ResolvedTarget, StreamUpgrade,
+};
 use hyper::{HeaderMap, Version};
 use std::{collections::HashMap, sync::Arc};
 use strum::IntoDiscriminant;
-use tokio::net::{unix::UCred, TcpStream, UnixStream};
-use tracing::error;
-use x509_parser::prelude::X509Certificate;
+use tokio::net::unix::UCred;
 
 macro_rules! stream_properties {
     (
@@ -94,7 +94,7 @@ stream_properties! {
     /// The stream parameters (for PG/EDB connections)
     pub stream_params: Option<HashMap<String, String>>,
     /// The peer's SSL certificate (for SSL connections)
-    pub peer_certificate: Option<x509_parser::x509::X509Certificate>,
+    pub peer_certificate: Option<x509_parser::prelude::X509Certificate<'static>>,
     /// The SSL/TLS version.
     pub ssl_version: Option<gel_stream::SslVersion>,
     /// The SSL/TLS version.
@@ -109,6 +109,7 @@ stream_properties! {
 /// dispatches to the appropriate underlying stream type.
 #[derive(derive_io::AsyncRead, derive_io::AsyncWrite)]
 pub struct ListenerStream {
+    preview: Option<Preview>,
     stream_properties: Arc<StreamProperties>,
     #[read]
     #[write]
@@ -151,22 +152,24 @@ pub enum ListenerStreamInner {
 }
 
 impl ListenerStream {
-    pub fn new_tcp(stream: TcpStream) -> Self {
+    pub fn new_tcp(stream: RawStream, preview: Preview) -> Self {
         let stream_properties = StreamProperties {
-            peer_addr: stream.peer_addr().ok().map(|s| s.into()),
-            local_addr: stream.peer_addr().ok().map(|s| s.into()),
+            peer_addr: stream.remote_address().ok().map(|s| s.into()),
+            local_addr: stream.remote_address().ok().map(|s| s.into()),
             ..StreamProperties::new(TransportType::Tcp)
         }
         .into();
         ListenerStream {
             stream_properties,
-            inner: ListenerStreamInner::Tcp(RewindStream::new(stream)),
+            preview: Some(preview),
+            inner: ListenerStreamInner::Tcp(stream),
         }
     }
 
     #[cfg(unix)]
     pub fn new_unix(
-        stream: UnixStream,
+        stream: RawStream,
+        preview: Preview,
         local_addr: Option<ResolvedTarget>,
         peer_addr: Option<ResolvedTarget>,
         peer_creds: Option<UCred>,
@@ -180,61 +183,50 @@ impl ListenerStream {
         .into();
         ListenerStream {
             stream_properties,
-            inner: ListenerStreamInner::Unix(RewindStream::new(stream)),
+            preview: Some(preview),
+            inner: ListenerStreamInner::Unix(stream),
         }
     }
 
     pub fn new_websocket(stream_props: StreamProperties, stream: HyperUpgradedStream) -> Self {
         ListenerStream {
             stream_properties: stream_props.into(),
+            preview: None,
             inner: ListenerStreamInner::WebSocket(stream),
         }
     }
 
-    pub fn rewind(&mut self, buffer: &[u8]) {
-        match &mut self.inner {
-            ListenerStreamInner::Tcp(stream) => stream.rewind(buffer),
-            ListenerStreamInner::Unix(stream) => stream.rewind(buffer),
-            ListenerStreamInner::Ssl(stream) => stream.rewind(buffer),
-            _ => unimplemented!(),
-        }
-    }
-
-    pub async fn start_ssl(self, ssl: openssl::ssl::Ssl) -> Result<Self, std::io::Error> {
+    pub async fn start_ssl(self) -> Result<Self, std::io::Error> {
         match self.inner {
             ListenerStreamInner::Tcp(stream) => {
                 let parent_stream_properties = self.stream_properties.clone();
 
-                let mut ssl_stream = tokio_openssl::SslStream::new(ssl, stream)?;
-                let is_server = ssl_stream.ssl().is_server();
-                let ssl = Pin::new(&mut ssl_stream);
-                if is_server {
-                    ssl.accept().await
-                } else {
-                    ssl.connect().await
-                }
-                .map_err(|e| {
-                    error!("{:?} {:?}", e.io_error(), e.ssl_error());
-                    std::io::Error::new(std::io::ErrorKind::InvalidData, e)
-                })?;
+                let (preview, ssl_stream) = stream
+                    .secure_upgrade_preview(PreviewConfiguration::default())
+                    .await
+                    .map_err(|e| std::io::Error::from(e))?;
 
-                let ssl = ssl_stream.ssl();
-                let stream_properties = StreamProperties {
+                let mut stream_properties = StreamProperties {
                     parent: Some(parent_stream_properties),
-                    protocol: ssl.selected_alpn_protocol().and_then(known_protocol),
-                    peer_certificate: ssl.peer_certificate(),
-                    ssl_version: ssl.version2(),
-                    ssl_cipher_name: ssl.current_cipher().map(|c| c.name()),
-                    server_name_indication: ssl
-                        .servername(NameType::HOST_NAME)
-                        .map(|s| s.to_string()),
                     ..StreamProperties::new(TransportType::Ssl)
+                };
+
+                if let Some(handshake) = ssl_stream.handshake() {
+                    stream_properties.server_name_indication =
+                        handshake.sni.as_ref().map(|s| s.as_ref().to_string());
+                    stream_properties.protocol =
+                        handshake.alpn.as_ref().and_then(|s| known_protocol(s));
+                    // TODO
+                    // stream_properties.peer_certificate = handshake.cert.map(|c| c.into());
+                    stream_properties.ssl_version = handshake.version;
+                    // TODO
+                    // stream_properties.ssl_cipher_name = handshake.cipher_name;
                 }
-                .into();
 
                 Ok(ListenerStream {
-                    stream_properties,
-                    inner: ListenerStreamInner::Ssl(RewindStream::new(ssl_stream)),
+                    stream_properties: stream_properties.into(),
+                    preview: Some(preview),
+                    inner: ListenerStreamInner::Ssl(ssl_stream),
                 })
             }
             _ => Err(std::io::Error::new(
@@ -280,6 +272,7 @@ impl ListenerStream {
     pub fn upgrade(self, props: StreamPropertiesBuilder) -> Self {
         Self {
             inner: self.inner,
+            preview: None,
             stream_properties: self.stream_properties.upgrade(props),
         }
     }
