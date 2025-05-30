@@ -298,11 +298,7 @@ async fn bind<C: ListenerConfig>(
     callback: Arc<Mutex<impl FnMut(Arc<C>, ListenerStream) + Send + Sync + 'static>>,
 ) -> Result<(ResolvedTarget, JoinHandle<std::io::Result<()>>), std::io::Error> {
     let acceptor = if let Some(tls_lookup) = tls_lookup {
-        Acceptor::new_tls_previewing(
-            addr.clone(),
-            PreviewConfiguration::default(),
-            tls_lookup,
-        )
+        Acceptor::new_tls_previewing(addr.clone(), PreviewConfiguration::default(), tls_lookup)
     } else {
         Acceptor::new_previewing(addr.clone(), PreviewConfiguration::default())
     };

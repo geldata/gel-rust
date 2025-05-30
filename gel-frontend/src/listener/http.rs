@@ -9,11 +9,7 @@ use hyper::{Request, StatusCode, upgrade::OnUpgrade};
 use hyper::{Response, server::conn::http2};
 use hyper_util::rt::TokioIo;
 use std::io::ErrorKind;
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::Arc,
-};
+use std::{future::Future, pin::Pin, sync::Arc};
 use tracing::{error, trace};
 
 use hyper::server::conn::http1;

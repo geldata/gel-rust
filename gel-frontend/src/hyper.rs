@@ -110,9 +110,7 @@ impl AsyncRead for HyperStream {
                             }
                             Poll::Ready(Ok(()))
                         }
-                        Poll::Ready(Some(Err(e))) => {
-                            Poll::Ready(Err(std::io::Error::other(e)))
-                        }
+                        Poll::Ready(Some(Err(e))) => Poll::Ready(Err(std::io::Error::other(e))),
                         Poll::Ready(None) => Poll::Ready(Ok(())),
                         Poll::Pending => Poll::Pending,
                     };
@@ -153,9 +151,7 @@ impl tokio::io::AsyncWrite for HyperStream {
                         Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
                             todo!("This need to register the waker!")
                         }
-                        Err(e) => {
-                            Poll::Ready(Err(std::io::Error::other(e)))
-                        }
+                        Err(e) => Poll::Ready(Err(std::io::Error::other(e))),
                     }
                 }
                 StreamState::Shutdown => Poll::Ready(Err(std::io::Error::new(

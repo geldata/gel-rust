@@ -114,7 +114,7 @@ pub async fn handle_stream_gel_binary(
     bound_config
         .service()
         .accept_stream(resolved_identity.unwrap(), StreamLanguage::EdgeDB, socket)
-        .await;
+        .await?;
 
     Ok(())
 }

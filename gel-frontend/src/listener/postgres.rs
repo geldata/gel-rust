@@ -24,9 +24,6 @@ pub async fn handle_stream_postgres_ssl(
     identity: ConnectionIdentityBuilder,
     bound_config: impl IsBoundConfig,
 ) -> Result<(), std::io::Error> {
-    let mut buf = [0; 8];
-    socket.read_exact(&mut buf).await;
-
     // Postgres checks to see if the socket is readable and fails here
     let peek = [0; 1];
     // let len = socket.peek(&mut peek).await?;
@@ -159,7 +156,7 @@ pub async fn handle_stream_postgres_initial(
     bound_config
         .service()
         .accept_stream(resolved_identity.unwrap(), StreamLanguage::Postgres, socket)
-        .await;
+        .await?;
 
     Ok(())
 }
