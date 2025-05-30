@@ -275,9 +275,9 @@ fn spawn(command: &mut Command) -> std::io::Result<()> {
         let start = Instant::now();
         while start.elapsed() < Duration::from_secs(30) {
             if handle.is_finished() {
-                let handle = handle.join().map_err(|e| {
-                    std::io::Error::other(format!("{e:?}"))
-                })??;
+                let handle = handle
+                    .join()
+                    .map_err(|e| std::io::Error::other(format!("{e:?}")))??;
                 return Ok(handle);
             }
             std::thread::sleep(HOT_LOOP_INTERVAL);
@@ -317,9 +317,10 @@ fn spawn(command: &mut Command) -> std::io::Result<()> {
         eprintln!("{program}: No output\n");
     }
     if !status.success() {
-        return Err(std::io::Error::other(
-            format!("{program} failed with: {}", status),
-        ));
+        return Err(std::io::Error::other(format!(
+            "{program} failed with: {}",
+            status
+        )));
     }
 
     Ok(())
