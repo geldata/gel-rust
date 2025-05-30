@@ -74,6 +74,12 @@ impl ConnectionStateUpdate for ConnectionDriver {
     }
 }
 
+impl Default for ConnectionDriver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConnectionDriver {
     pub fn new() -> Self {
         Self {
@@ -232,7 +238,7 @@ async fn test_smoke() -> Result<(), Box<dyn std::error::Error>> {
     let (_socket, params) = connect_raw_ssl(credentials, ssl_requirement, target).await?;
 
     assert_eq!(params.auth, AuthType::Trust);
-    assert_eq!(params.ssl, true);
+    assert!(params.ssl);
 
     Ok(())
 }
