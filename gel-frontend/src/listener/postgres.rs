@@ -11,7 +11,7 @@ use gel_auth::postgres::server::{ConnectionDrive, ConnectionEvent, ServerState};
 use gel_pg_protocol::errors::{PgError, PgErrorInvalidAuthorizationSpecification};
 use std::collections::HashMap;
 use std::sync::{
-    Arc, Mutex,
+    Mutex,
     atomic::{AtomicBool, Ordering},
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

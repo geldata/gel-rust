@@ -7,7 +7,7 @@ use gel_auth::gel::EdbError;
 use gel_auth::gel::server::{ConnectionDrive, ConnectionEvent, ServerState};
 use std::collections::HashMap;
 use std::sync::{
-    Arc, Mutex,
+    Mutex,
     atomic::{AtomicBool, Ordering},
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

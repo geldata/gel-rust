@@ -1,7 +1,7 @@
 use super::{IsBoundConfig, handle_connection_inner};
 use crate::hyper::HyperUpgradedStream;
 use crate::{
-    service::{BabelfishService, ConnectionIdentityBuilder},
+    service::ConnectionIdentityBuilder,
     stream::{ListenerStream, StreamProperties, TransportType},
     stream_type::{StreamState, negotiate_ws_protocol},
 };
@@ -11,8 +11,8 @@ use hyper_util::rt::TokioIo;
 use std::io::ErrorKind;
 use std::{
     future::Future,
-    pin::{Pin, pin},
-    sync::{Arc, Mutex},
+    pin::Pin,
+    sync::Arc,
 };
 use tracing::{error, trace};
 

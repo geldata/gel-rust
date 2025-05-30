@@ -155,8 +155,8 @@ pub enum ListenerStreamInner {
 impl ListenerStream {
     pub fn new_tcp(stream: RawStream, preview: Preview) -> Self {
         let stream_properties = StreamProperties {
-            peer_addr: stream.remote_address().ok().map(|s| s.into()),
-            local_addr: stream.remote_address().ok().map(|s| s.into()),
+            peer_addr: stream.remote_address().ok(),
+            local_addr: stream.remote_address().ok(),
             ..StreamProperties::new(TransportType::Tcp)
         }
         .into();
@@ -206,7 +206,7 @@ impl ListenerStream {
                 let (preview, ssl_stream) = stream
                     .secure_upgrade_preview(PreviewConfiguration::default())
                     .await
-                    .map_err(|e| std::io::Error::from(e))?;
+                    .map_err(std::io::Error::from)?;
 
                 let mut stream_properties = StreamProperties {
                     parent: Some(parent_stream_properties),

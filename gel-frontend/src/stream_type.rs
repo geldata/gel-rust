@@ -352,7 +352,7 @@ pub async fn identify_stream(
             "Identified connection via preface: {:?} -> {res:?}",
             preface
         );
-        return res;
+        res
     } else {
         Err(UnknownStreamType::Unknown)
     }

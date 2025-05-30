@@ -301,7 +301,7 @@ async fn bind<C: ListenerConfig>(
         Acceptor::new_tls_previewing(
             addr.clone(),
             PreviewConfiguration::default(),
-            tls_lookup.into(),
+            tls_lookup,
         )
     } else {
         Acceptor::new_previewing(addr.clone(), PreviewConfiguration::default())

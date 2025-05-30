@@ -1,10 +1,9 @@
 use futures::{Stream, StreamExt, stream};
 use gel_jwt::{Key, KeyRegistry};
-use gel_stream::{ResolvedTarget, TlsKey, TlsServerParameterProvider, TlsServerParameters};
+use gel_stream::{ResolvedTarget, TlsServerParameterProvider, TlsServerParameters};
 use std::{
     net::{SocketAddr, ToSocketAddrs},
-    path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 use crate::{
