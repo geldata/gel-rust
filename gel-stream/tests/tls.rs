@@ -7,62 +7,39 @@ use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 fn load_client_test_cert() -> rustls_pki_types::CertificateDer<'static> {
-    rustls_pemfile::certs(&mut include_str!("../tests/certs/client.cert.pem").as_bytes())
-        .next()
-        .expect("no cert")
-        .expect("cert is bad")
+    gel_stream::test_keys::binary::CLIENT_CERT.clone()
 }
 
 fn load_client_test_key() -> rustls_pki_types::PrivateKeyDer<'static> {
-    rustls_pemfile::private_key(&mut include_str!("../tests/certs/client.key.pem").as_bytes())
-        .expect("no client key")
-        .expect("client key is bad")
+    gel_stream::test_keys::binary::CLIENT_KEY.clone_key()
 }
 
 fn load_client_test_ca() -> rustls_pki_types::CertificateDer<'static> {
-    rustls_pemfile::certs(&mut include_str!("../tests/certs/client_ca.cert.pem").as_bytes())
-        .next()
-        .expect("no ca cert")
-        .expect("ca cert is bad")
+    gel_stream::test_keys::binary::CLIENT_CA_CERT.clone()
 }
 
 pub(crate) fn load_test_cert() -> rustls_pki_types::CertificateDer<'static> {
-    rustls_pemfile::certs(&mut include_str!("../tests/certs/server.cert.pem").as_bytes())
-        .next()
-        .expect("no cert")
-        .expect("cert is bad")
+    gel_stream::test_keys::binary::SERVER_CERT.clone()
 }
 
 pub(crate) fn load_test_cert_alt() -> rustls_pki_types::CertificateDer<'static> {
-    rustls_pemfile::certs(&mut include_str!("../tests/certs/server-alt.cert.pem").as_bytes())
-        .next()
-        .expect("no cert")
-        .expect("cert is bad")
+    gel_stream::test_keys::binary::SERVER_ALT_CERT.clone()
 }
 
 fn load_test_ca() -> rustls_pki_types::CertificateDer<'static> {
-    rustls_pemfile::certs(&mut include_str!("../tests/certs/ca.cert.pem").as_bytes())
-        .next()
-        .expect("no ca cert")
-        .expect("ca cert is bad")
+    gel_stream::test_keys::binary::CA_CERT.clone()
 }
 
 pub(crate) fn load_test_key() -> rustls_pki_types::PrivateKeyDer<'static> {
-    rustls_pemfile::private_key(&mut include_str!("../tests/certs/server.key.pem").as_bytes())
-        .expect("no server key")
-        .expect("server key is bad")
+    gel_stream::test_keys::binary::SERVER_KEY.clone_key()
 }
 
 fn load_test_key_alt() -> rustls_pki_types::PrivateKeyDer<'static> {
-    rustls_pemfile::private_key(&mut include_str!("../tests/certs/server-alt.key.pem").as_bytes())
-        .expect("no server key")
-        .expect("server key is bad")
+    gel_stream::test_keys::binary::SERVER_ALT_KEY.clone_key()
 }
 
 fn load_test_crls() -> Vec<rustls_pki_types::CertificateRevocationListDer<'static>> {
-    rustls_pemfile::crls(&mut include_str!("../tests/certs/ca.crl.pem").as_bytes())
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap()
+    vec![gel_stream::test_keys::binary::CA_CRL.clone()]
 }
 
 fn tls_server_parameters(

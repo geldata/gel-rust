@@ -550,6 +550,28 @@ pub fn generate_nonce() -> String {
     BASE64_STANDARD.encode(bytes)
 }
 
+/// A stored SCRAM-SHA-256 key.
+///
+/// The SCRAM key format consists of several components separated by '$' and ':'
+/// characters:
+///
+/// `"SCRAM-SHA-256$<iterations>:<salt>$<stored_key>:<server_key>"`
+///
+/// Where:
+///  - `iterations`: Number of PBKDF2-HMAC-SHA256 iterations used for key
+///    derivation
+///  - `salt`: Base64-encoded cryptographically secure random salt used in key
+///    derivation
+///  - `stored_key`: Hash of the client key, where client key is derived as
+///    `SHA-256(HMAC-SHA-256(salted_password, "Client Key"))`
+///  - `server_key`: Server key derived as `HMAC-SHA-256(salted_password,
+///    "Server Key")`
+///
+/// The `stored_key` and `server_key` are pre-computed cryptographic values that
+/// prevent storing the raw password while maintaining secure authentication.
+/// The `stored_key` is a `hash(hmac(P, ...))` used to verify client
+/// authentication proofs, while the `server_key` is a `hmac(P, ...)` used to
+/// generate server authentication signatures.
 #[derive(Clone, Debug)]
 pub struct StoredKey {
     pub iterations: usize,

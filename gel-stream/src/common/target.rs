@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    hash::{Hash, Hasher},
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::Path,
     sync::Arc,
@@ -510,6 +511,22 @@ pub enum ResolvedTarget {
     UnixSocketAddr(std::os::unix::net::SocketAddr),
 }
 
+/// Because `std::os::unix::net::SocketAddr` does not implement many helper
+/// traits, we temporarily use this enum to represent the inner representation
+/// of the resolved target for easier operation.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum ResolvedTargetInner<'a> {
+    SocketAddr(std::net::SocketAddr),
+    #[cfg(unix)]
+    UnixSocketPath(&'a std::path::Path),
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    UnixSocketAbstract(&'a [u8]),
+    /// Windows doesn't need the lifetime, so we create a fake enum variant
+    /// to use it.
+    #[allow(dead_code)]
+    Phantom(std::marker::PhantomData<&'a ()>),
+}
+
 #[cfg(unix)]
 impl TryFrom<std::path::PathBuf> for ResolvedTarget {
     type Error = std::io::Error;
@@ -525,25 +542,19 @@ impl Eq for ResolvedTarget {}
 
 impl PartialEq for ResolvedTarget {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (ResolvedTarget::SocketAddr(a), ResolvedTarget::SocketAddr(b)) => a == b,
-            #[cfg(unix)]
-            (ResolvedTarget::UnixSocketAddr(a), ResolvedTarget::UnixSocketAddr(b)) => {
-                if let (Some(a), Some(b)) = (a.as_pathname(), b.as_pathname()) {
-                    a == b
-                } else {
-                    #[cfg(any(target_os = "linux", target_os = "android"))]
-                    {
-                        use std::os::linux::net::SocketAddrExt;
-                        if let (Some(a), Some(b)) = (a.as_abstract_name(), b.as_abstract_name()) {
-                            return a == b;
-                        }
-                    }
-                    false
-                }
-            }
-            _ => false,
-        }
+        self.inner() == other.inner()
+    }
+}
+
+impl Hash for ResolvedTarget {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.inner().hash(state);
+    }
+}
+
+impl PartialOrd for ResolvedTarget {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.inner().partial_cmp(&other.inner())
     }
 }
 
@@ -557,6 +568,29 @@ impl ResolvedTarget {
 
     pub fn is_tcp(&self) -> bool {
         self.tcp().is_some()
+    }
+
+    /// Get the inner representation of the resolved target.
+    #[allow(unreachable_code)]
+    fn inner(&self) -> ResolvedTargetInner {
+        match self {
+            ResolvedTarget::SocketAddr(addr) => ResolvedTargetInner::SocketAddr(*addr),
+            #[cfg(unix)]
+            ResolvedTarget::UnixSocketAddr(addr) => {
+                if let Some(path) = addr.as_pathname() {
+                    return ResolvedTargetInner::UnixSocketPath(path);
+                } else {
+                    #[cfg(any(target_os = "linux", target_os = "android"))]
+                    {
+                        use std::os::linux::net::SocketAddrExt;
+                        return ResolvedTargetInner::UnixSocketAbstract(
+                            addr.as_abstract_name().expect("abstract socket address"),
+                        );
+                    }
+                }
+                unreachable!()
+            }
+        }
     }
 }
 
