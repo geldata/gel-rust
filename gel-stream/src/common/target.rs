@@ -429,6 +429,7 @@ impl MaybeResolvedTarget {
             MaybeResolvedTarget::Unresolved(host, _, _) => {
                 Some(ServerName::DnsName(host.to_string().try_into().ok()?))
             }
+            #[cfg(unix)]
             _ => None,
         }
     }
@@ -439,6 +440,7 @@ impl MaybeResolvedTarget {
                 Some((Cow::Owned(addr.ip().to_string()), addr.port()))
             }
             MaybeResolvedTarget::Unresolved(host, port, _) => Some((Cow::Borrowed(host), *port)),
+            #[cfg(unix)]
             _ => None,
         }
     }
@@ -459,6 +461,7 @@ impl MaybeResolvedTarget {
                 Some(Cow::Owned(addr.ip().to_string()))
             }
             MaybeResolvedTarget::Unresolved(host, _, _) => Some(Cow::Borrowed(host)),
+            #[cfg(unix)]
             _ => None,
         }
     }
@@ -467,6 +470,7 @@ impl MaybeResolvedTarget {
         match self {
             MaybeResolvedTarget::Resolved(ResolvedTarget::SocketAddr(addr)) => Some(addr.port()),
             MaybeResolvedTarget::Unresolved(_, port, _) => Some(*port),
+            #[cfg(unix)]
             _ => None,
         }
     }
@@ -483,6 +487,7 @@ impl MaybeResolvedTarget {
                 *port = new_port;
                 Some(old_port)
             }
+            #[cfg(unix)]
             _ => None,
         }
     }
@@ -496,12 +501,24 @@ enum TargetInner {
     StartTls(MaybeResolvedTarget, Arc<TlsParameters>),
 }
 
-#[derive(Clone, Debug, derive_more::From)]
+#[derive(Clone, Debug, derive_more::From, derive_more::TryFrom)]
 /// The resolved target of a connection attempt.
+#[from(forward)]
 pub enum ResolvedTarget {
     SocketAddr(std::net::SocketAddr),
     #[cfg(unix)]
     UnixSocketAddr(std::os::unix::net::SocketAddr),
+}
+
+#[cfg(unix)]
+impl TryFrom<std::path::PathBuf> for ResolvedTarget {
+    type Error = std::io::Error;
+
+    fn try_from(value: std::path::PathBuf) -> Result<Self, Self::Error> {
+        Ok(ResolvedTarget::UnixSocketAddr(
+            std::os::unix::net::SocketAddr::from_pathname(value)?,
+        ))
+    }
 }
 
 impl Eq for ResolvedTarget {}

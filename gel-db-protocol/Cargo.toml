@@ -12,9 +12,8 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-thiserror = "2"
 paste = "1"
-derive_more = { version = "2", features = ["full"] }
+derive_more = { version = "2", features = ["debug", "display", "deref", "deref_mut", "error"] }
 uuid = "1"
 const-str = "0.6"
 

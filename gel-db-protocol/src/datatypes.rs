@@ -219,18 +219,17 @@ impl PartialEq<&[u8]> for Encoded<'_> {
     }
 }
 
-#[derive(Copy, Clone, Default, PartialEq, Eq)]
+#[derive(
+    Copy,
+    Clone,
+    Default,
+    derive_more::Debug,
+    derive_more::Display,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    PartialEq,
+    Eq,
+)]
+#[display("{_0}")]
+#[debug("{_0}")]
 pub struct Length(pub i32);
-
-impl std::fmt::Debug for Length {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl std::ops::Deref for Length {
-    type Target = i32;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}

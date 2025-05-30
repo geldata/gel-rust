@@ -85,9 +85,9 @@ const MINIMUM_NONCE_LENGTH: usize = 16;
 type HmacSha256 = Hmac<Sha256>;
 pub type Sha256Out = [u8; 32];
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Error, derive_more::Display)]
 pub enum SCRAMError {
-    #[error("Invalid encoding")]
+    #[display("Invalid encoding")]
     ProtocolError,
 }
 
@@ -546,8 +546,7 @@ pub fn generate_salted_password(password: &[u8], salt: &[u8], iterations: usize)
 }
 
 pub fn generate_nonce() -> String {
-    let mut rng = rand::thread_rng();
-    let bytes: [u8; 32] = rng.gen();
+    let bytes: [u8; 32] = rand::random();
     BASE64_STANDARD.encode(bytes)
 }
 
@@ -649,7 +648,7 @@ impl ServerEnvironment for StoredKey {
     }
 
     fn generate_nonce(&self) -> String {
-        let nonce: [u8; 32] = rand::thread_rng().gen();
+        let nonce: [u8; 32] = rand::random();
         base64::engine::general_purpose::STANDARD.encode(nonce)
     }
 

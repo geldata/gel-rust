@@ -12,23 +12,36 @@ rust-version.workspace = true
 workspace = true
 
 [features]
+full = ["postgres", "gel"]
+postgres = ["dep:gel-pg-protocol"]
+gel = []
 
 [dependencies]
+gel-pg-protocol = { version = "0.1", path = "../gel-pg-protocol", optional = true }
+
 tracing.workspace = true
 md5 = "0.7.0"
-constant_time_eq = "0.3"
-derive_more = { version = "2", features = ["debug"] }
-rand = "0.8.5"
+constant_time_eq = "0.4"
+derive_more = { version = "2", features = ["debug", "error", "from"] }
+rand = "0.9"
 unicode-normalization = "0.1.23"
 base64 = "0.22"
 roaring = "0.10.6"
 hmac = "0.12.1"
 sha2 = "0.10.8"
-thiserror = "2"
 
 [dev-dependencies]
+gel-pg-captive = { path = "../gel-pg-captive" }
+gel-stream = { path = "../gel-stream", features = ["rustls", "tokio", "client"] }
+
+tokio = { version = "1", features = ["full"] }
+gel-auth = { path = ".", features = ["full"] }
 pretty_assertions = "1"
-rstest = "0.24.0"
-hex-literal = "0.4.1"
+rstest = "0.25"
+hex-literal = "1"
+hexdump = "0.1"
 
 [lib]
+
+[package.metadata.docs.rs]
+features = ["full"]

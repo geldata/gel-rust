@@ -2,7 +2,8 @@ pub mod handshake;
 pub mod md5;
 pub mod scram;
 
-use rand::Rng;
+#[cfg(feature = "postgres")]
+pub mod postgres;
 
 /// Specifies the type of authentication or indicates the authentication method used for a connection.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
@@ -58,7 +59,7 @@ impl CredentialData {
             AuthType::Plain => Self::Plain(password),
             AuthType::Md5 => Self::Md5(md5::StoredHash::generate(password.as_bytes(), &username)),
             AuthType::ScramSha256 => {
-                let salt: [u8; 32] = rand::thread_rng().gen();
+                let salt: [u8; 32] = rand::random();
                 Self::Scram(scram::StoredKey::generate(password.as_bytes(), &salt, 4096))
             }
         }

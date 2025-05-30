@@ -14,7 +14,7 @@ pub struct Resolver {
 
 #[cfg(feature = "tokio")]
 #[allow(unused)]
-async fn resolve_host_to_socket_addrs(host: String) -> std::io::Result<IpAddr> {
+async fn resolve_host_to_socket_addrs(host: String) -> std::io::Result<ResolvedTarget> {
     let res = tokio::task::spawn_blocking(move || format!("{}:0", host).to_socket_addrs())
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Interrupted, e.to_string()))??;
@@ -24,7 +24,7 @@ async fn resolve_host_to_socket_addrs(host: String) -> std::io::Result<IpAddr> {
             std::io::ErrorKind::NotFound,
             "No address found",
         ))
-        .map(|addr| addr.ip())
+        .map(|addr| ResolvedTarget::SocketAddr(addr))
 }
 
 impl Resolver {
@@ -68,7 +68,7 @@ impl Resolver {
                     }
                     #[cfg(all(feature = "tokio", not(feature = "hickory")))]
                     {
-                        ResolveResult::new_async(resolve_host_to_socket_addrs(host))
+                        ResolveResult::new_async(resolve_host_to_socket_addrs(host.to_string()))
                     }
                     #[cfg(not(any(feature = "tokio", feature = "hickory")))]
                     {
