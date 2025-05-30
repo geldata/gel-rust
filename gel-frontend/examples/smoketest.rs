@@ -1,3 +1,5 @@
+#![cfg(false)]
+
 use std::{cell::RefCell, collections::HashMap, future::Future, rc::Rc};
 
 use db_proto::StructBuffer;

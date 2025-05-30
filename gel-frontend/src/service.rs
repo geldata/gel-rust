@@ -19,6 +19,8 @@ pub enum StreamLanguage {
     EdgeDBNotebook,
 }
 
+#[derive(Debug)]
+
 pub enum AuthTarget {
     /// A stream of the given language.
     Stream(StreamLanguage),

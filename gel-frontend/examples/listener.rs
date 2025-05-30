@@ -19,7 +19,7 @@ impl BabelfishService for ExampleService {
         identity: ConnectionIdentity,
         target: AuthTarget,
     ) -> impl Future<Output = Result<CredentialData, std::io::Error>> {
-        eprintln!("lookup_auth: {:?}", identity);
+        eprintln!("lookup_auth: identity={identity:?} target={target:?}");
         async move {
             Ok(CredentialData::new(
                 AuthType::Trust,
