@@ -450,9 +450,10 @@ fn run_postgres(
         std::thread::sleep(HOT_LOOP_INTERVAL);
         match child.try_wait() {
             Ok(Some(status)) => {
-                return Err(std::io::Error::other(
-                format!("PostgreSQL exited with status: {}", status),
-                ))
+                return Err(std::io::Error::other(format!(
+                    "PostgreSQL exited with status: {}",
+                    status
+                )))
             }
             Err(e) => return Err(e),
             _ => {}
