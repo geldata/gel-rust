@@ -570,6 +570,14 @@ impl ResolvedTarget {
         self.tcp().is_some()
     }
 
+    pub fn transport(&self) -> Transport {
+        match self {
+            ResolvedTarget::SocketAddr(_) => Transport::Tcp,
+            #[cfg(unix)]
+            ResolvedTarget::UnixSocketAddr(_) => Transport::Unix,
+        }
+    }
+
     /// Get the inner representation of the resolved target.
     #[allow(unreachable_code)]
     fn inner(&self) -> ResolvedTargetInner {

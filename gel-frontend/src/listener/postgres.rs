@@ -6,13 +6,13 @@ use crate::{
     stream_type::{PostgresInitialMessage, StreamState, StreamType},
 };
 use bytes::BytesMut;
-use gel_auth::postgres::server::{ConnectionDrive, ConnectionEvent, ServerState};
 use gel_auth::postgres::ConnectionSslRequirement;
+use gel_auth::postgres::server::{ConnectionDrive, ConnectionEvent, ServerState};
 use gel_pg_protocol::errors::{PgError, PgErrorInvalidAuthorizationSpecification};
 use std::collections::HashMap;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{error, trace};
@@ -57,7 +57,7 @@ pub async fn handle_stream_postgres_ssl(
     eprintln!("Booting postgres SSL");
     socket.write_all(b"S").await?;
 
-    let ssl_socket = socket.start_ssl().await?;
+    let ssl_socket = socket.start_tls().await?;
     Box::pin(handle_connection_inner(
         StreamState::PgSslUpgrade,
         ssl_socket,

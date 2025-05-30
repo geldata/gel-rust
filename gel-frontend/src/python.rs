@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use pyo3::{types::PyAnyMethods, Python};
+    use pyo3::{Python, types::PyAnyMethods};
 
     use super::*;
 

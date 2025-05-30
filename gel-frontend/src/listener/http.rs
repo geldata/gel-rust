@@ -1,17 +1,17 @@
-use super::{handle_connection_inner, IsBoundConfig};
+use super::{IsBoundConfig, handle_connection_inner};
 use crate::hyper::HyperUpgradedStream;
 use crate::{
     service::{BabelfishService, ConnectionIdentityBuilder},
     stream::{ListenerStream, StreamProperties, TransportType},
-    stream_type::{negotiate_ws_protocol, StreamState},
+    stream_type::{StreamState, negotiate_ws_protocol},
 };
-use hyper::{server::conn::http2, Response};
-use hyper::{upgrade::OnUpgrade, Request, StatusCode};
+use hyper::{Request, StatusCode, upgrade::OnUpgrade};
+use hyper::{Response, server::conn::http2};
 use hyper_util::rt::TokioIo;
 use std::io::ErrorKind;
 use std::{
     future::Future,
-    pin::{pin, Pin},
+    pin::{Pin, pin},
     sync::{Arc, Mutex},
 };
 use tracing::{error, trace};
@@ -217,7 +217,7 @@ async fn handle_ws_upgrade_http1(
 }
 
 fn generate_ws_accept(key: &str) -> String {
-    use base64::{engine::general_purpose, Engine as _};
+    use base64::{Engine as _, engine::general_purpose};
     use sha1::{Digest, Sha1};
 
     let mut sha1 = Sha1::new();

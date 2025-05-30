@@ -1,4 +1,3 @@
-use tokio::io::AsyncReadExt;
 use tracing::{error, trace};
 
 use crate::{
@@ -6,8 +5,8 @@ use crate::{
     stream::{ListenerStream, StreamProperties, TransportType},
 };
 
-const PREFACE_SIZE: usize = 8;
-const MIN_PREFACE_SIZE: usize = 5;
+pub(crate) const PREFACE_SIZE: usize = 8;
+pub(crate) const MIN_PREFACE_SIZE: usize = 5;
 
 const HTTP_2: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 const HTTP_2_PREFACE: [u8; PREFACE_SIZE] = [
@@ -346,37 +345,15 @@ pub async fn identify_stream(
         return res;
     }
 
-    let mut preface = [0; PREFACE_SIZE];
-    let mut read = 0;
-
-    // Read until we get PREFACE_SIZE bytes or at least MIN_PREFACE_SIZE bytes, the first four matching HTTP's style.
-    loop {
-        match socket.read(&mut preface[read..]).await {
-            Ok(0) => return Err(UnknownStreamType::Unknown),
-            Ok(n) => read += n,
-            Err(e) => {
-                trace!("Error while reading connection preface: {e:?}");
-                return Err(UnknownStreamType::Unknown);
-            }
-        }
-        if read == PREFACE_SIZE {
-            break;
-        }
-        // If we've read at least MIN_PREFACE_SIZE bytes and those five bytes are HTTP/1-like, we can continue here
-        // as we know the protocol will be HTTP/1 or HTTP/2.
-        if read >= MIN_PREFACE_SIZE {
-            let [a1, a2, a3, a4, ..] = preface;
-            if is_likely_http1(a1, a2, a3, a4) {
-                break;
-            }
-        }
+    // TODO: Should add a custom preface sniffer for gel-stream so we can bail with "GET /"
+    if let Some(preface) = socket.preface() {
+        let res = identify_connection(state, &preface);
+        trace!(
+            "Identified connection via preface: {:?} -> {res:?}",
+            preface
+        );
+        return res;
+    } else {
+        Err(UnknownStreamType::Unknown)
     }
-
-    // Identify the connection
-    let res = identify_connection(state, &preface);
-    trace!(
-        "Identified connection via preface: {:?} -> {res:?}",
-        &preface[..read]
-    );
-    res
 }

@@ -44,7 +44,6 @@ impl BabelfishService for ExampleService {
                 let mut buf = [0; 1024];
                 stream.read_buf(&mut ReadBuf::new(&mut buf)).await?;
             }
-            Ok(())
         }
     }
 

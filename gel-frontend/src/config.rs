@@ -1,4 +1,4 @@
-use futures::{stream, Stream, StreamExt};
+use futures::{Stream, StreamExt, stream};
 use gel_jwt::{Key, KeyRegistry};
 use gel_stream::{ResolvedTarget, TlsKey, TlsServerParameterProvider, TlsServerParameters};
 use std::{
@@ -12,17 +12,39 @@ use crate::{
     stream_type::StreamType,
 };
 
+/// A function to lookup the tenant configuration for a given tenant name.
+pub type TenantLookup = Box<dyn Fn(&str) -> Option<Arc<TenantConfig>> + Send + Sync + 'static>;
+
+/// The configuration for a tenant.
+pub struct TenantConfig {
+    /// The TLS configuration for the tenant, if configured.
+    pub tls: Option<TlsServerParameterProvider>,
+    /// The JWT key registry for the tenant, if configured.
+    pub jwt: Option<KeyRegistry<Key>>,
+    /// The tenant name, if configured.
+    pub name: Option<String>,
+}
+
+/// A listener entry.
+pub struct ListenerEntry {
+    pub addresses: Vec<ResolvedTarget>,
+    /// The default tenant configuration.
+    pub default_tenant: TenantConfig,
+    /// A function to lookup the tenant configuration for a given tenant name.
+    pub tenant_lookup: TenantLookup,
+}
+
+impl ListenerEntry {
+    pub fn tls_lookup(&self) -> Option<TlsServerParameterProvider> {
+        self.default_tenant.tls.clone()
+    }
+}
+
 /// Implemented by the embedder to configure the live state of the listener.
 pub trait ListenerConfig: std::fmt::Debug + Send + Sync + 'static {
     /// Returns a stream of [`ListenerAddress`]es, allowing the server to
     /// reconfigure the listening port at any time.
-    fn listen_address(&self) -> impl Stream<Item = std::io::Result<Vec<ResolvedTarget>>> + Send;
-
-    /// Return the SSL configuration, optionally with a lookup function.
-    fn ssl_config(&self) -> Result<TlsServerParameterProvider, ()>;
-
-    /// Returns the JWT key registry.
-    fn jwt_key(&self) -> Result<gel_jwt::KeyRegistry<Key>, ()>;
+    fn listen_address(&self) -> impl Stream<Item = std::io::Result<ListenerEntry>> + Send;
 
     /// Returns true if the given [`StreamType`] is supported at this time.
     fn is_supported(
@@ -31,45 +53,6 @@ pub trait ListenerConfig: std::fmt::Debug + Send + Sync + 'static {
         transport_type: TransportType,
         stream_props: &StreamProperties,
     ) -> bool;
-}
-
-pub struct SslConfig {
-    inner: Arc<Mutex<SslConfigInner>>,
-}
-
-impl SslConfig {
-    pub fn new(cert: PathBuf, key: PathBuf) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(SslConfigInner::Unconfigured { cert, key })),
-        }
-    }
-
-    pub(crate) fn maybe_configure(
-        &self,
-        f: impl FnOnce(&mut TlsServerParameters),
-    ) -> Arc<TlsServerParameters> {
-        let mut inner = self.inner.lock().unwrap();
-        match &mut *inner {
-            SslConfigInner::Unconfigured { cert, key } => {
-                let cert_file = std::fs::read(cert).unwrap();
-                let key_file = std::fs::read(key).unwrap();
-
-                let key = TlsKey::new_pem(&cert_file, &key_file).unwrap();
-                let mut ctx_builder = TlsServerParameters::new_with_certificate(key);
-
-                // Apply any additional configuration
-                f(&mut ctx_builder);
-
-                Arc::new(ctx_builder)
-            }
-            SslConfigInner::Configured { context } => context.clone(),
-        }
-    }
-}
-
-enum SslConfigInner {
-    Unconfigured { cert: PathBuf, key: PathBuf },
-    Configured { context: Arc<TlsServerParameters> },
 }
 
 #[derive(Debug)]
@@ -91,34 +74,44 @@ impl ListenerConfig for TestListenerConfig {
         transport_type: TransportType,
         stream_props: &StreamProperties,
     ) -> bool {
-        eprintln!("is_supported? stream_type={stream_type:?} transport_type={transport_type:?} stream_props={stream_props:?}");
+        eprintln!(
+            "is_supported? stream_type={stream_type:?} transport_type={transport_type:?} stream_props={stream_props:?}"
+        );
         true
     }
 
-    fn ssl_config(&self) -> Result<TlsServerParameterProvider, ()> {
-        Ok(TlsServerParameterProvider::new(
-            TlsServerParameters::new_with_certificate(
-                gel_stream::test_keys::SERVER_KEY.clone_key(),
-            ),
-        ))
-    }
-
-    fn jwt_key(&self) -> Result<KeyRegistry<Key>, ()> {
-        let mut key = KeyRegistry::new();
-        key.generate_key(None, gel_jwt::KeyType::ES256)
-            .map_err(|_| ())?;
-        Ok(key)
-    }
-
-    fn listen_address(&self) -> impl Stream<Item = std::io::Result<Vec<ResolvedTarget>>> {
+    fn listen_address(&self) -> impl Stream<Item = std::io::Result<ListenerEntry>> {
         let addrs = self
             .addrs
             .iter()
             .map(|addr| ResolvedTarget::from(*addr))
             .collect();
         stream::select_all(vec![
-            stream::once(async { Ok(addrs) }).boxed(),
+            stream::once(async {
+                Ok(ListenerEntry {
+                    addresses: addrs,
+                    default_tenant: TenantConfig {
+                        tls: Some(default_tls_config()),
+                        jwt: Some(default_jwt_key()),
+                        name: None,
+                    },
+                    tenant_lookup: Box::new(|_| None),
+                })
+            })
+            .boxed(),
             stream::pending().boxed(),
         ])
     }
+}
+
+fn default_tls_config() -> TlsServerParameterProvider {
+    TlsServerParameterProvider::new(TlsServerParameters::new_with_certificate(
+        gel_stream::test_keys::SERVER_KEY.clone_key(),
+    ))
+}
+
+fn default_jwt_key() -> KeyRegistry<Key> {
+    let mut key = KeyRegistry::new();
+    key.generate_key(None, gel_jwt::KeyType::ES256).unwrap();
+    key
 }

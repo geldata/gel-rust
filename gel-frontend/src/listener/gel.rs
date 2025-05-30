@@ -3,12 +3,12 @@ use crate::{
     stream::{ListenerStream, StreamPropertiesBuilder},
 };
 use bytes::BytesMut;
-use gel_auth::gel::server::{ConnectionDrive, ConnectionEvent, ServerState};
 use gel_auth::gel::EdbError;
+use gel_auth::gel::server::{ConnectionDrive, ConnectionEvent, ServerState};
 use std::collections::HashMap;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{error, trace};

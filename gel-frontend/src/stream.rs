@@ -1,6 +1,6 @@
 use crate::{
     hyper::{HyperStream, HyperUpgradedStream},
-    stream_type::{known_protocol, StreamType},
+    stream_type::{PREFACE_SIZE, StreamType, known_protocol},
 };
 use gel_stream::{
     Preview, PreviewConfiguration, RawStream, RemoteAddress, ResolvedTarget, StreamUpgrade,
@@ -9,6 +9,7 @@ use hyper::{HeaderMap, Version};
 use std::{collections::HashMap, sync::Arc};
 use strum::IntoDiscriminant;
 use tokio::net::unix::UCred;
+use tracing::trace;
 
 macro_rules! stream_properties {
     (
@@ -196,7 +197,8 @@ impl ListenerStream {
         }
     }
 
-    pub async fn start_ssl(self) -> Result<Self, std::io::Error> {
+    pub async fn start_tls(self) -> Result<Self, std::io::Error> {
+        trace!("Starting TLS on {self:?}");
         match self.inner {
             ListenerStreamInner::Tcp(stream) => {
                 let parent_stream_properties = self.stream_properties.clone();
@@ -275,6 +277,12 @@ impl ListenerStream {
             preview: None,
             stream_properties: self.stream_properties.upgrade(props),
         }
+    }
+
+    pub fn preface(&self) -> Option<[u8; PREFACE_SIZE]> {
+        self.preview
+            .as_ref()
+            .map(|p| p.as_ref().try_into().unwrap())
     }
 }
 

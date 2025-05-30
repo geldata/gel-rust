@@ -1,14 +1,13 @@
-use crate::{
-    service::{BabelfishService, ConnectionIdentityBuilder},
-    stream::{ListenerStream, StreamProperties, TransportType},
-    stream_type::{
-        identify_stream, PostgresInitialMessage, StreamState, StreamType, UnknownStreamType,
-        ALPN_EDGEDB_BINARY, ALPN_GEL_BINARY, ALPN_HTTP1_1, ALPN_HTTP2, ALPN_POSTGRESQL,
-    },
+use crate::service::{BabelfishService, ConnectionIdentityBuilder};
+use crate::stream::{ListenerStream, StreamProperties, TransportType};
+use crate::stream_type::{
+    ALPN_EDGEDB_BINARY, ALPN_GEL_BINARY, ALPN_HTTP1_1, ALPN_HTTP2, ALPN_POSTGRESQL,
+    PostgresInitialMessage, StreamState, StreamType, UnknownStreamType, identify_stream,
 };
 use futures::StreamExt;
 use gel_stream::{
-    Acceptor, PeerCred, PreviewConfiguration, RemoteAddress, ResolvedTarget, TlsAlpn,
+    Acceptor, LocalAddress, PeerCred, PreviewConfiguration, RemoteAddress, ResolvedTarget, TlsAlpn,
+    TlsServerParameterProvider, Transport,
 };
 use scopeguard::defer;
 use std::{
@@ -18,7 +17,7 @@ use std::{
     pin::pin,
     sync::{Arc, Mutex},
 };
-use tokio::io::AsyncWriteExt;
+use tokio::{io::AsyncWriteExt, task::JoinHandle};
 use tracing::{error, info, trace, warn};
 
 use crate::config::ListenerConfig;
@@ -235,9 +234,14 @@ fn bind_task<C: ListenerConfig>(
                 listener.abort()
             }
         });
-        while let Some(addresses) = stm.next().await.transpose()? {
-            info!("Requested to listen on {addresses:?}");
-            let new_listeners = HashSet::<_>::from_iter(addresses);
+        while let Some(entry) = stm.next().await.transpose()? {
+            info!(
+                "Listen addresses: {addresses:?}",
+                addresses = entry.addresses
+            );
+            let tls_lookup = entry.tls_lookup();
+            info!("TLS lookup: {tls_lookup:?}");
+            let mut new_listeners = HashSet::<_>::from_iter(entry.addresses);
             listeners.lock().unwrap().retain(|k, (_, v)| {
                 // Remove any crashed tasks
                 if v.is_finished() {
@@ -250,81 +254,30 @@ fn bind_task<C: ListenerConfig>(
                 res
             });
 
-            for addr in new_listeners {
+            for addr in new_listeners.drain() {
                 if listeners.lock().unwrap().contains_key(&addr) {
                     continue;
                 }
 
-                let mut acceptor = Acceptor::new_tls_previewing(
+                let (listen_addr, task) = match bind(
                     addr.clone(),
-                    PreviewConfiguration::default(),
-                    config.ssl_config().unwrap().into(),
+                    tls_lookup.clone(),
+                    config.clone(),
+                    callback.clone(),
                 )
-                .bind()
-                .await?;
-                info!("Listening on {addr:?}");
-
-                let (resolved_addr, task) = match addr.clone() {
-                    ResolvedTarget::SocketAddr(x) => {
-                        let config = config.clone();
-                        let callback = callback.clone();
-                        (
-                            addr.clone(),
-                            tokio::task::spawn(async move {
-                                while let Some(res) = acceptor.next().await {
-                                    let Ok((preview, stream)) = res else {
-                                        continue;
-                                    };
-                                    (callback.lock().unwrap())(
-                                        config.clone(),
-                                        ListenerStream::new_tcp(stream, preview),
-                                    );
-                                }
-                                #[allow(unreachable_code)]
-                                Ok::<_, std::io::Error>(())
-                            }),
-                        )
-                    }
-                    ResolvedTarget::UnixSocketAddr(x) => {
-                        let config = config.clone();
-                        let mut acceptor =
-                            Acceptor::new_previewing(addr.clone(), PreviewConfiguration::default())
-                                .bind()
-                                .await?;
-                        let local_addr = addr.clone();
-
-                        let callback = callback.clone();
-                        (
-                            addr.clone(),
-                            tokio::task::spawn(async move {
-                                while let Some(res) = acceptor.next().await {
-                                    let Ok((preview, stream)) = res else {
-                                        continue;
-                                    };
-                                    let peer_addr = stream.remote_address().ok();
-                                    let peer_cred = stream.peer_cred().ok();
-                                    (callback.lock().unwrap())(
-                                        config.clone(),
-                                        ListenerStream::new_unix(
-                                            stream,
-                                            preview,
-                                            Some(local_addr.clone()),
-                                            peer_addr,
-                                            peer_cred,
-                                        ),
-                                    );
-                                }
-                                #[allow(unreachable_code)]
-                                Ok::<_, std::io::Error>(())
-                            }),
-                        )
+                .await
+                {
+                    Ok(task) => task,
+                    Err(e) => {
+                        error!("Failed to bind {addr:?}: {e:?}");
+                        continue;
                     }
                 };
 
                 listeners
                     .lock()
                     .unwrap()
-                    .insert(resolved_addr.clone(), (resolved_addr, task));
+                    .insert(addr.clone(), (listen_addr.clone(), task));
                 let addresses: Vec<ResolvedTarget> = listeners
                     .lock()
                     .unwrap()
@@ -338,12 +291,86 @@ fn bind_task<C: ListenerConfig>(
     }
 }
 
+async fn bind<C: ListenerConfig>(
+    addr: ResolvedTarget,
+    tls_lookup: Option<TlsServerParameterProvider>,
+    config: Arc<C>,
+    callback: Arc<Mutex<impl FnMut(Arc<C>, ListenerStream) + Send + Sync + 'static>>,
+) -> Result<(ResolvedTarget, JoinHandle<std::io::Result<()>>), std::io::Error> {
+    let acceptor = if let Some(tls_lookup) = tls_lookup {
+        Acceptor::new_tls_previewing(
+            addr.clone(),
+            PreviewConfiguration::default(),
+            tls_lookup.into(),
+        )
+    } else {
+        Acceptor::new_previewing(addr.clone(), PreviewConfiguration::default())
+    };
+
+    let mut acceptor = acceptor.bind().await?;
+    let local_addr = acceptor.local_address()?;
+    info!("Listening on {local_addr:?}");
+
+    let task = match addr.transport() {
+        Transport::Tcp => {
+            let config = config.clone();
+            let callback = callback.clone();
+            tokio::task::spawn(async move {
+                while let Some(res) = acceptor.next().await {
+                    let Ok((preview, stream)) = res else {
+                        continue;
+                    };
+                    (callback.lock().unwrap())(
+                        config.clone(),
+                        ListenerStream::new_tcp(stream, preview),
+                    );
+                }
+                #[allow(unreachable_code)]
+                Ok::<_, std::io::Error>(())
+            })
+        }
+        Transport::Unix => {
+            let config = config.clone();
+            let mut acceptor =
+                Acceptor::new_previewing(addr.clone(), PreviewConfiguration::default())
+                    .bind()
+                    .await?;
+            let local_addr = addr.clone();
+            let callback = callback.clone();
+
+            tokio::task::spawn(async move {
+                while let Some(res) = acceptor.next().await {
+                    let Ok((preview, stream)) = res else {
+                        continue;
+                    };
+                    let peer_addr = stream.remote_address().ok();
+                    let peer_cred = stream.peer_cred().ok();
+                    (callback.lock().unwrap())(
+                        config.clone(),
+                        ListenerStream::new_unix(
+                            stream,
+                            preview,
+                            Some(local_addr.clone()),
+                            peer_addr,
+                            peer_cred,
+                        ),
+                    );
+                }
+                #[allow(unreachable_code)]
+                Ok::<_, std::io::Error>(())
+            })
+        }
+    };
+
+    Ok((local_addr, task))
+}
+
 pub async fn handle_stream_ssltls(
     socket: ListenerStream,
     identity: ConnectionIdentityBuilder,
     bound_config: impl IsBoundConfig,
 ) -> Result<(), std::io::Error> {
-    let ssl_socket = socket.start_ssl().await?;
+    let ssl_socket = socket.start_tls().await?;
     Box::pin(handle_connection_inner(
         StreamState::Ssl,
         ssl_socket,
@@ -356,7 +383,7 @@ pub async fn handle_stream_ssltls(
 #[cfg(test)]
 mod tests {
     use gel_auth::CredentialData;
-    use gel_stream::{Connector, Target, TlsParameters};
+    use gel_stream::{Connector, RawStream, Target, TlsParameters};
     use hyper::Uri;
     use hyper_util::rt::TokioIo;
     use rstest::rstest;
@@ -445,7 +472,7 @@ mod tests {
     /// Run a test server and connect to it.
     fn run_test_service<F: Future<Output = Result<(), std::io::Error>> + Send + 'static>(
         mode: TestMode,
-        f: impl Fn(ListenerStream) -> F + Send + 'static,
+        f: impl Fn(RawStream) -> F + Send + Sync + 'static,
     ) {
         let svc = TestService::default();
         let config = TestListenerConfig::new("localhost:0");
@@ -460,21 +487,22 @@ mod tests {
                     let target = match mode {
                         TestMode::Tcp => Target::new_resolved(addr),
                         TestMode::Ssl => {
-                            let mut params = TlsParameters::default();
+                            let mut params = TlsParameters::insecure();
                             params.sni_override = Some("localhost".into());
                             Target::new_resolved_tls(addr, params)
                         }
                         TestMode::SslAlpn(alpn) => {
-                            let mut params = TlsParameters::default();
+                            let mut params = TlsParameters::insecure();
                             params.sni_override = Some("localhost".into());
                             params.alpn = TlsAlpn::new_str(&[alpn]);
                             Target::new_resolved_tls(addr, params)
                         }
                     };
-                    Connector::new(target).unwrap().connect().await.unwrap()
+                    let stm = Connector::new(target)?.connect().await?;
+                    f(stm).await
                 });
 
-                t2.await.unwrap();
+                t2.await.expect("task failed").expect("task failed");
                 server.shutdown().await;
             });
     }
