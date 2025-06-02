@@ -669,7 +669,7 @@ impl StreamMetadata for TlsStream {
 impl AsHandle for TlsStream {
     #[cfg(windows)]
     fn as_handle(&self) -> std::os::windows::io::BorrowedSocket {
-        std::os::windows::io::AsSocket::as_handle(self.tcp_stream().unwrap())
+        std::os::windows::io::AsSocket::as_socket(self.tcp_stream().unwrap())
     }
 
     #[cfg(unix)]
