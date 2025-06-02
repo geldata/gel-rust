@@ -4,6 +4,7 @@ mod client_auth;
 mod server_auth;
 
 pub use client_auth::*;
+pub use gel_protocol::new_protocol::EdbError;
 pub use server_auth::*;
 
 #[cfg(test)]

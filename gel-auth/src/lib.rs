@@ -5,6 +5,9 @@ pub mod scram;
 #[cfg(feature = "postgres")]
 pub mod postgres;
 
+#[cfg(feature = "gel")]
+pub mod gel;
+
 /// Specifies the type of authentication or indicates the authentication method used for a connection.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
 pub enum AuthType {
