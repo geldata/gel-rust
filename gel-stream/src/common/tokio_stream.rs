@@ -6,7 +6,7 @@ use tokio::net::{TcpListener, TcpStream};
 #[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
 
-use crate::{PeekableStream, PeerCred, RemoteAddress, StreamMetadata, Transport};
+use crate::{AsHandle, PeekableStream, PeerCred, RemoteAddress, StreamMetadata, Transport};
 
 use super::target::{LocalAddress, ResolvedTarget};
 
@@ -135,12 +135,13 @@ impl futures::Stream for TokioListenerStream {
 }
 
 /// Represents a connected Tokio stream, either TCP or Unix
-#[derive(derive_io::AsyncRead, derive_io::AsyncWrite)]
+#[derive(derive_io::AsyncRead, derive_io::AsyncWrite, derive_io::AsSocketDescriptor)]
 pub enum TokioStream {
     /// TCP stream
     Tcp(
         #[read]
         #[write]
+        #[descriptor]
         TcpStream,
     ),
     /// Unix stream (only available on Unix systems)
@@ -148,6 +149,7 @@ pub enum TokioStream {
     Unix(
         #[read]
         #[write]
+        #[descriptor]
         UnixStream,
     ),
 }
@@ -175,6 +177,18 @@ impl TokioStream {
                 "Unix sockets do not support keepalive",
             )),
         }
+    }
+}
+
+impl AsHandle for TokioStream {
+    #[cfg(windows)]
+    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle {
+        <Self as std::os::windows::io::AsHandle>::as_handle(self)
+    }
+
+    #[cfg(unix)]
+    fn as_fd(&self) -> std::os::fd::BorrowedFd {
+        <Self as std::os::fd::AsFd>::as_fd(self)
     }
 }
 
@@ -273,6 +287,18 @@ impl StreamMetadata for TcpStream {
     }
 }
 
+impl AsHandle for TcpStream {
+    #[cfg(windows)]
+    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle {
+        <Self as std::os::windows::io::AsHandle>::as_handle(self)
+    }
+
+    #[cfg(unix)]
+    fn as_fd(&self) -> std::os::fd::BorrowedFd {
+        <Self as std::os::fd::AsFd>::as_fd(self)
+    }
+}
+
 #[cfg(unix)]
 impl LocalAddress for UnixStream {
     fn local_address(&self) -> std::io::Result<ResolvedTarget> {
@@ -300,5 +326,12 @@ impl PeerCred for UnixStream {
 impl StreamMetadata for UnixStream {
     fn transport(&self) -> Transport {
         Transport::Unix
+    }
+}
+
+#[cfg(unix)]
+impl AsHandle for UnixStream {
+    fn as_fd(&self) -> std::os::fd::BorrowedFd {
+        <Self as std::os::fd::AsFd>::as_fd(self)
     }
 }

@@ -665,3 +665,15 @@ impl StreamMetadata for TlsStream {
         Transport::Tcp
     }
 }
+
+impl AsHandle for TlsStream {
+    #[cfg(windows)]
+    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle {
+        std::os::windows::io::AsHandle::as_handle(self.tcp_stream().unwrap())
+    }
+
+    #[cfg(unix)]
+    fn as_fd(&self) -> std::os::fd::BorrowedFd {
+        std::os::fd::AsFd::as_fd(self.tcp_stream().unwrap())
+    }
+}

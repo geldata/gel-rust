@@ -14,9 +14,9 @@ use std::{
 };
 
 use crate::{
-    LocalAddress, PeekableStream, PeerCred, RemoteAddress, ResolvedTarget, SslError, SslVersion,
-    Stream, StreamMetadata, TlsCert, TlsClientCertVerify, TlsDriver, TlsHandshake, TlsParameters,
-    TlsServerCertVerify, TlsServerParameterProvider, TlsServerParameters, Transport,
+    AsHandle, LocalAddress, PeekableStream, PeerCred, RemoteAddress, ResolvedTarget, SslError,
+    SslVersion, Stream, StreamMetadata, TlsCert, TlsClientCertVerify, TlsDriver, TlsHandshake,
+    TlsParameters, TlsServerCertVerify, TlsServerParameterProvider, TlsServerParameters, Transport,
 };
 
 use super::tokio_stream::TokioStream;
@@ -475,6 +475,18 @@ impl From<SslVersion> for openssl::ssl::SslVersion {
             SslVersion::Tls1_2 => openssl::ssl::SslVersion::TLS1_2,
             SslVersion::Tls1_3 => openssl::ssl::SslVersion::TLS1_3,
         }
+    }
+}
+
+impl AsHandle for TlsStream {
+    #[cfg(windows)]
+    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle {
+        self.0.get_ref().as_handle()
+    }
+
+    #[cfg(unix)]
+    fn as_fd(&self) -> std::os::fd::BorrowedFd {
+        self.0.get_ref().as_fd()
     }
 }
 
