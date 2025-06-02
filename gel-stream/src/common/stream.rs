@@ -139,6 +139,11 @@ pub trait StreamOptimizationExt: Stream + Sized {
             };
         );
 
+        #[cfg(unix)]
+        if self.transport() == Transport::Unix {
+            return Ok(());
+        }
+
         let mut with_socket2_fn = move |s: socket2::SockRef<'_>| {
             #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
             try_optimize!(s.set_cork(false))?;
