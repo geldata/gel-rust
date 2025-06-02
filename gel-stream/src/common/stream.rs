@@ -133,42 +133,48 @@ pub trait StreamOptimizationExt: Stream + Sized {
     /// Optimize the stream for the given optimization.
     #[cfg(feature = "optimization")]
     fn optimize_for(&mut self, optimization: StreamOptimization) -> Result<(), std::io::Error> {
+        macro_rules! try_optimize(
+            ( $s:ident . $method:ident ( $($args:tt)* ) ) => {
+                $s.$method($($args)*).map_err(|e: std::io::Error| std::io::Error::new(e.kind(), format!("{}: {}", stringify!($method), e)))
+            };
+        );
+
         let mut with_socket2_fn = move |s: socket2::SockRef<'_>| {
             #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-            s.set_cork(false)?;
+            try_optimize!(s.set_cork(false))?;
 
             #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-            s.set_quickack(false)?;
+            try_optimize!(s.set_quickack(false))?;
 
             #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-            s.set_thin_linear_timeouts(false)?;
+            try_optimize!(s.set_thin_linear_timeouts(false))?;
 
-            s.set_send_buffer_size(256 * 1024)?;
-            s.set_recv_buffer_size(256 * 1024)?;
+            try_optimize!(s.set_send_buffer_size(256 * 1024))?;
+            try_optimize!(s.set_recv_buffer_size(256 * 1024))?;
 
             match optimization {
                 StreamOptimization::General => {
-                    s.set_nodelay(false)?;
+                    try_optimize!(s.set_nodelay(false))?;
                     #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-                    s.set_thin_linear_timeouts(true)?;
+                    try_optimize!(s.set_thin_linear_timeouts(true))?;
                 }
                 StreamOptimization::Interactive => {
-                    s.set_nodelay(true)?;
+                    try_optimize!(s.set_nodelay(true))?;
                     #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-                    s.set_thin_linear_timeouts(true)?;
+                    try_optimize!(s.set_thin_linear_timeouts(true))?;
                 }
                 StreamOptimization::BulkStreaming(direction) => {
-                    s.set_nodelay(false)?;
+                    try_optimize!(s.set_nodelay(false))?;
                     // Handle send buffer size
                     match direction {
                         BulkStreamDirection::Send | BulkStreamDirection::Both => {
-                            s.set_send_buffer_size(16 * 1024 * 1024)?;
+                            try_optimize!(s.set_send_buffer_size(16 * 1024 * 1024))?;
                             #[cfg(any(
                                 target_os = "android",
                                 target_os = "fuchsia",
                                 target_os = "linux"
                             ))]
-                            s.set_cork(true)?;
+                            try_optimize!(s.set_cork(true))?;
                         }
                         BulkStreamDirection::Receive => {}
                     }
@@ -176,13 +182,13 @@ pub trait StreamOptimizationExt: Stream + Sized {
                     // Handle receive buffer size
                     match direction {
                         BulkStreamDirection::Receive | BulkStreamDirection::Both => {
-                            s.set_recv_buffer_size(16 * 1024 * 1024)?;
+                            try_optimize!(s.set_recv_buffer_size(16 * 1024 * 1024))?;
                             #[cfg(any(
                                 target_os = "android",
                                 target_os = "fuchsia",
                                 target_os = "linux"
                             ))]
-                            s.set_quickack(true)?;
+                            try_optimize!(s.set_quickack(true))?;
                         }
                         BulkStreamDirection::Send => {}
                     }
@@ -562,6 +568,7 @@ enum UpgradableStreamInner<S: Stream, D: TlsDriver> {
 }
 
 impl<S: Stream, D: TlsDriver> UpgradableStreamInner<S, D> {
+    #[inline(always)]
     fn with_inner_metadata<T>(&self, f: impl FnOnce(&dyn StreamMetadata) -> T) -> T {
         match self {
             UpgradableStreamInner::BaseClient(base, _) => f(base),
@@ -572,6 +579,7 @@ impl<S: Stream, D: TlsDriver> UpgradableStreamInner<S, D> {
         }
     }
 
+    #[inline(always)]
     fn as_inner_handle(&self) -> &dyn AsHandle {
         match self {
             UpgradableStreamInner::BaseClient(base, _) => base,
