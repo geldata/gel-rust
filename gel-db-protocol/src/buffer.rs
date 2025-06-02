@@ -3,10 +3,21 @@ use std::{collections::VecDeque, marker::PhantomData};
 
 /// A buffer that accumulates bytes of sized structs and feeds them to provided sink function when messages
 /// are complete. This buffer handles partial messages and multiple messages in a single push.
-#[derive(Default)]
+#[derive(derive_more::Debug)]
 pub struct StructBuffer<M: StructLength> {
+    #[debug(skip)]
     _phantom: PhantomData<M>,
+    #[debug("Length={}", accum.len())]
     accum: VecDeque<u8>,
+}
+
+impl<M: StructLength> Default for StructBuffer<M> {
+    fn default() -> Self {
+        Self {
+            _phantom: PhantomData,
+            accum: VecDeque::with_capacity(32 * 1024),
+        }
+    }
 }
 
 impl<M: StructLength> StructBuffer<M> {
