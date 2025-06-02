@@ -480,7 +480,7 @@ impl From<SslVersion> for openssl::ssl::SslVersion {
 
 impl AsHandle for TlsStream {
     #[cfg(windows)]
-    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle {
+    fn as_handle(&self) -> std::os::windows::io::BorrowedSocket {
         self.0.get_ref().as_handle()
     }
 

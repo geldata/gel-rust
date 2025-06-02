@@ -23,7 +23,7 @@ pub trait AsHandle {
 /// A trait for streams that can be converted to a handle or file descriptor.
 #[cfg(windows)]
 pub trait AsHandle {
-    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle;
+    fn as_handle(&self) -> std::os::windows::io::BorrowedSocket;
 }
 
 /// A convenience trait for streams from this crate.
@@ -75,7 +75,7 @@ impl<T> Stream for T where
 }
 
 #[cfg(not(feature = "tokio"))]
-pub trait Stream: 'static {}
+pub trait Stream: StreamMetadata + Unpin + AsHandle + 'static {}
 #[cfg(not(feature = "tokio"))]
 impl<S: Stream, D: TlsDriver> Stream for UpgradableStream<S, D> {}
 #[cfg(not(feature = "tokio"))]
@@ -599,7 +599,7 @@ impl<S: Stream, D: TlsDriver> UpgradableStreamInner<S, D> {
 
 impl<S: Stream, D: TlsDriver> AsHandle for UpgradableStream<S, D> {
     #[cfg(windows)]
-    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle {
+    fn as_handle(&self) -> std::os::windows::io::BorrowedSocket {
         self.inner.as_inner_handle().as_handle()
     }
 
@@ -708,7 +708,7 @@ impl<S: PeekableStream> PeekableStream for RewindStream<S> {
 
 impl<S: Stream + AsHandle> AsHandle for RewindStream<S> {
     #[cfg(windows)]
-    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle {
+    fn as_handle(&self) -> std::os::windows::io::BorrowedSocket {
         self.inner.as_handle()
     }
 

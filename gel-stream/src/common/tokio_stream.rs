@@ -182,8 +182,8 @@ impl TokioStream {
 
 impl AsHandle for TokioStream {
     #[cfg(windows)]
-    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle {
-        <Self as std::os::windows::io::AsHandle>::as_handle(self)
+    fn as_handle(&self) -> std::os::windows::io::BorrowedSocket {
+        <Self as std::os::windows::io::AsSocket>::as_handle(self)
     }
 
     #[cfg(unix)]
@@ -289,8 +289,8 @@ impl StreamMetadata for TcpStream {
 
 impl AsHandle for TcpStream {
     #[cfg(windows)]
-    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle {
-        <Self as std::os::windows::io::AsHandle>::as_handle(self)
+    fn as_handle(&self) -> std::os::windows::io::BorrowedSocket {
+        <Self as std::os::windows::io::AsSocket>::as_handle(self)
     }
 
     #[cfg(unix)]
