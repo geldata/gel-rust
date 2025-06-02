@@ -18,7 +18,7 @@ full = [
 client = []
 server = []
 serde = ["dep:serde"]
-tokio = ["dep:tokio", "dep:socket2", "dep:derive-io"]
+tokio = ["dep:tokio", "dep:socket2", "derive-io/tokio"]
 rustls = ["tokio", "dep:rustls", "dep:rustls-tokio-stream", "dep:rustls-platform-verifier", "dep:webpki", "dep:webpki-roots"]
 openssl = ["tokio", "dep:openssl", "dep:tokio-openssl", "dep:foreign-types", "dep:openssl-sys", "dep:openssl-probe", "dep:webpki-root-certs"]
 hickory = ["dep:hickory-resolver"]
@@ -34,6 +34,7 @@ derive_more = { version = "2", default-features = false, features = ["debug", "c
 thiserror = "2"
 futures = "0.3"
 smallvec = "1"
+derive-io = "=0.3.0"
 
 # Given that this library may be used in multiple contexts, we want to limit the
 # features we enable by default.
@@ -46,7 +47,6 @@ socket2 = { version = "0.5.2", optional = true }
 # feature = "tokio"
 tokio = { version = "1", optional = true, default-features = false, features = ["net", "rt", "io-util"] }
 hickory-resolver = { version = "0.25.2", optional = true, default-features = false, features = ["tokio", "system-config"] }
-derive-io = { version = "=0.3.0", optional = true, features = ["tokio"] }
 
 # feature = "rustls"
 # We rely on certain aspects of these crates. Use caution when upgrading.

@@ -206,6 +206,7 @@ pub trait StreamOptimizationExt: Stream + Sized {
     }
 }
 
+#[cfg(feature = "optimization")]
 impl<S: Stream + Sized> StreamOptimizationExt for S {}
 
 /// A trait for streams that can be peeked asynchronously.
