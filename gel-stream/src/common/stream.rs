@@ -11,8 +11,8 @@ use std::{
 use std::{future::Future, num::NonZeroUsize, ops::Deref};
 
 use crate::{
-    LocalAddress, RemoteAddress, ResolvedTarget, Ssl, SslError, StreamMetadata, TlsDriver,
-    TlsHandshake, TlsServerParameterProvider, Transport, DEFAULT_PREVIEW_BUFFER_SIZE,
+    LocalAddress, PeerCred, RemoteAddress, ResolvedTarget, Ssl, SslError, StreamMetadata,
+    TlsDriver, TlsHandshake, TlsServerParameterProvider, Transport, DEFAULT_PREVIEW_BUFFER_SIZE,
 };
 
 /// A convenience trait for streams from this crate.
@@ -512,6 +512,13 @@ impl<S: RemoteAddress> RemoteAddress for RewindStream<S> {
     }
 }
 
+impl<S: PeerCred> PeerCred for RewindStream<S> {
+    #[cfg(all(unix, feature = "tokio"))]
+    fn peer_cred(&self) -> std::io::Result<tokio::net::unix::UCred> {
+        self.inner.peer_cred()
+    }
+}
+
 impl<S: StreamMetadata> StreamMetadata for RewindStream<S> {
     fn transport(&self) -> Transport {
         self.inner.transport()
@@ -568,5 +575,12 @@ where
                 Pin::new(upgraded).poll_peek(cx, buf)
             }
         }
+    }
+}
+
+impl<S: PeerCred + Stream, D: TlsDriver> PeerCred for UpgradableStream<S, D> {
+    #[cfg(all(unix, feature = "tokio"))]
+    fn peer_cred(&self) -> std::io::Result<tokio::net::unix::UCred> {
+        self.inner.with_inner_metadata(|inner| inner.peer_cred())
     }
 }
