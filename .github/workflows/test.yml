@@ -3,42 +3,120 @@ on: [pull_request]
 name: CI
 
 jobs:
-  build_and_test:
-    name: Tests
+  generate:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate.outputs.matrix }}
+    steps:
+      - id: generate
+        uses: mmastrac/mmm-matrix@91335b7feba33d62dbb0281de119f3d9f3e72b27
+        with:
+          input: |
+            os:
+              ubuntu:
+                runner: ubuntu-latest
+                rust_versions: [default, 1.85, beta]
+              macos:
+                runner: macOS-latest
+                rust_versions: [default]
+              windows:
+                runner: windows-2025
+                rust_versions: [default]
+
+  build_and_test:
+    name: Tests (${{ matrix.os }})
+    needs: generate
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        rust_version: [default, 1.85, beta]
+        include: ${{ fromJSON(needs.generate.outputs.matrix) }}
+        rust_version: ${{ matrix.rust_versions }}
       fail-fast: false
     timeout-minutes: 30
     permissions:
       id-token: "write"
       contents: "read"
     steps:
-      - name: checkout and env setup
+      - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: true
 
-      - name: Install Gel CLI
-        run: bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) -y
+      - name: Setup WSL
+        if: runner.os == 'Windows'
+        run: |
+          wsl --install --distribution Debian --name EdgeDB.WSL.1 --version 1
 
-      - name: Install Gel
+      - name: Install Gel CLI
+        if: runner.os == 'Windows'
+        run: |
+          bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) -y
+        shell: bash
+
+      - name: Install Gel CLI (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) -y
+
+      - name: Install Gel CLI (Mac)
+        if: runner.os == 'macOS'
+        run: |
+          bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) --nightly -y
+          . ~/.bash_profile
+          echo "PATH=$PATH" >> $GITHUB_ENV
+          gel server install --nightly
+          mkdir -p ~/.local/bin/
+          printf "#\!/bin/bash\n\"$(gel server info --channel=nightly --get bin-path)\" \"\$@\"\n" > ~/.local/bin/edgedb-server
+          printf "#\!/bin/bash\n\"$(gel server info --channel=nightly --get bin-path)\" \"\$@\"\n" > ~/.local/bin/gel-server
+          chmod +x ~/.local/bin/edgedb-server
+          chmod +x ~/.local/bin/gel-server
+        shell: bash
+
+      - name: Set PATH (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Write-Host "Adding install path to PATH:"
+          Write-Host "$env:USERPROFILE\AppData\Roaming\edgedb\bin"
+          Add-Content $env:GITHUB_PATH "$env:USERPROFILE\AppData\Roaming\edgedb\bin"
+
+      - name: Install Gel (Linux)
+        if: runner.os == 'Linux'
         run: gel server install --nightly
 
-      - name: Link nightly
+      - name: Link nightly (Linux)
+        if: runner.os == 'Linux'
         run: |
           ln -s `gel server info --channel=nightly --get bin-path` ~/.local/bin/edgedb-server
           ln -s `gel server info --channel=nightly --get bin-path` ~/.local/bin/gel-server
 
       - name: Show binaries
-        run: ls -l ~/.local/bin
+        if: runner.os == 'Linux'
+        run: |
+          ls -l ~/.local/bin
+          edgedb-server --version
+
+      - name: Set Perl environment variables
+        if: runner.os == 'Windows'
+        run: |
+          echo "PERL=$((where.exe perl)[0])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          echo "OPENSSL_SRC_PERL=$((where.exe perl)[0])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_version == 'default' && 'stable' || matrix.rust_version }}
           components: rustfmt, clippy
+
+      - name: Write .cargo/config.toml
+        if: runner.os == 'Windows'
+        run: |
+          # Use rust-lld as linker for Windows for faster builds
+          echo '[target.x86_64-pc-windows-msvc]' > ${{ env.CARGO_HOME }}/config.toml
+          echo 'linker = "rust-lld.exe"' >> ${{ env.CARGO_HOME }}/config.toml
+
+          # Use opt-level 1 to avoid smashing the stack with large futures
+          echo '[profile.dev]' >> ${{ env.CARGO_HOME }}/config.toml
+          echo 'opt-level = 1' >> ${{ env.CARGO_HOME }}/config.toml
 
       - name: Cache Rust files
         uses: actions/cache@v4
