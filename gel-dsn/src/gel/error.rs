@@ -1,33 +1,44 @@
 use super::branding::*;
-use crate::host::HostParseError;
+use crate::{gel::BuildPhase, host::HostParseError};
 use std::{convert::Infallible, num::ParseIntError};
 
 use super::ParamSource;
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, PartialOrd, Ord)]
 pub enum CompoundSource {
+    #[display("DSN")]
     Dsn,
+    #[display("Instance")]
     Instance,
+    #[display("Credentials file")]
     CredentialsFile,
+    #[display("Host and port")]
     HostPort,
+    #[display("Unix socket")]
     UnixSocket,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, PartialOrd, Ord)]
-
+#[derive(
+    Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::Error, PartialOrd, Ord,
+)]
 pub enum TlsSecurityError {
     IncompatibleSecurityOptions,
     InvalidValue,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::Error, PartialOrd, Ord,
+)]
 pub enum InstanceNameError {
     InvalidInstanceName,
     InvalidCloudOrgName,
     InvalidCloudInstanceName,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::Error, PartialOrd, Ord,
+)]
+#[error(ignore)]
 pub enum InvalidCredentialsFileError {
     FileNotFound,
     #[display("{}={}, {}={}", _0.0, _0.1, _1.0, _1.1)]
@@ -35,58 +46,80 @@ pub enum InvalidCredentialsFileError {
     SerializationError(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::Error, PartialOrd, Ord,
+)]
 pub enum InvalidSecretKeyError {
     InvalidJwt,
     MissingIssuer,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::Error, PartialOrd, Ord,
+)]
 pub enum InvalidDsnError {
     InvalidScheme,
     ParseError,
-    DuplicateOptions(String),
+    DuplicateOptions(#[error(not(source))] String),
     BranchAndDatabase,
 }
 
-#[derive(Debug, derive_more::Error, derive_more::Display, PartialEq, Eq, PartialOrd, Ord)]
+/// DSN parsing errors.
+///
+/// This is the top-level error type for DSN parsing errors. It is used to
+/// represent errors that may occur when parsing a DSN, accessing environment
+/// variables, files that hold credentials, and any other part of the parsing
+/// process.
+#[derive(
+    Debug,
+    derive_more::Error,
+    derive_more::Display,
+    derive_more::From,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+)]
 pub enum ParseError {
     #[display("Credentials file not found")]
     CredentialsFileNotFound,
     #[display("Environment variable was not set: {_1} (from {_0})")]
-    EnvNotFound(ParamSource, #[error(not(source))] String),
+    EnvNotFound(ParamSource, String),
     #[display("{_0} and {_1} are mutually exclusive and cannot be used together")]
     ExclusiveOptions(String, String),
     #[display("File not found")]
     FileNotFound,
     #[display("Invalid credentials file: {_0}")]
-    InvalidCredentialsFile(#[error(not(source))] InvalidCredentialsFileError),
+    #[from]
+    InvalidCredentialsFile(InvalidCredentialsFileError),
     #[display("Invalid database")]
     InvalidDatabase,
     #[display("Invalid DSN: {_0}")]
-    InvalidDsn(#[error(not(source))] InvalidDsnError),
+    #[from]
+    InvalidDsn(InvalidDsnError),
     #[display("Invalid DSN or instance name")]
     InvalidDsnOrInstanceName,
     #[display("Invalid host")]
     InvalidHost,
     #[display("Invalid instance name: {_0}")]
-    InvalidInstanceName(#[error(not(source))] InstanceNameError),
+    #[from]
+    InvalidInstanceName(InstanceNameError),
     #[display("Invalid port")]
     InvalidPort,
     #[display("Invalid secret key")]
-    InvalidSecretKey(#[error(not(source))] InvalidSecretKeyError),
+    #[from]
+    InvalidSecretKey(InvalidSecretKeyError),
     #[display("Invalid TLS security")]
-    InvalidTlsSecurity(#[error(not(source))] TlsSecurityError),
+    #[from]
+    InvalidTlsSecurity(TlsSecurityError),
     #[display("Invalid user")]
     InvalidUser,
     #[display("Invalid certificate")]
     InvalidCertificate,
     #[display("Invalid duration")]
     InvalidDuration,
-    #[display("Multiple compound environment variables: {:?}", _0)]
-    MultipleCompoundEnv(#[error(not(source))] Vec<CompoundSource>),
-    #[display("Multiple compound options: {:?}", _0)]
-    MultipleCompoundOpts(#[error(not(source))] Vec<CompoundSource>),
+    #[display("Multiple compound options were specified while parsing {_0}: {_1:#?}")]
+    MultipleCompound(BuildPhase, #[error(not(source))] Vec<CompoundSource>),
     #[display("No connection options specified, and no project manifest file found ({MANIFEST_FILE_DISPLAY_NAME})")]
     NoOptionsOrToml,
     #[display("Project not initialized")]
@@ -116,8 +149,9 @@ impl ParseError {
             Self::InvalidUser => "invalid_user",
             Self::InvalidCertificate => "invalid_certificate",
             Self::InvalidDuration => "invalid_duration",
-            Self::MultipleCompoundEnv(_) => "multiple_compound_env",
-            Self::MultipleCompoundOpts(_) => "multiple_compound_opts",
+            Self::MultipleCompound(BuildPhase::Environment, _) => "multiple_compound_env",
+            Self::MultipleCompound(BuildPhase::Options, _) => "multiple_compound_opts",
+            Self::MultipleCompound(BuildPhase::Project, _) => "multiple_compound_project",
             Self::NoOptionsOrToml => "no_options_or_toml",
             Self::ProjectNotInitialised => "project_not_initialised",
             Self::SecretKeyNotFound => "secret_key_not_found",
@@ -148,9 +182,7 @@ impl ParseError {
                 // The argument is invalid
                 gel_errors::InvalidArgumentError::with_source(self)
             }
-            Self::MultipleCompoundEnv(_)
-            | Self::MultipleCompoundOpts(_)
-            | Self::ExclusiveOptions(..) => {
+            Self::MultipleCompound(..) | Self::ExclusiveOptions(..) => {
                 // The argument is valid, but the use is invalid
                 gel_errors::InterfaceError::with_source(self)
             }

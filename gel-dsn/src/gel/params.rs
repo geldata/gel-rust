@@ -27,10 +27,13 @@ use crate::{
     EnvVar, FileAccess, UserProfile,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum BuildPhase {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+pub enum BuildPhase {
+    #[display("command-line or driver options")]
     Options,
+    #[display("environment variables")]
     Environment,
+    #[display("project directory")]
     Project,
 }
 
@@ -751,11 +754,7 @@ impl Params {
         // Step 0: Check for compound option overlap. If there is, return an error.
         let compound_sources = self.check_overlap();
         if compound_sources.len() > 1 {
-            if phase == BuildPhase::Options {
-                return Err(ParseError::MultipleCompoundOpts(compound_sources));
-            } else {
-                return Err(ParseError::MultipleCompoundEnv(compound_sources));
-            }
+            return Err(ParseError::MultipleCompound(phase, compound_sources));
         }
 
         // Step 1: Resolve DSN, credentials file, instance if available
