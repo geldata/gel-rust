@@ -2,7 +2,6 @@
 pub mod python;
 
 use std::fmt::Debug;
-use thiserror::Error;
 
 mod bare_key;
 mod key;
@@ -19,13 +18,16 @@ pub use key::{Key, KeyType, PrivateKey, PublicKey};
 pub use registry::KeyRegistry;
 pub use sig::{Any, SigningContext, ValidationContext, ValidationType};
 
-#[derive(Error, Debug, Eq, PartialEq)]
+#[derive(derive_more::Error, derive_more::Display, derive_more::From, Debug, Eq, PartialEq)]
 pub enum ValidationError {
     /// The token format or signature was invalid
-    #[error("Invalid token")]
-    Invalid(OpaqueValidationFailureReason),
+    #[display("Invalid token")]
+    Invalid(
+        #[from]
+        #[error(not(source))]
+        OpaqueValidationFailureReason,
+    ),
     /// The key is invalid
-    #[error(transparent)]
     KeyError(#[from] KeyError),
 }
 
@@ -68,51 +70,44 @@ pub enum OpaqueValidationFailureReason {
     Failure(String),
 }
 
-impl From<OpaqueValidationFailureReason> for ValidationError {
-    fn from(reason: OpaqueValidationFailureReason) -> Self {
-        ValidationError::Invalid(reason)
-    }
-}
-
 impl std::fmt::Debug for OpaqueValidationFailureReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "...")
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(derive_more::Error, derive_more::Display, derive_more::From, Debug)]
 pub enum SignatureError {
     /// The token format or signature was invalid
-    #[error("Signature operation failed: {0}")]
-    SignatureError(String),
+    #[display("Signature operation failed: {_0}")]
+    SignatureError(#[error(not(source))] String),
     /// No appropriate key was found
-    #[error("No appropriate signing key found")]
+    #[display("No appropriate signing key found")]
     NoAppropriateKey,
     /// The key is invalid
-    #[error(transparent)]
     KeyError(#[from] KeyError),
 }
 
-#[derive(Error, Debug, Eq, PartialEq)]
+#[derive(derive_more::Error, derive_more::Display, derive_more::From, Debug, Eq, PartialEq)]
 pub enum KeyError {
-    #[error("Invalid PEM format")]
+    #[display("Invalid PEM format")]
     InvalidPem,
-    #[error("Invalid JSON format")]
+    #[display("Invalid JSON format")]
     InvalidJson,
-    #[error("Unsupported key type: {0}")]
-    UnsupportedKeyType(String),
-    #[error("Invalid EC key parameters")]
+    #[display("Unsupported key type: {_0}")]
+    UnsupportedKeyType(#[error(not(source))] String),
+    #[display("Invalid EC key parameters")]
     InvalidEcParameters,
-    #[error("Failed to decode key")]
+    #[display("Failed to decode key")]
     DecodeError,
-    #[error("Failed to encode key")]
+    #[display("Failed to encode key")]
     EncodeError,
-    #[error("Failed to validate key pair: {0:?}")]
-    KeyValidationError(KeyValidationError),
+    #[display("Failed to validate key pair: {_0:?}")]
+    KeyValidationError(#[from] KeyValidationError),
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub struct KeyValidationError(String);
+#[derive(derive_more::Error, derive_more::Display, Debug, Eq, PartialEq)]
+pub struct KeyValidationError(#[error(not(source))] String);
 
 #[cfg(test)]
 mod tests {
