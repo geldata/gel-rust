@@ -17,7 +17,7 @@ postgres = ["dep:gel-pg-protocol"]
 gel = ["dep:gel-protocol"]
 
 [dependencies]
-gel-pg-protocol = { version = "0.1", path = "../gel-pg-protocol", optional = true }
+gel-pg-protocol = { version = "^0.1.1", path = "../gel-pg-protocol", optional = true }
 gel-protocol = { version = "0.8", path = "../gel-protocol", optional = true, features = ["__new-protocol"] }
 
 tracing.workspace = true
