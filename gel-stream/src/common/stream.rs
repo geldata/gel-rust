@@ -1,6 +1,5 @@
-use tokio::io::AsyncReadExt;
 #[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead, ReadBuf};
+use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
 
 #[cfg(feature = "tokio")]
 use std::{
@@ -15,10 +14,22 @@ use crate::{
     TlsDriver, TlsHandshake, TlsServerParameterProvider, Transport, DEFAULT_PREVIEW_BUFFER_SIZE,
 };
 
+/// A trait for streams that can be converted to a handle or file descriptor.
+#[cfg(unix)]
+pub trait AsHandle {
+    fn as_fd(&self) -> std::os::fd::BorrowedFd;
+}
+
+/// A trait for streams that can be converted to a handle or file descriptor.
+#[cfg(windows)]
+pub trait AsHandle {
+    fn as_handle(&self) -> std::os::windows::io::BorrowedSocket;
+}
+
 /// A convenience trait for streams from this crate.
 #[cfg(feature = "tokio")]
 pub trait Stream:
-    tokio::io::AsyncRead + tokio::io::AsyncWrite + StreamMetadata + Unpin + 'static
+    tokio::io::AsyncRead + tokio::io::AsyncWrite + StreamMetadata + Unpin + AsHandle + 'static
 {
     /// Attempt to downcast a generic stream to a specific stream type.
     fn downcast<S: Stream + 'static>(self) -> Result<S, Self>
@@ -53,12 +64,18 @@ pub trait Stream:
 
 #[cfg(feature = "tokio")]
 impl<T> Stream for T where
-    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + StreamMetadata + Unpin + Send + 'static
+    T: tokio::io::AsyncRead
+        + tokio::io::AsyncWrite
+        + StreamMetadata
+        + AsHandle
+        + Unpin
+        + Send
+        + 'static
 {
 }
 
 #[cfg(not(feature = "tokio"))]
-pub trait Stream: 'static {}
+pub trait Stream: StreamMetadata + Unpin + AsHandle + 'static {}
 #[cfg(not(feature = "tokio"))]
 impl<S: Stream, D: TlsDriver> Stream for UpgradableStream<S, D> {}
 #[cfg(not(feature = "tokio"))]
@@ -76,6 +93,121 @@ pub trait StreamUpgrade: Stream + Sized {
     /// Get the TLS handshake information, if the stream is upgraded.
     fn handshake(&self) -> Option<&TlsHandshake>;
 }
+
+#[cfg(feature = "optimization")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum StreamOptimization {
+    #[default]
+    /// Optimize for general use.
+    General,
+    /// Optimize for interactive use with low latency.
+    Interactive,
+    /// Optimize for bulk streaming.
+    BulkStreaming(BulkStreamDirection),
+}
+
+#[cfg(feature = "optimization")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum BulkStreamDirection {
+    Send,
+    Receive,
+    #[default]
+    Both,
+}
+
+/// A trait for streams that can provide a `socket2::SockRef`.
+#[cfg(any(feature = "optimization", feature = "keepalive"))]
+fn with_socket2<S: AsHandle + Sized>(
+    stream: &S,
+    f: &mut dyn for<'a> FnMut(socket2::SockRef<'a>) -> Result<(), std::io::Error>,
+) -> Result<(), std::io::Error> {
+    #[cfg(unix)]
+    let res = f(socket2::SockRef::from(&stream.as_fd()));
+    #[cfg(windows)]
+    let res = f(socket2::SockRef::from(&stream.as_handle()));
+    res
+}
+
+#[cfg(feature = "optimization")]
+pub trait StreamOptimizationExt: Stream + Sized {
+    /// Optimize the stream for the given optimization.
+    #[cfg(feature = "optimization")]
+    fn optimize_for(&mut self, optimization: StreamOptimization) -> Result<(), std::io::Error> {
+        macro_rules! try_optimize(
+            ( $s:ident . $method:ident ( $($args:tt)* ) ) => {
+                $s.$method($($args)*).map_err(|e: std::io::Error| std::io::Error::new(e.kind(), format!("{}: {}", stringify!($method), e)))
+            };
+        );
+
+        #[cfg(unix)]
+        if self.transport() == Transport::Unix {
+            return Ok(());
+        }
+
+        let mut with_socket2_fn = move |s: socket2::SockRef<'_>| {
+            #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+            try_optimize!(s.set_cork(false))?;
+
+            #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+            try_optimize!(s.set_quickack(false))?;
+
+            #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+            try_optimize!(s.set_thin_linear_timeouts(false))?;
+
+            try_optimize!(s.set_send_buffer_size(256 * 1024))?;
+            try_optimize!(s.set_recv_buffer_size(256 * 1024))?;
+
+            match optimization {
+                StreamOptimization::General => {
+                    try_optimize!(s.set_nodelay(false))?;
+                    #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+                    try_optimize!(s.set_thin_linear_timeouts(true))?;
+                }
+                StreamOptimization::Interactive => {
+                    try_optimize!(s.set_nodelay(true))?;
+                    #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+                    try_optimize!(s.set_thin_linear_timeouts(true))?;
+                }
+                StreamOptimization::BulkStreaming(direction) => {
+                    try_optimize!(s.set_nodelay(false))?;
+                    // Handle send buffer size
+                    match direction {
+                        BulkStreamDirection::Send | BulkStreamDirection::Both => {
+                            try_optimize!(s.set_send_buffer_size(16 * 1024 * 1024))?;
+                            #[cfg(any(
+                                target_os = "android",
+                                target_os = "fuchsia",
+                                target_os = "linux"
+                            ))]
+                            try_optimize!(s.set_cork(true))?;
+                        }
+                        BulkStreamDirection::Receive => {}
+                    }
+
+                    // Handle receive buffer size
+                    match direction {
+                        BulkStreamDirection::Receive | BulkStreamDirection::Both => {
+                            try_optimize!(s.set_recv_buffer_size(16 * 1024 * 1024))?;
+                            #[cfg(any(
+                                target_os = "android",
+                                target_os = "fuchsia",
+                                target_os = "linux"
+                            ))]
+                            try_optimize!(s.set_quickack(true))?;
+                        }
+                        BulkStreamDirection::Send => {}
+                    }
+                }
+            }
+            Ok(())
+        };
+
+        with_socket2(self, &mut with_socket2_fn)
+    }
+}
+
+#[cfg(feature = "optimization")]
+impl<S: Stream + Sized> StreamOptimizationExt for S {}
 
 /// A trait for streams that can be peeked asynchronously.
 pub trait PeekableStream: Stream {
@@ -165,9 +297,10 @@ struct UpgradableStreamOptions {
 }
 
 #[allow(private_bounds)]
-#[derive(derive_more::Debug, derive_io::AsyncWrite)]
+#[derive(derive_more::Debug, derive_io::AsyncWrite, derive_io::AsSocketDescriptor)]
 pub struct UpgradableStream<S: Stream, D: TlsDriver = Ssl> {
     #[write]
+    #[descriptor]
     inner: UpgradableStreamInner<S, D>,
     options: UpgradableStreamOptions,
 }
@@ -394,12 +527,15 @@ impl<S: Stream, D: TlsDriver> StreamMetadata for UpgradableStream<S, D> {
     }
 }
 
-#[derive(derive_more::Debug, derive_io::AsyncRead, derive_io::AsyncWrite)]
+#[derive(
+    derive_more::Debug, derive_io::AsyncRead, derive_io::AsyncWrite, derive_io::AsSocketDescriptor,
+)]
 enum UpgradableStreamInner<S: Stream, D: TlsDriver> {
     #[debug("BaseClient(..)")]
     BaseClient(
         #[read]
         #[write]
+        #[descriptor]
         S,
         Option<D::ClientParams>,
     ),
@@ -407,6 +543,7 @@ enum UpgradableStreamInner<S: Stream, D: TlsDriver> {
     BaseServer(
         #[read]
         #[write]
+        #[descriptor]
         S,
         Option<TlsServerParameterProvider>,
     ),
@@ -414,6 +551,7 @@ enum UpgradableStreamInner<S: Stream, D: TlsDriver> {
     BaseServerPreview(
         #[read]
         #[write]
+        #[descriptor]
         RewindStream<S>,
         Option<TlsServerParameterProvider>,
     ),
@@ -421,6 +559,7 @@ enum UpgradableStreamInner<S: Stream, D: TlsDriver> {
     Upgraded(
         #[read]
         #[write]
+        #[descriptor]
         D::Stream,
         TlsHandshake,
     ),
@@ -428,12 +567,14 @@ enum UpgradableStreamInner<S: Stream, D: TlsDriver> {
     UpgradedPreview(
         #[read]
         #[write]
+        #[descriptor]
         RewindStream<D::Stream>,
         TlsHandshake,
     ),
 }
 
 impl<S: Stream, D: TlsDriver> UpgradableStreamInner<S, D> {
+    #[inline(always)]
     fn with_inner_metadata<T>(&self, f: impl FnOnce(&dyn StreamMetadata) -> T) -> T {
         match self {
             UpgradableStreamInner::BaseClient(base, _) => f(base),
@@ -443,6 +584,29 @@ impl<S: Stream, D: TlsDriver> UpgradableStreamInner<S, D> {
             UpgradableStreamInner::UpgradedPreview(upgraded, _) => f(upgraded),
         }
     }
+
+    #[inline(always)]
+    fn as_inner_handle(&self) -> &dyn AsHandle {
+        match self {
+            UpgradableStreamInner::BaseClient(base, _) => base,
+            UpgradableStreamInner::BaseServer(base, _) => base,
+            UpgradableStreamInner::BaseServerPreview(base, _) => base,
+            UpgradableStreamInner::Upgraded(upgraded, _) => upgraded,
+            UpgradableStreamInner::UpgradedPreview(upgraded, _) => upgraded,
+        }
+    }
+}
+
+impl<S: Stream, D: TlsDriver> AsHandle for UpgradableStream<S, D> {
+    #[cfg(windows)]
+    fn as_handle(&self) -> std::os::windows::io::BorrowedSocket {
+        self.inner.as_inner_handle().as_handle()
+    }
+
+    #[cfg(unix)]
+    fn as_fd(&self) -> std::os::fd::BorrowedFd {
+        self.inner.as_inner_handle().as_fd()
+    }
 }
 
 pub trait Rewindable {
@@ -450,10 +614,11 @@ pub trait Rewindable {
 }
 
 /// A stream that can be rewound.
-#[derive(derive_io::AsyncWrite)]
+#[derive(derive_io::AsyncWrite, derive_io::AsSocketDescriptor)]
 pub(crate) struct RewindStream<S> {
     buffer: Vec<u8>,
     #[write]
+    #[descriptor]
     inner: S,
 }
 
@@ -538,6 +703,18 @@ impl<S: PeekableStream> PeekableStream for RewindStream<S> {
         } else {
             Pin::new(&mut self.inner).poll_peek(cx, buf)
         }
+    }
+}
+
+impl<S: Stream + AsHandle> AsHandle for RewindStream<S> {
+    #[cfg(windows)]
+    fn as_handle(&self) -> std::os::windows::io::BorrowedSocket {
+        self.inner.as_handle()
+    }
+
+    #[cfg(unix)]
+    fn as_fd(&self) -> std::os::fd::BorrowedFd {
+        self.inner.as_fd()
     }
 }
 

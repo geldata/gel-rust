@@ -14,8 +14,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadBuf};
 
 use super::tokio_stream::TokioStream;
 use crate::{
-    LocalAddress, PeerCred, RemoteAddress, ResolvedTarget, RewindStream, SslError, SslVersion,
-    Stream, StreamMetadata, TlsClientCertVerify, TlsDriver, TlsHandshake,
+    AsHandle, LocalAddress, PeerCred, RemoteAddress, ResolvedTarget, RewindStream, SslError,
+    SslVersion, Stream, StreamMetadata, TlsClientCertVerify, TlsDriver, TlsHandshake,
     TlsServerParameterProvider, TlsServerParameters, Transport,
 };
 use crate::{TlsCert, TlsParameters, TlsServerCertVerify};
@@ -663,5 +663,17 @@ impl PeerCred for TlsStream {
 impl StreamMetadata for TlsStream {
     fn transport(&self) -> Transport {
         Transport::Tcp
+    }
+}
+
+impl AsHandle for TlsStream {
+    #[cfg(windows)]
+    fn as_handle(&self) -> std::os::windows::io::BorrowedSocket {
+        std::os::windows::io::AsSocket::as_socket(self.tcp_stream().unwrap())
+    }
+
+    #[cfg(unix)]
+    fn as_fd(&self) -> std::os::fd::BorrowedFd {
+        std::os::fd::AsFd::as_fd(self.tcp_stream().unwrap())
     }
 }
