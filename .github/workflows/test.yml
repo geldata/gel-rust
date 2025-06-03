@@ -40,11 +40,22 @@ jobs:
           toolchain: ${{ matrix.rust_version == 'default' && 'stable' || matrix.rust_version }}
           components: rustfmt, clippy
 
-      - name: setup rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ env.CACHE_KEY }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.CACHE_KEY }}-
 
       - name: Install just
-        run: cargo install just
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: just
 
       - name: Test all features
         run: just test

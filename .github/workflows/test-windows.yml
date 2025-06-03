@@ -61,7 +61,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install just
-        run: cargo install just
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: just
 
       - name: Test all features
         run: just test
