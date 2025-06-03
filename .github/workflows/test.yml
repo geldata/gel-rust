@@ -131,6 +131,10 @@ jobs:
           fi
         shell: bash
 
+      - name: Install Rust from rust-toolchain.toml
+        if: matrix.rust_version == 'default'
+        uses: dsherret/rust-toolchain-file@3551321aa44dd44a0393eb3b6bdfbc5d25ecf621
+
       - name: Remove rust-toolchain.toml
         if: matrix.rust_version != 'default'
         run: |
