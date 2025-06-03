@@ -15,7 +15,7 @@ jobs:
             os:
               ubuntu:
                 runner: ubuntu-latest
-                rust_version: [default, 1.85, beta]
+                rust_version: [default, "1.85", beta]
               macos:
                 runner: macOS-latest
                 rust_version: [default]
