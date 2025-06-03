@@ -12,23 +12,31 @@ jobs:
       - id: generate
         uses: mmastrac/mmm-matrix@91335b7feba33d62dbb0281de119f3d9f3e72b27
         with:
+          config: |
+            github: ${{ toJSON(github) }}
+            isMainBranch: ${{ github.ref == 'refs/heads/main' }}
+            runners:
+              linux: ubuntu-latest
+              macos: macOS-latest
+              windows: windows-2025
           input: |
             os:
-              ubuntu:
-                runner: ubuntu-latest
-                rust_version: [default, "1.85", beta]
-                task: [test]
+              linux:
+                - rust_version: [default, beta]
+                  task: [test-fast]
+                - rust_version: [stable]
+                  task: [test]
               macos:
-                runner: macOS-latest
-                rust_version: [default]
+                rust_version: [stable]
                 task: [test]
               windows:
-                runner: windows-2025
-                rust_version: [default]
+                rust_version: [stable]
+                # Windows doesn't support the full test suite yet
                 task: [test-fast]
+            runner: { "$dynamic": "config.runners[this.os]" }
 
   build_and_test:
-    name: Tests (${{ matrix.os }})
+    name: ${{ matrix.task }} / ${{ matrix.os }} / rust=${{ matrix.rust_version }}
     needs: generate
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -109,14 +117,30 @@ jobs:
             echo "--------------------------------"
             echo
           fi
-          echo gel-server --version: $(gel-server --version)
-          echo gel --version: $(gel --version)
+
+          if command -v gel-server >/dev/null 2>&1; then
+            echo gel-server --version: $(gel-server --version)
+          else
+            echo "gel-server not found"
+          fi
+
+          if command -v gel >/dev/null 2>&1; then
+            echo gel --version: $(gel --version)
+          else
+            echo "gel: not found"
+          fi
         shell: bash
 
+      - name: Remove rust-toolchain.toml
+        if: matrix.rust_version != 'default'
+        run: |
+          rm -f rust-toolchain.toml
+
       - name: Install Rust
+        if: matrix.rust_version != 'default'
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.rust_version == 'default' && 'stable' || matrix.rust_version }}
+          toolchain: ${{ matrix.rust_version }}
           components: rustfmt, clippy
 
       - name: Write .cargo/config.toml
