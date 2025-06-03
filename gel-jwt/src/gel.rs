@@ -8,22 +8,24 @@ use crate::{
 };
 use base64ct::{Base64Unpadded, Encoding};
 use std::collections::{HashMap, HashSet};
-use thiserror::Error;
 use tracing::warn;
 use uuid::Uuid;
 
-#[derive(Debug, PartialEq, Eq, Error)]
+#[derive(derive_more::Error, derive_more::Display, derive_more::From, Debug, PartialEq, Eq)]
 pub enum TokenValidationError {
-    #[error("Verification failed")]
+    #[display("Verification failed")]
     ValidationError(#[from] ValidationError),
-    #[error("malformed JWT")]
+    #[display("malformed JWT")]
     InvalidToken,
-    #[error("secret key does not authorize access to this instance")]
-    InvalidInstance(String),
-    #[error("secret key does not authorize access in role {0}")]
-    InvalidRole(String),
-    #[error("secret key does not authorize access to database {0}")]
-    InvalidDatabase(String),
+    #[display("secret key does not authorize access to this instance")]
+    #[from(ignore)]
+    InvalidInstance(#[error(not(source))] String),
+    #[display("secret key does not authorize access in role {_0}")]
+    #[from(ignore)]
+    InvalidRole(#[error(not(source))] String),
+    #[display("secret key does not authorize access to database {_0}")]
+    #[from(ignore)]
+    InvalidDatabase(#[error(not(source))] String),
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
