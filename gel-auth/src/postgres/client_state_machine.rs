@@ -80,7 +80,12 @@ pub trait ConnectionStateUpdate: ConnectionStateSend {
     fn parameter(&mut self, name: &str, value: &str) {}
     fn cancellation_key(&mut self, pid: i32, key: i32) {}
     fn state_changed(&mut self, state: ConnectionStateType) {}
-    fn server_error(&mut self, error: &PgServerError) {}
+    fn server_error(&mut self, error: &PgServerError) {
+        error!("Server error during handshake: {:?}", error);
+    }
+    fn server_notice(&mut self, notice: &PgServerError) {
+        warn!("Server notice during handshake: {:?}", notice);
+    }
     fn auth(&mut self, auth: AuthType) {}
 }
 
@@ -236,6 +241,10 @@ impl ConnectionState {
                             password: &credentials.password,
                         }.into())?;
                     },
+                    (NoticeResponse as notice) => {
+                        let err = PgServerError::from(notice);
+                        update.server_notice(&err);
+                    },
                     (ErrorResponse as error) => {
                         self.0 = Error;
                         let err = PgServerError::from(error);
@@ -270,6 +279,10 @@ impl ConnectionState {
                     (AuthenticationMessage as auth) => {
                         trace!("SCRAM Unknown auth message: {}", auth.status())
                     },
+                    (NoticeResponse as notice) => {
+                        let err = PgServerError::from(notice);
+                        update.server_notice(&err);
+                    },
                     (ErrorResponse as error) => {
                         self.0 = Error;
                         let err = PgServerError::from(error);
@@ -296,6 +309,10 @@ impl ConnectionState {
                         trace!("-> Ready");
                         self.0 = Ready;
                         update.state_changed(ConnectionStateType::Ready);
+                    },
+                    (NoticeResponse as notice) => {
+                        let err = PgServerError::from(notice);
+                        update.server_notice(&err);
                     },
                     (ErrorResponse as error) => {
                         self.0 = Error;
