@@ -28,7 +28,7 @@ rsa = { version = "0.9.8", default-features = false, features = ["std"], optiona
 sha2 = "0.10.8"
 base64 = "0.22"
 hmac = "0.12.1"
-derive_more = { version = "2", features = ["debug", "from", "display"] }
+derive_more = { version = "2", features = ["error", "debug", "from", "display"] }
 
 rustls-pki-types = "1"
 serde = "1"
