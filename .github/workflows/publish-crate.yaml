@@ -1,9 +1,9 @@
 on:
   push:
     tags:
-    - releases/gel-jwt/v*
+    - releases/*/v*
 
-name: Release gel-jwt
+name: Release gel-* crate
 
 jobs:
   test_and_publish:
@@ -24,8 +24,8 @@ jobs:
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_ENV
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      # verify that git tag matches cargo version
-      - run: |
+      - name: Verify git tag matches cargo version
+        run: |
           set -x
           cargo_version="$(cargo metadata --format-version 1 \
             | jq -r '.packages[] | select(.name=="${{ env.PROJECT_NAME }}") | .version')"
