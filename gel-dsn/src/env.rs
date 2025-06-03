@@ -1,11 +1,12 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
+/// An implementation of `EnvVar` that uses `std::env`.
 pub struct SystemEnvVars;
 
 /// A trait for abstracting the reading of environment variables.
 ///
-/// By default, uses `std::env::Vars` but can be re-implemented for other
+/// By default, uses `SystemEnvVars` but can be re-implemented for other
 /// sources.
 pub trait EnvVar {
     fn default() -> impl EnvVar {
