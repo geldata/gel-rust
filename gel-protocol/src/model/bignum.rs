@@ -253,18 +253,18 @@ mod test_helpers {
 
     pub fn gen_u64<T: Rng>(rng: &mut T) -> u64 {
         // change distribution to generate different length more frequently
-        let max = 10_u64.pow(rng.gen_range(0..20));
-        rng.gen_range(0..max)
+        let max = 10_u64.pow(rng.random_range(0..20));
+        rng.random_range(0..max)
     }
 
     pub fn gen_i64<T: Rng>(rng: &mut T) -> i64 {
         // change distribution to generate different length more frequently
-        let max = 10_i64.pow(rng.gen_range(0..19));
-        rng.gen_range(-max..max)
+        let max = 10_i64.pow(rng.random_range(0..19));
+        rng.random_range(-max..max)
     }
 
     pub fn gen_f64<T: Rng>(rng: &mut T) -> f64 {
-        rng.gen::<f64>()
+        rng.random::<f64>()
     }
 }
 

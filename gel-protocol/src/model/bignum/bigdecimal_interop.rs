@@ -277,7 +277,7 @@ mod test {
         let mut rng = StdRng::seed_from_u64(2);
         for iter in 0..10000 {
             let head = gen_u64(&mut rng);
-            let nulls = rng.gen_range(0..100);
+            let nulls = rng.random_range(0..100);
             let txt = format!("{0}{1:0<2$}", head, "", nulls);
             assert_eq!(
                 dec_roundtrip(&txt),
@@ -297,7 +297,7 @@ mod test {
         let mut rng = StdRng::seed_from_u64(3);
         for iter in 0..10000 {
             let head = gen_u64(&mut rng);
-            let nulls = rng.gen_range(-100..100);
+            let nulls = rng.random_range(-100..100);
             let txt = format!("{}e{}", head, nulls);
             assert_eq!(
                 dec_roundtrip(&txt),
@@ -318,7 +318,7 @@ mod test {
         for iter in 0..10000 {
             let head = gen_i64(&mut rng);
             let fract = gen_u64(&mut rng);
-            let nulls = rng.gen_range(-100..100);
+            let nulls = rng.random_range(-100..100);
             let txt = format!("{}.{}e{}", head, fract, nulls);
             let rt = dec_roundtrip(&txt);
             let dec = if head == 0 && fract == 0 {
@@ -349,8 +349,8 @@ mod test {
         let mut rng = StdRng::seed_from_u64(5);
         for iter in 0..10000 {
             let head = gen_i64(&mut rng);
-            let nulls1 = rng.gen_range(0..100);
-            let nulls2 = rng.gen_range(0..100);
+            let nulls1 = rng.random_range(0..100);
+            let nulls2 = rng.random_range(0..100);
             let txt = format!("{0}{1:0<2$}e{3}", head, "", nulls1, nulls2);
             let rt = dec_roundtrip(&txt);
             let dec = B::from_str(&txt)?;
@@ -376,8 +376,8 @@ mod test {
         let mut rng = StdRng::seed_from_u64(6);
         for iter in 0..10000 {
             let head = gen_i64(&mut rng);
-            let nulls1 = rng.gen_range(0..100);
-            let nulls2 = rng.gen_range(0..100);
+            let nulls1 = rng.random_range(0..100);
+            let nulls2 = rng.random_range(0..100);
             let decimals = gen_u64(&mut rng);
             let txt = format!(
                 "{0}{1:0<2$}.{1:0<3$}{4}",
