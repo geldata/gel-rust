@@ -3,7 +3,7 @@ use super::{
     Param, Params,
 };
 use crate::{
-    gel::parse_duration,
+    gel::{parse_duration, BuildPhase},
     host::{Host, HostType, LOCALHOST_HOSTNAME},
 };
 use rustls_pki_types::CertificateDer;
@@ -136,9 +136,9 @@ impl Default for Config {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Error, derive_more::Display)]
 pub enum CredentialsError {
-    #[error("no TCP address")]
+    #[display("no TCP address")]
     NoTcpAddress,
 }
 
@@ -842,10 +842,13 @@ impl TryInto<Params> for ConnectionOptions {
 
     fn try_into(self) -> Result<Params, Self::Error> {
         if self.credentials.is_some() && self.credentials_file.is_some() {
-            return Err(ParseError::MultipleCompoundOpts(vec![
-                CompoundSource::CredentialsFile,
-                CompoundSource::CredentialsFile,
-            ]));
+            return Err(ParseError::MultipleCompound(
+                BuildPhase::Options,
+                vec![
+                    CompoundSource::CredentialsFile,
+                    CompoundSource::CredentialsFile,
+                ],
+            ));
         }
 
         if self.tls_ca.is_some() && self.tls_ca_file.is_some() {

@@ -6,7 +6,6 @@
 //!  - `database` is recognized as an alias for `dbname`
 //!  - `[host1,host2]` is considered valid for psql
 use gel_stream::SslVersionParseError;
-use thiserror::Error;
 
 mod host;
 mod params;
@@ -20,38 +19,41 @@ pub use passfile::{Password, PasswordWarning};
 pub use raw_params::{RawConnectionParameters, SslMode};
 pub use url::{parse_postgres_dsn, parse_postgres_dsn_env};
 
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, derive_more::Display, derive_more::From, derive_more::Error)]
 #[allow(clippy::enum_variant_names)]
+// #[error(not(source))] because derive_more infers a source for a single-field error
 pub enum ParseError {
-    #[error(
-        "Invalid DSN: scheme is expected to be either \"postgresql\" or \"postgres\", got {0}"
+    #[display(
+        "Invalid DSN: scheme is expected to be either \"postgresql\" or \"postgres\", got {_0}"
     )]
-    InvalidScheme(String),
+    InvalidScheme(#[error(not(source))] String),
 
-    #[error("Invalid value for parameter \"{0}\": \"{1}\"")]
+    #[display("Invalid value for parameter \"{_0}\": \"{_1}\"")]
     InvalidParameter(String, String),
 
-    #[error("Invalid percent encoding")]
+    #[display("Invalid percent encoding")]
     InvalidPercentEncoding,
 
-    #[error("Invalid port: \"{0}\"")]
-    InvalidPort(String),
+    #[display("Invalid port: \"{_0}\"")]
+    InvalidPort(#[error(not(source))] String),
 
-    #[error("Unexpected number of ports, must be either a single port or the same number as the host count: \"{0}\"")]
-    InvalidPortCount(String),
+    #[display("Unexpected number of ports, must be either a single port or the same number as the host count: \"{_0}\"")]
+    InvalidPortCount(#[error(not(source))] String),
 
-    #[error("Invalid hostname: \"{0}\"")]
-    InvalidHostname(String),
+    #[display("Invalid hostname: \"{_0}\"")]
+    InvalidHostname(#[error(not(source))] String),
 
-    #[error("Invalid query parameter: \"{0}\"")]
-    InvalidQueryParameter(String),
+    #[display("Invalid query parameter: \"{_0}\"")]
+    InvalidQueryParameter(#[error(not(source))] String),
 
-    #[error("Invalid TLS version: \"{0}\"")]
-    InvalidTLSVersion(#[from] SslVersionParseError),
+    #[display("Invalid TLS version: \"{_0}\"")]
+    #[from]
+    InvalidTLSVersion(SslVersionParseError),
 
-    #[error("Could not determine the connection {0}")]
-    MissingRequiredParameter(String),
+    #[display("Could not determine the connection {_0}")]
+    MissingRequiredParameter(#[error(not(source))] String),
 
-    #[error("URL parse error: {0}")]
-    UrlParseError(#[from] ::url::ParseError),
+    #[display("URL parse error: {_0}")]
+    #[from]
+    UrlParseError(::url::ParseError),
 }
