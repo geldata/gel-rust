@@ -27,7 +27,7 @@ tracing = { version = "0.1" }
 pyo3 = { version = "0.23", features = ["extension-module", "serde", "macros"] }
 
 [workspace.package]
-rust-version = "1.87" # keep in sync with flake.nix
+rust-version = "1.85" # keep in sync with flake.nix
 
 [workspace.lints.clippy]
 useless_format = 'allow'

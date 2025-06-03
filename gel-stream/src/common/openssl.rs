@@ -25,7 +25,7 @@ use super::tokio_stream::TokioStream;
 struct HandshakeData {
     server_alpn: Option<Vec<u8>>,
     handshake: TlsHandshake,
-    stream: *const Box<dyn Stream>,
+    stream: *const Box<dyn Stream + Send>,
 }
 
 unsafe impl Send for HandshakeData {}
@@ -57,11 +57,11 @@ pub struct OpensslDriver;
 pub struct TlsStream(
     #[read]
     #[write(poll_shutdown=poll_shutdown)]
-    tokio_openssl::SslStream<Box<dyn Stream>>,
+    tokio_openssl::SslStream<Box<dyn Stream + Send>>,
 );
 
 fn poll_shutdown(
-    this: Pin<&mut tokio_openssl::SslStream<Box<dyn Stream>>>,
+    this: Pin<&mut tokio_openssl::SslStream<Box<dyn Stream + Send>>>,
     cx: &mut std::task::Context<'_>,
 ) -> std::task::Poll<std::io::Result<()>> {
     use tokio::io::AsyncWrite;
@@ -298,7 +298,7 @@ impl TlsDriver for OpensslDriver {
         };
 
         let mut stream =
-            tokio_openssl::SslStream::new(params, Box::new(stream) as Box<dyn Stream>)?;
+            tokio_openssl::SslStream::new(params, Box::new(stream) as Box<dyn Stream + Send>)?;
         let res = Pin::new(&mut stream).do_handshake().await;
         if res.is_err() && stream.ssl().verify_result() != X509VerifyResult::OK {
             return Err(SslError::OpenSslErrorVerify(stream.ssl().verify_result()));
@@ -449,7 +449,11 @@ fn create_sni_callback(ssl: &mut SslContextBuilder, params: TlsServerParameterPr
         // is not being used.
         let params = unsafe {
             let stream = handshake.stream.as_ref().unwrap();
-            params.lookup(name, stream.as_ref())
+            // NOTE: Once we're on Rust 1.87, we can use trait upcasting and this becomes:
+            // "stream.as_ref()"
+            // let stream = stream.as_ref();
+            // Also, see the impl note about impl StreamMetadata for Box<dyn Stream>
+            params.lookup(name, stream)
         };
 
         if !params.alpn.is_empty() {

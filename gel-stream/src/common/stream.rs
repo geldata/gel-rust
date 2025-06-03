@@ -29,7 +29,7 @@ pub trait AsHandle {
 /// A convenience trait for streams from this crate.
 #[cfg(feature = "tokio")]
 pub trait Stream:
-    tokio::io::AsyncRead + tokio::io::AsyncWrite + StreamMetadata + Unpin + AsHandle + 'static
+    tokio::io::AsyncRead + tokio::io::AsyncWrite + StreamMetadata + Send + Unpin + AsHandle + 'static
 {
     /// Attempt to downcast a generic stream to a specific stream type.
     fn downcast<S: Stream + 'static>(self) -> Result<S, Self>
@@ -47,8 +47,8 @@ pub trait Stream:
         Err(holder.take().unwrap())
     }
 
-    /// Box the stream.
-    fn boxed(self) -> Box<dyn Stream>
+    /// Box the stream as a `Box<dyn Stream + Send>`.
+    fn boxed(self) -> Box<dyn Stream + Send>
     where
         Self: Sized + 'static,
     {
@@ -72,6 +72,32 @@ impl<T> Stream for T where
         + Send
         + 'static
 {
+}
+
+// NOTE: Once we're on Rust 1.87, we can use trait upcasting and get rid of this impl.
+impl PeerCred for Box<dyn Stream + Send> {
+    #[cfg(all(unix, feature = "tokio"))]
+    fn peer_cred(&self) -> std::io::Result<tokio::net::unix::UCred> {
+        self.as_ref().peer_cred()
+    }
+}
+
+impl LocalAddress for Box<dyn Stream + Send> {
+    fn local_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.as_ref().local_address()
+    }
+}
+
+impl RemoteAddress for Box<dyn Stream + Send> {
+    fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
+        self.as_ref().remote_address()
+    }
+}
+
+impl StreamMetadata for Box<dyn Stream + Send> {
+    fn transport(&self) -> Transport {
+        self.as_ref().transport()
+    }
 }
 
 #[cfg(not(feature = "tokio"))]
