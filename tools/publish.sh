@@ -31,11 +31,11 @@ cd $CRATE_ROOT
 # Compute the crate depedency graph for all gel-* crates from $CRATE
 # This will be a list of crates in publishing order, ending with $CRATE
 
-CRATES=$(cargo tree -p $CRATE --depth 1 --prefix none --edges=no-dev | grep "gel-" | cut -d ' ' -f 1 | sort | uniq)
+CRATES=$(cargo tree -p $CRATE --depth 1 --prefix none | grep "gel-" | cut -d ' ' -f 1 | sort | uniq)
 DEP_GRAPH=$(mktemp)
 
 for CRATE in $CRATES; do
-    for DEP in $(cargo tree -p $CRATE --depth 1 --prefix none | grep "gel-" | cut -d ' ' -f 1 | sort | uniq); do
+    for DEP in $(cargo tree -p $CRATE --depth 1 --prefix none --edges=no-dev --all-features | grep "gel-" | cut -d ' ' -f 1 | sort | uniq); do
         echo "$DEP $CRATE" >> $DEP_GRAPH
     done
 done
