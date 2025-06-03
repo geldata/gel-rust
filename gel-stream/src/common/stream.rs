@@ -76,6 +76,7 @@ impl<T> Stream for T where
 
 // NOTE: Once we're on Rust 1.87, we can use trait upcasting and get rid of this impl.
 impl PeerCred for Box<dyn Stream + Send> {
+    #[cfg(all(unix, feature = "tokio"))]
     fn peer_cred(&self) -> std::io::Result<tokio::net::unix::UCred> {
         self.as_ref().peer_cred()
     }
