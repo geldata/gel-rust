@@ -14,8 +14,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadBuf};
 
 use super::tokio_stream::TokioStream;
 use crate::{
-    LocalAddress, PeerCred, RemoteAddress, ResolvedTarget, RewindStream, SslError, SslVersion,
-    Stream, StreamMetadata, TlsClientCertVerify, TlsDriver, TlsHandshake,
+    AsHandle, LocalAddress, PeerCred, RemoteAddress, ResolvedTarget, RewindStream, SslError,
+    SslVersion, Stream, StreamMetadata, TlsClientCertVerify, TlsDriver, TlsHandshake,
     TlsServerParameterProvider, TlsServerParameters, Transport,
 };
 use crate::{TlsCert, TlsParameters, TlsServerCertVerify};
