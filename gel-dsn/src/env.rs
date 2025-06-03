@@ -36,6 +36,16 @@ impl EnvVar for SystemEnvVars {
     }
 }
 
+impl EnvVar for std::env::Vars {
+    fn read(&self, name: &str) -> Result<Cow<str>, std::env::VarError> {
+        if let Ok(value) = std::env::var(name) {
+            Ok(value.into())
+        } else {
+            Err(std::env::VarError::NotPresent)
+        }
+    }
+}
+
 impl EnvVar for &[(&str, &str)] {
     fn read(&self, name: &str) -> Result<Cow<str>, std::env::VarError> {
         for (key, value) in self.iter() {
