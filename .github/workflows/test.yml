@@ -137,8 +137,10 @@ jobs:
           rm -f rust-toolchain.toml
         shell: bash
 
+      # If we're using the default toolchain, we don't need to install it
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
+        if: matrix.rust_version != 'default'
         with:
           toolchain: ${{ matrix.rust_version }}
           components: rustfmt, clippy
