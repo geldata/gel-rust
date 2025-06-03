@@ -11,7 +11,7 @@ description = "Run a captive PostgreSQL server for testing purposes."
 workspace = true
 
 [dependencies]
-gel-auth = { path = "../gel-auth", version = "0.1.5" }
+gel-auth = { path = "../gel-auth", version = "^0.1.6" }
 gel-stream = { path = "../gel-stream", version = "0.4.3", default-features = false, features = ["client", "tokio", "rustls", "__test_keys"] }
 
 tempfile = "3"
