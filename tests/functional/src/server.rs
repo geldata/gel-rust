@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 use dtor::dtor;
 use gel_tokio::{Builder, Config};
-use once_cell::sync::Lazy;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::LazyLock;
 use std::{path::PathBuf, str::FromStr};
 use test_utils::server::ServerInstance;
 
@@ -10,11 +11,17 @@ pub struct ServerGuard {
     pub config: Config,
 }
 
-pub static SERVER: Lazy<ServerGuard> = Lazy::new(start_server);
+pub static SERVER: LazyLock<ServerGuard> = LazyLock::new(start_server);
+pub static IS_STARTED: AtomicBool = AtomicBool::new(false);
 
 #[dtor]
 unsafe fn stop_server() {
-    SERVER.instance.stop()
+    if IS_STARTED
+        .compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
+    {
+        SERVER.instance.stop()
+    }
 }
 
 /// Starts gel-server. Stops it after the test process exits.
@@ -22,6 +29,13 @@ unsafe fn stop_server() {
 ///
 /// To debug, run any test with --nocapture Rust flag.
 fn start_server() -> ServerGuard {
+    if IS_STARTED
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        panic!("Server already started");
+    }
+
     let instance = ServerInstance::start();
 
     let schema_dir = PathBuf::from_str(env!("CARGO_MANIFEST_DIR"))
