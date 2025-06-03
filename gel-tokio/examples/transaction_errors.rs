@@ -3,8 +3,8 @@ use std::error::Error;
 
 use gel_errors::{ErrorKind, UserError};
 
-#[derive(thiserror::Error, Debug)]
-#[error("should not apply this counter update")]
+#[derive(derive_more::Error, derive_more::Display, Debug)]
+#[display("should not apply this counter update")]
 struct CounterError;
 
 fn check_val0(val: i64) -> anyhow::Result<()> {

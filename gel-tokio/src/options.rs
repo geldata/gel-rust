@@ -3,15 +3,15 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use once_cell::sync::Lazy;
 use rand::{rng, Rng};
+use std::sync::LazyLock;
 
 use crate::errors::{Error, IdleSessionTimeoutError};
 
 /// Single immediate retry on idle is fine
 ///
 /// This doesn't have to be configured.
-static IDLE_TIMEOUT_RULE: Lazy<RetryRule> = Lazy::new(|| RetryRule {
+static IDLE_TIMEOUT_RULE: LazyLock<RetryRule> = LazyLock::new(|| RetryRule {
     attempts: 2,
     backoff: Arc::new(|_| Duration::new(0, 0)),
 });
