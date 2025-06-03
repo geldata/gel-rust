@@ -15,13 +15,13 @@ jobs:
             os:
               ubuntu:
                 runner: ubuntu-latest
-                rust_versions: [default, 1.85, beta]
+                rust_version: [default, 1.85, beta]
               macos:
                 runner: macOS-latest
-                rust_versions: [default]
+                rust_version: [default]
               windows:
                 runner: windows-2025
-                rust_versions: [default]
+                rust_version: [default]
 
   build_and_test:
     name: Tests (${{ matrix.os }})
@@ -30,7 +30,6 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJSON(needs.generate.outputs.matrix) }}
-        rust_version: ${{ matrix.rust_versions }}
       fail-fast: false
     timeout-minutes: 30
     permissions:
@@ -93,7 +92,6 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           ls -l ~/.local/bin
-          edgedb-server --version
 
       - name: Set Perl environment variables
         if: runner.os == 'Windows'
