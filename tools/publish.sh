@@ -101,12 +101,15 @@ if [ ${#NEEDS_BUMP[@]} -gt 0 ]; then
     done
     echo
     echo "To fix, run the following command and then re-run this script:"
-    echo "tools/bump.sh ${NEEDS_BUMP[@]}"
+    echo
+    echo "tools/bump.sh --patch ${NEEDS_BUMP[@]}"
     echo
     echo "Should I run this for you? (y/N)"
     read -n 1 -s
     if [ "$REPLY" = "y" ]; then
-        exec ./tools/bump.sh ${NEEDS_BUMP[@]}
+        echo "Yes"
+        echo
+        exec ./tools/bump.sh --patch ${NEEDS_BUMP[@]}
     fi
     exit 1
 fi
@@ -142,10 +145,12 @@ if [ ${#NEEDS_PUBLISH[@]} -gt 0 ]; then
 
         # Wait for crate to be published. Parse "Version:" from `cargo info` and
         # wait until it matches CRATE_VERSION.
-        while ! cargo info $CRATE@$CRATE_VERSION; do
+        while ! cargo info $CRATE@$CRATE_VERSION --registry crates-io > /dev/null 2>&1; do
             echo "Waiting for $CRATE@$CRATE_VERSION to be published (this may take a while)..."
             sleep 15
         done
+
+        cargo info $CRATE@$CRATE_VERSION --registry crates-io
 
         echo "✅ $CRATE published!"
     done

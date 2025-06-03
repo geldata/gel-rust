@@ -50,7 +50,7 @@ CRATE_ROOT=$(cd $(dirname $0)/.. && pwd)
 
 cd $CRATE_ROOT
 
-echo "Attempting to bump crate versions:" ${CRATES[*]}
+echo "Attempting to bump crate $VERSION_TYPE version(s):" ${CRATES[*]}
 
 # Check out a temporary worktree for this project using a branch
 # named "bump-versions" created from origin/master
