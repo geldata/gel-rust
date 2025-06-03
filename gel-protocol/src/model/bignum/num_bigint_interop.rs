@@ -158,7 +158,7 @@ mod test_with_decimal {
         let mut rng = StdRng::seed_from_u64(8);
         for iter in 0..10000 {
             let head = gen_i64(&mut rng);
-            let nulls = rng.gen_range(0..100);
+            let nulls = rng.random_range(0..100);
             let txt = format!("{0}{1:0<2$}", head, "", nulls);
             assert_eq!(
                 int_roundtrip(&txt),
@@ -178,7 +178,7 @@ mod test_with_decimal {
         let mut rng = StdRng::seed_from_u64(9);
         for iter in 0..10000 {
             let head = gen_i64(&mut rng);
-            let nulls = rng.gen_range(0..100);
+            let nulls = rng.random_range(0..100);
             let edb = format!("{}e{}", head, nulls);
             let bigint = format!("{}{1:0<2$}", head, "", nulls);
             assert_eq!(
@@ -199,8 +199,8 @@ mod test_with_decimal {
         let mut rng = StdRng::seed_from_u64(10);
         for iter in 0..10000 {
             let head = gen_i64(&mut rng);
-            let nulls1 = rng.gen_range(0..100);
-            let nulls2 = rng.gen_range(0..100);
+            let nulls1 = rng.random_range(0..100);
+            let nulls2 = rng.random_range(0..100);
             let edb = format!("{0}{1:0<2$}e{3}", head, "", nulls1, nulls2);
             let bigint = format!("{}{1:0<2$}", head, "", nulls1 + nulls2);
             assert_eq!(
