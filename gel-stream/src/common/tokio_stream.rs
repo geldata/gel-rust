@@ -6,7 +6,7 @@ use tokio::net::{TcpListener, TcpStream};
 #[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
 
-use crate::{PeekableStream, RemoteAddress, StreamMetadata, Transport};
+use crate::{PeekableStream, PeerCred, RemoteAddress, StreamMetadata, Transport};
 
 use super::target::{LocalAddress, ResolvedTarget};
 
@@ -222,6 +222,19 @@ impl RemoteAddress for TokioStream {
     }
 }
 
+impl PeerCred for TokioStream {
+    #[cfg(all(unix, feature = "tokio"))]
+    fn peer_cred(&self) -> std::io::Result<tokio::net::unix::UCred> {
+        match self {
+            TokioStream::Unix(unix) => unix.peer_cred(),
+            TokioStream::Tcp(_) => Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "TCP sockets do not support peer credentials",
+            )),
+        }
+    }
+}
+
 impl StreamMetadata for TokioStream {
     fn transport(&self) -> Transport {
         match self {
@@ -231,6 +244,7 @@ impl StreamMetadata for TokioStream {
         }
     }
 }
+
 impl LocalAddress for TcpStream {
     fn local_address(&self) -> std::io::Result<ResolvedTarget> {
         self.local_addr().map(ResolvedTarget::SocketAddr)
@@ -240,6 +254,16 @@ impl LocalAddress for TcpStream {
 impl RemoteAddress for TcpStream {
     fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
         self.peer_addr().map(ResolvedTarget::SocketAddr)
+    }
+}
+
+impl PeerCred for TcpStream {
+    #[cfg(all(unix, feature = "tokio"))]
+    fn peer_cred(&self) -> std::io::Result<tokio::net::unix::UCred> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "TCP sockets do not support peer credentials",
+        ))
     }
 }
 
@@ -262,6 +286,13 @@ impl RemoteAddress for UnixStream {
     fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
         self.peer_addr()
             .map(|addr| ResolvedTarget::UnixSocketAddr(addr.into()))
+    }
+}
+
+#[cfg(unix)]
+impl PeerCred for UnixStream {
+    fn peer_cred(&self) -> std::io::Result<tokio::net::unix::UCred> {
+        self.peer_cred()
     }
 }
 
