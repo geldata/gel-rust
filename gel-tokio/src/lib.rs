@@ -148,6 +148,7 @@ pub mod state;
 mod transaction;
 pub mod tutorial;
 
+#[cfg(feature = "derive")]
 pub use gel_derive::{ConfigDelta, GlobalsDelta, Queryable};
 
 pub use client::Client;

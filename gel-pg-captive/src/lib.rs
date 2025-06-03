@@ -513,6 +513,7 @@ fn run_postgres(
 }
 
 fn postgres_bin_dir() -> std::io::Result<std::path::PathBuf> {
+    #[allow(deprecated)] // this will be undeprecated soon
     let portable_bin_path = std::env::home_dir()
         .ok_or(std::io::Error::new(
             std::io::ErrorKind::NotFound,

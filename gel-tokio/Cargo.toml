@@ -39,7 +39,7 @@ futures-util = "0.3"
 rustls-pemfile = "2"
 
 [dev-dependencies]
-gel-tokio = { path = ".", features = ["miette-errors"]}
+gel-tokio = { path = ".", features = ["miette-errors", "unstable", "default"] }
 
 anyhow = "1.0.68"
 bytes = "1.0"

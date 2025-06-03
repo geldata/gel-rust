@@ -23,20 +23,20 @@ jobs:
             os:
               linux:
                 - rust_version: [default, beta]
-                  task: [test-fast]
+                  task: [check, test-fast]
                 - rust_version: [stable]
-                  task: [test]
+                  task: [check, test]
               macos:
                 rust_version: [stable]
-                task: [test]
+                task: [check, test]
               windows:
                 rust_version: [stable]
                 # Windows doesn't support the full test suite yet
-                task: [test-fast]
+                task: [check, test-fast]
             runner: { "$dynamic": "config.runners[this.os]" }
 
   build_and_test:
-    name: ${{ matrix.task }} / ${{ matrix.os }} / rust=${{ matrix.rust_version }}
+    name: ${{ matrix.os }} / ${{ matrix.task }} / rust=${{ matrix.rust_version }}
     needs: generate
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -135,9 +135,9 @@ jobs:
         if: matrix.rust_version != 'default'
         run: |
           rm -f rust-toolchain.toml
+        shell: bash
 
       - name: Install Rust
-        if: matrix.rust_version != 'default'
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_version }}
