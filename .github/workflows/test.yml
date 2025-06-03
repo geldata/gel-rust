@@ -4,6 +4,7 @@ name: CI
 
 jobs:
   generate:
+    name: Generate matrix
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.generate.outputs.matrix }}
@@ -41,23 +42,35 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup WSL
-        if: runner.os == 'Windows'
-        run: |
-          wsl --install --distribution Debian --name EdgeDB.WSL.1 --version 1
+      - name: Cache Rust files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ~/.cargo-install
+            target/
+          key: ${{ runner.os }}-cargo-${{ env.CACHE_KEY }}-${{ matrix.rust_version }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.CACHE_KEY }}-
+            ${{ runner.os }}-cargo-${{ env.CACHE_KEY }}-${{ matrix.rust_version }}-
 
-      - name: Install Gel CLI
+      - name: Install Gel CLI (Windows)
         if: runner.os == 'Windows'
         run: |
           bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) -y
         shell: bash
 
-      - name: Install Gel CLI (Linux)
+      - name: Install Gel CLI and nightly server (Linux)
         if: runner.os == 'Linux'
         run: |
           bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) -y
+          gel server install --nightly
+          ln -s `gel server info --channel=nightly --get bin-path` ~/.local/bin/edgedb-server
+          ln -s `gel server info --channel=nightly --get bin-path` ~/.local/bin/gel-server
 
-      - name: Install Gel CLI (Mac)
+      - name: Install Gel CLI and nightly server (Mac)
         if: runner.os == 'macOS'
         run: |
           bash <(curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com) --nightly -y
@@ -78,26 +91,23 @@ jobs:
           Write-Host "$env:USERPROFILE\AppData\Roaming\edgedb\bin"
           Add-Content $env:GITHUB_PATH "$env:USERPROFILE\AppData\Roaming\edgedb\bin"
 
-      - name: Install Gel (Linux)
-        if: runner.os == 'Linux'
-        run: gel server install --nightly
-
-      - name: Link nightly (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          ln -s `gel server info --channel=nightly --get bin-path` ~/.local/bin/edgedb-server
-          ln -s `gel server info --channel=nightly --get bin-path` ~/.local/bin/gel-server
-
-      - name: Show binaries
-        if: runner.os == 'Linux'
-        run: |
-          ls -l ~/.local/bin
-
-      - name: Set Perl environment variables
+      - name: Set Perl environment variables (Windows)
         if: runner.os == 'Windows'
         run: |
           echo "PERL=$((where.exe perl)[0])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           echo "OPENSSL_SRC_PERL=$((where.exe perl)[0])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Show binaries
+        run: |
+          if [ -d "~/.local/bin" ]; then
+            echo "~/.local/bin:"
+            echo "--------------------------------"
+            ls -l ~/.local/bin
+            echo "--------------------------------"
+            echo
+          fi
+          echo gel-server --version: $(gel-server --version)
+          echo gel --version: $(gel --version)
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -115,18 +125,6 @@ jobs:
           # Use opt-level 1 to avoid smashing the stack with large futures
           echo '[profile.dev]' >> ${{ env.CARGO_HOME }}/config.toml
           echo 'opt-level = 1' >> ${{ env.CARGO_HOME }}/config.toml
-
-      - name: Cache Rust files
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ env.CACHE_KEY }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-${{ env.CACHE_KEY }}-
 
       - name: Install just
         uses: baptiste0928/cargo-install@v3
