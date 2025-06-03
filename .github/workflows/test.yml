@@ -17,12 +17,15 @@ jobs:
               ubuntu:
                 runner: ubuntu-latest
                 rust_version: [default, "1.85", beta]
+                task: [test]
               macos:
                 runner: macOS-latest
                 rust_version: [default]
+                task: [test]
               windows:
                 runner: windows-2025
                 rust_version: [default]
+                task: [test-fast]
 
   build_and_test:
     name: Tests (${{ matrix.os }})
@@ -108,6 +111,7 @@ jobs:
           fi
           echo gel-server --version: $(gel-server --version)
           echo gel --version: $(gel --version)
+        shell: bash
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -131,5 +135,5 @@ jobs:
         with:
           crate: just
 
-      - name: Test all features
-        run: just test
+      - name: Run `just ${{ matrix.task }}`
+        run: just ${{ matrix.task }}
