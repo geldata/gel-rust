@@ -20,10 +20,10 @@ pub enum TokenValidationError {
     #[display("secret key does not authorize access to this instance")]
     #[from(ignore)]
     InvalidInstance(#[error(not(source))] String),
-    #[display("secret key does not authorize access in role {_0}")]
+    #[display("secret key does not authorize access in role {_0:?}")]
     #[from(ignore)]
     InvalidRole(#[error(not(source))] String),
-    #[display("secret key does not authorize access to database {_0}")]
+    #[display("secret key does not authorize access to database {_0:?}")]
     #[from(ignore)]
     InvalidDatabase(#[error(not(source))] String),
 }
