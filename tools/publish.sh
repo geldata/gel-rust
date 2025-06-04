@@ -141,7 +141,7 @@ if [ ${#NEEDS_PUBLISH[@]} -gt 0 ]; then
         eval $COMMAND >> $LOG_FILE 2>&1
 
         echo "🫸 Pushing tag to trigger CI..."
-        echo "⌛️ Actions status: https://github.com/geldata/gel-rust/actions/workflows/publish-$CRATE.yaml"
+        echo "⌛️ Actions status: https://github.com/geldata/gel-rust/actions/workflows/publish-crate.yaml"
 
         # Wait for crate to be published. Parse "Version:" from `cargo info` and
         # wait until it matches CRATE_VERSION.

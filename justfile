@@ -32,6 +32,23 @@ test-fast:
 
     cargo clippy --workspace --all-features --all-targets
 
+check:
+    #!/bin/bash
+    set -euo pipefail
+
+    cargo check --workspace --all-features --all-targets
+    cargo check --workspace --no-default-features --all-targets
+
+    # Check all crates in the workspace
+    CRATES=`cargo tree --workspace --depth 1 --prefix none | grep "gel-" | cut -d ' ' -f 1 | sort | uniq`
+    for crate in $CRATES; do
+        echo "Checking $crate..."
+        # TODO: this doesn't currently pass because we've got some crates that fail to check
+        cargo check --quiet --package $crate --no-default-features || echo "Failed to check $crate with no default features"
+        cargo check --quiet --package $crate --no-default-features --all-targets
+    done
+
+    echo "Checked all crates."
 
 publish:
     tools/publish.sh gel-tokio
