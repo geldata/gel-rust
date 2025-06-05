@@ -18,7 +18,7 @@
 use std::{cell::RefCell, num::NonZeroU32, rc::Rc};
 
 use gel_db_protocol::{match_message, Encoded};
-use gel_pg_protocol::protocol::*;
+use crate::protocol::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Param<'a> {
