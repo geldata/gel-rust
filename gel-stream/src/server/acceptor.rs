@@ -432,6 +432,7 @@ impl<D: TlsDriver> futures::Stream for AcceptedStream<(Preview, Connection<D>), 
 
 struct TlsAcceptBacklog<C> {
     capacity: usize,
+    #[allow(clippy::type_complexity)]
     futures: FuturesUnordered<
         Pin<Box<dyn Future<Output = Result<C, ConnectionError>> + Send + 'static>>,
     >,
