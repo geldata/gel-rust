@@ -94,12 +94,10 @@ impl tokio::io::AsyncRead for HyperStream {
         let this = self.get_mut();
 
         match &mut this.state {
-            StreamState::StaticResponse { .. } => {
-                Poll::Ready(Err(std::io::Error::new(
-                    std::io::ErrorKind::BrokenPipe,
-                    "Stream is in static response state",
-                )))
-            }
+            StreamState::StaticResponse { .. } => Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "Stream is in static response state",
+            ))),
             StreamState::Reading {
                 incoming,
                 partial_frame,
