@@ -111,11 +111,11 @@ mod tests {
         let types = query.types;
         assert_eq!(1, types.len());
         assert_eq!(
-            r#"QueryType { typ: Float, len: 4, meta: [1, 2, 3, 4] }"#,
+            r#"QueryType { typ: Float, length: 4, meta: [1, 2, 3, 4] }"#,
             format!("{:?}", types.into_iter().next().unwrap())
         );
         assert_eq!(
-            r#"Query { mtype: 81, mlen: 37, query: "SELECT * from foo", types: [QueryType { typ: Float, len: 4, meta: [1, 2, 3, 4] }] }"#,
+            r#"Query { mtype: 81, mlen: 37, query: "SELECT * from foo", types: [QueryType { typ: Float, length: 4, meta: [1, 2, 3, 4] }] }"#,
             format!("{query:?}")
         );
     }
