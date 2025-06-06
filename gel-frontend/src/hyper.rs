@@ -95,10 +95,10 @@ impl tokio::io::AsyncRead for HyperStream {
 
         match &mut this.state {
             StreamState::StaticResponse { .. } => {
-                return Poll::Ready(Err(std::io::Error::new(
+                Poll::Ready(Err(std::io::Error::new(
                     std::io::ErrorKind::BrokenPipe,
                     "Stream is in static response state",
-                )));
+                )))
             }
             StreamState::Reading {
                 incoming,
@@ -226,15 +226,12 @@ impl hyper::body::Body for HyperStream {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
         let this = self.get_mut();
-        match &mut this.state {
-            StreamState::StaticResponse { buffer } => {
-                return if buffer.is_empty() {
-                    Poll::Ready(None)
-                } else {
-                    Poll::Ready(Some(Ok(hyper::body::Frame::data(buffer.split_off(0)))))
-                };
-            }
-            _ => {}
+        if let StreamState::StaticResponse { buffer } = &mut this.state {
+            return if buffer.is_empty() {
+                Poll::Ready(None)
+            } else {
+                Poll::Ready(Some(Ok(hyper::body::Frame::data(buffer.split_off(0)))))
+            };
         }
         this.response_body_rx
             .poll_recv(cx)

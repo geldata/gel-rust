@@ -440,7 +440,7 @@ mod tests {
             identity: ConnectionIdentity,
             target: AuthTarget,
         ) -> impl Future<Output = Result<CredentialData, std::io::Error>> {
-            self.log(format!("lookup_auth: {:?}", identity));
+            self.log(format!("lookup_auth: {identity:?}"));
             async { Ok(CredentialData::Trust) }
         }
 
@@ -451,8 +451,7 @@ mod tests {
             stream: ListenerStream,
         ) -> impl Future<Output = Result<(), std::io::Error>> {
             self.log(format!(
-                "accept_stream: {:?}, {:?}, {:?}",
-                identity, language, stream
+                "accept_stream: {identity:?}, {language:?}, {stream:?}"
             ));
             async { Ok(()) }
         }
@@ -462,7 +461,7 @@ mod tests {
             identity: ConnectionIdentity,
             req: hyper::http::Request<hyper::body::Incoming>,
         ) -> impl Future<Output = Result<hyper::http::Response<String>, std::io::Error>> {
-            self.log(format!("accept_http: {:?}, {:?}", identity, req));
+            self.log(format!("accept_http: {identity:?}, {req:?}"));
             async { Ok(Default::default()) }
         }
 
@@ -470,7 +469,7 @@ mod tests {
             &self,
             req: hyper::http::Request<hyper::body::Incoming>,
         ) -> impl Future<Output = Result<hyper::http::Response<String>, std::io::Error>> {
-            self.log(format!("accept_http_unauthenticated: {:?}", req));
+            self.log(format!("accept_http_unauthenticated: {req:?}"));
             async { Ok(Default::default()) }
         }
     }
@@ -658,7 +657,7 @@ mod tests {
                     hyper::client::conn::http2::Builder::new(hyper_util::rt::TokioExecutor::new());
                 let (mut send, conn) = http2.handshake::<_, _>(TokioIo::new(stm)).await.unwrap();
                 tokio::task::spawn(conn);
-                let mut body = vec![];
+                let body = vec![];
 
                 // body.extend_from_slice(&gel_protocol::new_protocol::ExecuteBuilder {
                 //     annotations: &[],

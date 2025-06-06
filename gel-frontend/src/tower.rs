@@ -23,7 +23,6 @@ mod tests {
     use hyper_util::rt::TokioIo;
 
     use std::{
-        mem::MaybeUninit,
         pin::Pin,
         task::{Context, Poll},
     };
@@ -54,7 +53,7 @@ mod tests {
         #![allow(unused)]
         let mut http2 = http2::Builder::new(hyper_util::rt::TokioExecutor::new());
         let service = build_tower(TestService {});
-        let socket: tokio::net::TcpStream = Option::None.unwrap();
+        let socket: tokio::net::TcpStream = panic!();
         let conn = http2.serve_connection(TokioIo::new(socket), service);
     }
 }
