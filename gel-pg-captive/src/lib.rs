@@ -650,6 +650,7 @@ impl PostgresProcess {
 
     /// Try to shut down, waiting up to `timeout` for the process to exit.
     #[cfg(unix)]
+    #[allow(clippy::result_large_err)]
     pub fn shutdown_timeout(
         mut self,
         timeout: Duration,

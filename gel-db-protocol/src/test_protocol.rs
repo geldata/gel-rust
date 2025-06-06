@@ -43,7 +43,7 @@ protocol!(
         /// The type of the query parameter.
         typ: QueryParameterType,
         /// The length of the query parameter.
-        len: u32,
+        length: u32,
         /// The metadata of the query parameter.
         meta: Array<'a, u32, u8>,
     }
@@ -99,7 +99,7 @@ mod tests {
             query: "SELECT * from foo",
             types: &[QueryTypeBuilder {
                 typ: QueryParameterType::Float,
-                len: 4,
+                length: 4,
                 meta: &[1, 2, 3, 4],
                 ..Default::default()
             }],

@@ -23,7 +23,7 @@ async fn resolve_host_to_socket_addrs(host: String) -> std::io::Result<ResolvedT
             std::io::ErrorKind::NotFound,
             "No address found",
         ))
-        .map(|addr| ResolvedTarget::SocketAddr(addr))
+        .map(ResolvedTarget::SocketAddr)
 }
 
 impl Resolver {
@@ -44,7 +44,7 @@ impl Resolver {
                 ResolveResult::new_sync(Ok(resolved.clone()))
             }
             MaybeResolvedTarget::Unresolved(host, port, _) => {
-                if let Ok(ip) = IpAddr::from_str(&host) {
+                if let Ok(ip) = IpAddr::from_str(host) {
                     ResolveResult::new_sync(Ok(ResolvedTarget::SocketAddr(SocketAddr::from((
                         ip, *port,
                     )))))

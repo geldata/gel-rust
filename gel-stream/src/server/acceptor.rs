@@ -403,7 +403,7 @@ impl<D: TlsDriver> futures::Stream for AcceptedStream<(Preview, Connection<D>), 
             };
 
             let tls_provider = self.tls_provider.clone();
-            let preview_configuration = self.preview_configuration.clone().unwrap();
+            let preview_configuration = self.preview_configuration.unwrap();
             let ignore_missing_tls_close_notify = self.ignore_missing_tls_close_notify;
             self.tls_backlog.push(async move {
                 let mut buf = smallvec::SmallVec::with_capacity(
