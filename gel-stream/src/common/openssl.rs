@@ -509,7 +509,7 @@ impl PeekableStream for TlsStream {
         let buf = unsafe { &mut *(buf.unfilled_mut() as *mut _ as *mut [u8]) };
         Pin::new(&mut self.0)
             .poll_peek(cx, buf)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+            .map_err(std::io::Error::other)
     }
 }
 

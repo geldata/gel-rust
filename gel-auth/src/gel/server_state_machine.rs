@@ -1,4 +1,4 @@
-use gel_protocol::new_protocol::prelude::*;
+use gel_protocol::new_protocol::{prelude::*, TransactionState};
 use gel_protocol::new_protocol::{
     AuthenticationRequiredSASLMessageBuilder, AuthenticationSASLContinueBuilder,
     AuthenticationSASLFinalBuilder, AuthenticationSASLInitialResponse, AuthenticationSASLResponse,
@@ -205,19 +205,12 @@ impl ServerStateImpl {
 
                         // The handshake should generate an event rather than hardcoding the min/max protocol versions.
 
-                        // No extensions are supported
-                        if !handshake.extensions().is_empty() {
-                            update.send(EdgeDBBackendBuilder::ServerHandshake(ServerHandshakeBuilder { major_ver: 2, minor_ver: 0, extensions: &[] }))?;
-                            return Ok(());
-                        }
-
                         // We support 1.x and 2.0
                         let major_ver = handshake.major_ver();
                         let minor_ver = handshake.minor_ver();
                         match (major_ver, minor_ver) {
                             (..=0, _) => {
                                 update.send(EdgeDBBackendBuilder::ServerHandshake(ServerHandshakeBuilder { major_ver: 1, minor_ver: 0, extensions: &[] }))?;
-                                return Ok(());
                             }
                             (1, 1..) => {
                                 // 1.(1+) never existed
@@ -225,7 +218,6 @@ impl ServerStateImpl {
                             }
                             (2, 1..) | (3.., _) => {
                                 update.send(EdgeDBBackendBuilder::ServerHandshake(ServerHandshakeBuilder { major_ver: 2, minor_ver: 0, extensions: &[] }))?;
-                                return Ok(());
                             }
                             _ => {}
                         }
@@ -324,7 +316,7 @@ impl ServerStateImpl {
                 update.send(EdgeDBBackendBuilder::ReadyForCommand(
                     ReadyForCommandBuilder {
                         annotations: &[],
-                        transaction_state: 0x49,
+                        transaction_state: TransactionState::NotInTransaction,
                     },
                 ))?;
                 *self = Ready;

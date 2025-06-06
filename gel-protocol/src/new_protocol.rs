@@ -94,7 +94,7 @@ struct ReadyForCommand<'a>: Message {
     /// Message annotations.
     annotations: Array<'a, i16, Annotation<'a>>,
     /// Transaction state.
-    transaction_state: u8,
+    transaction_state: TransactionState,
 }
 
 /// The `RestoreReady` struct represents a message indicating the server is ready for restore.
@@ -367,6 +367,18 @@ struct Parse<'a>: Message {
     state_data: Array<'a, u32, u8>,
 }
 
+/// The `ParseComplete` struct represents the response to a `Parse` request from the client.
+struct ParseComplete<'a>: Message {
+    /// The headers
+    headers: Array<'a, i16, KeyValue<'a>>,
+    /// Cardinality
+    cardinality: u8,
+    /// Input descriptor ID.
+    input_typedesc_id: Uuid,
+    /// Output descriptor ID.
+    output_typedesc_id: Uuid,
+}
+
 /// The `Execute` struct represents an execute message from the client.
 struct Execute<'a>: Message {
     /// Identifies the message as execute.
@@ -502,6 +514,16 @@ struct ConnectionParam<'a> {
     /// Parameter value.
     value: LString<'a>,
 }
+
+#[repr(u8)]
+/// The state of the current transaction.
+enum TransactionState {
+    #[default]
+    NotInTransaction = 0x49,
+    InTransaction = 0x54,
+    InFailedTransaction = 0x45,
+}
+
 );
 
 #[derive(

@@ -39,7 +39,6 @@ whoami = "1.5"
 log = { optional = true, version = "0.4" }
 
 gel-stream = { path = "../gel-stream", version = "0" }
-gel-auth = { path = "../gel-auth", version = "0" }
 gel-errors = { path = "../gel-errors", version = "0" }
 
 [dev-dependencies]
