@@ -34,7 +34,7 @@ rustls-pki-types = "1"
 serde = "1"
 serde_derive = "1"
 serde_json = "1"
-jsonwebtoken = { version = "9", default-features = false }
+jsonwebtoken = { version = "9.3", default-features = false }
 ring = { version = "0.17", default-features = false }
 pkcs1 = "0.7.5"
 pkcs8 = "0.10.2"
