@@ -485,7 +485,7 @@ mod tests {
             )),
         );
 
-        let mut conns = acceptor.bind().await?;
+        let mut conns = acceptor.bind_explicit::<D>().await?;
 
         let addr = conns.local_address()?;
         tokio::task::spawn(async move {
