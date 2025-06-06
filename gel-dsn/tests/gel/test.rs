@@ -93,6 +93,7 @@ struct TestError {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 enum TestOutcome {
     #[serde(rename = "result")]
     Result(TestResult),
@@ -291,7 +292,7 @@ fn main() {
                                 hash
                             ));
                             key = key.replace("${HASH}", &hash);
-                            traces.lock().unwrap().push(format!("Hashed path: {}", key));
+                            traces.lock().unwrap().push(format!("Hashed path: {key}"));
                         } else {
                             panic!("No project directory found for testcase but ${{HASH}} is present: {}", testcase.name);
                         }
@@ -360,10 +361,10 @@ fn main() {
 
             println!("---------------------------------------------");
             for trace in traces.into_vec() {
-                println!("{}", trace);
+                println!("{trace}");
             }
             for warning in warnings.into_vec() {
-                println!("{}", warning);
+                println!("{warning}");
             }
             println!(
                 "Failed: {}",
@@ -372,9 +373,9 @@ fn main() {
         }
     }
 
-    println!("Passed: {}", passed);
-    println!("Failed: {}", failed);
-    println!("Skipped: {}", skipped);
+    println!("Passed: {passed}");
+    println!("Failed: {failed}");
+    println!("Skipped: {skipped}");
 
     if failed > 0 {
         std::process::exit(1);

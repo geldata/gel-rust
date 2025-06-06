@@ -17,12 +17,12 @@ pub fn display_error_verbose(e: &Error) -> VerboseError {
 impl fmt::Display for DisplayError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let DisplayError(ref e, verbose) = self;
-        write!(f, "{:#}", e)?;
+        write!(f, "{e:#}")?;
         if e.is::<InternalServerError>() || *verbose {
             if let Some(traceback) = e.server_traceback() {
                 write!(f, "\n  Server traceback:")?;
                 for line in traceback.lines() {
-                    write!(f, "\n      {}", line)?;
+                    write!(f, "\n      {line}")?;
                 }
             }
         }
@@ -43,7 +43,7 @@ impl fmt::Display for VerboseError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let e = self.0;
         writeln!(f, "Error type: {}", e.kind_debug())?;
-        writeln!(f, "Message: {:#}", e)?;
+        writeln!(f, "Message: {e:#}")?;
         let pstart = e.position_start();
         let pend = e.position_end();
         let line = e.line();
@@ -61,7 +61,7 @@ impl fmt::Display for VerboseError<'_> {
         if let Some(traceback) = e.server_traceback() {
             writeln!(f, "Server traceback:")?;
             for line in traceback.lines() {
-                writeln!(f, "    {}", line)?;
+                writeln!(f, "    {line}")?;
             }
         }
 
@@ -69,7 +69,7 @@ impl fmt::Display for VerboseError<'_> {
         if !attr.is_empty() {
             writeln!(f, "Other attributes:")?;
             for (k, v) in attr {
-                writeln!(f, "  0x{:04x}: {:?}", k, v)?;
+                writeln!(f, "  0x{k:04x}: {v:?}")?;
             }
         }
         Ok(())

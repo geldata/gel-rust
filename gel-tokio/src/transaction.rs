@@ -203,7 +203,7 @@ where
                     if iteration >= rule.attempts {
                         return Err(outer);
                     } else {
-                        log::info!("Retrying transaction on {:#}", e);
+                        log::info!("Retrying transaction on {e:#}");
                         iteration += 1;
                         sleep((rule.backoff)(iteration)).await;
                         continue 'transaction;

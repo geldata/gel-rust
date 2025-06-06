@@ -22,14 +22,14 @@ impl StdioReader {
                         if let Ok(mut output) = output_clone.write() {
                             output.push_str(&line);
                         }
-                        eprint!("[{}]: {}", prefix, line);
+                        eprint!("[{prefix}]: {line}");
                     }
                     Err(e) => {
-                        let error_line = format!("Error reading {}: {}\n", prefix, e);
+                        let error_line = format!("Error reading {prefix}: {e}\n");
                         if let Ok(mut output) = output_clone.write() {
                             output.push_str(&error_line);
                         }
-                        eprintln!("{}", error_line);
+                        eprintln!("{error_line}");
                     }
                 }
             }

@@ -201,7 +201,7 @@ impl Config {
     pub fn http_url(&self, tls: bool) -> Option<String> {
         if let Some((host, port)) = self.host.target_name().ok()?.tcp() {
             let s = if tls { "s" } else { "" };
-            Some(format!("http{}://{}:{}", s, host, port))
+            Some(format!("http{s}://{host}:{port}"))
         } else {
             None
         }
@@ -443,11 +443,11 @@ impl Config {
                     if let Some(host) = host.host() {
                         if let Ok(ip) = IpAddr::from_str(&host) {
                             // FIXME: https://github.com/rustls/rustls/issues/184
-                            let host = format!("{}.host-for-ip.edgedb.net", ip);
+                            let host = format!("{ip}.host-for-ip.edgedb.net");
                             // for ipv6addr
                             let host = host.replace([':', '%'], "-");
                             if host.starts_with('-') {
-                                Some(Cow::from(format!("i{}", host)))
+                                Some(Cow::from(format!("i{host}")))
                             } else {
                                 Some(Cow::from(host.to_string()))
                             }
@@ -504,9 +504,9 @@ pub enum DatabaseBranch {
 impl std::fmt::Display for DatabaseBranch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Database(database) => write!(f, "database '{}'", database),
-            Self::Branch(branch) => write!(f, "branch '{}'", branch),
-            Self::Ambiguous(ambiguous) => write!(f, "'{}'", ambiguous),
+            Self::Database(database) => write!(f, "database '{database}'"),
+            Self::Branch(branch) => write!(f, "branch '{branch}'"),
+            Self::Ambiguous(ambiguous) => write!(f, "'{ambiguous}'"),
             Self::Default => write!(f, "default database/branch"),
         }
     }

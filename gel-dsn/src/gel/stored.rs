@@ -76,7 +76,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> Paths<CT, C> {
                 data_dir: data_dir.join("data").join(local_name),
                 credentials_path: config_dir
                     .join("credentials")
-                    .join(format!("{}.json", local_name)),
+                    .join(format!("{local_name}.json")),
                 runstate_path,
             })
         } else {
@@ -197,7 +197,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
 
     /// Read the credentials for the given instance.
     pub fn read(&self, instance: InstanceName) -> Result<Option<CredentialsFile>, ParseError> {
-        let path = Path::new("credentials").join(format!("{}.json", instance));
+        let path = Path::new("credentials").join(format!("{instance}.json"));
         let content = self.context.read_config_file::<CredentialsFile>(&path)?;
         if let Some(content) = &content {
             if !content.warnings().is_empty() {
@@ -238,7 +238,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
             content.database = None;
             content.branch = None;
         }
-        let path = Path::new("credentials").join(format!("{}.json", instance));
+        let path = Path::new("credentials").join(format!("{instance}.json"));
         self.context
             .write_config_file(path, &serde_json::to_string(&content)?)
     }
@@ -246,7 +246,7 @@ impl<CT: BuildContext, C: std::ops::Deref<Target = CT>> StoredCredentials<CT, C>
     /// Delete the credentials for the given instance. If the credentials
     /// do not exist, this is a no-op.
     pub fn delete(&self, instance: InstanceName) -> Result<(), std::io::Error> {
-        let path = Path::new("credentials").join(format!("{}.json", instance));
+        let path = Path::new("credentials").join(format!("{instance}.json"));
         self.context.delete_config_file(&path)
     }
 }
@@ -266,8 +266,8 @@ mod tests {
             .with_env_impl(())
             .with_fs_impl(files)
             .with_user_impl("edgedb")
-            .with_warning(|w| println!("warning: {}", w))
-            .with_tracing(|s| println!("{}", s))
+            .with_warning(|w| println!("warning: {w}"))
+            .with_tracing(|s| println!("{s}"))
             .stored_info();
 
         let credentials = stored.credentials();
@@ -288,7 +288,7 @@ mod tests {
             .unwrap();
 
         let instances = credentials.list().expect("failed to list credentials");
-        assert_eq!(instances.len(), 2, "expected 2 instances: {:?}", instances);
+        assert_eq!(instances.len(), 2, "expected 2 instances: {instances:?}");
         assert!(instances.contains(&InstanceName::Local("local".to_string())));
         assert!(instances.contains(&InstanceName::Local("local2".to_string())));
     }
@@ -308,8 +308,8 @@ mod tests {
             .with_env_impl(())
             .with_fs_impl(files)
             .with_user_impl(user)
-            .with_warning(|w| println!("warning: {}", w))
-            .with_tracing(|s| println!("{}", s))
+            .with_warning(|w| println!("warning: {w}"))
+            .with_tracing(|s| println!("{s}"))
             .stored_info();
 
         let credentials = stored.credentials();
@@ -330,8 +330,8 @@ mod tests {
             .without_system()
             .with_fs()
             .with_user_impl(userdir)
-            .with_warning(|w| println!("warning: {}", w))
-            .with_tracing(|s| println!("{}", s))
+            .with_warning(|w| println!("warning: {w}"))
+            .with_tracing(|s| println!("{s}"))
             .stored_info();
         let credentials = stored.credentials();
 
@@ -366,7 +366,7 @@ mod tests {
         let paths = stored.paths();
 
         let system = paths.for_system();
-        eprintln!("system: {:?}", system);
+        eprintln!("system: {system:?}");
         let Some(home_dir) = system.home_dir else {
             panic!("home_dir is None");
         };
@@ -409,7 +409,7 @@ mod tests {
         }
 
         let instance = paths.for_instance("local").unwrap();
-        eprintln!("instance: {:?}", instance);
+        eprintln!("instance: {instance:?}");
 
         if cfg!(unix) {
             assert_eq!(

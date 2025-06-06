@@ -77,7 +77,7 @@ impl TargetName {
                 return Ok(vec![addr.clone()]);
             }
             MaybeResolvedTarget::Unresolved(host, port, _interface) => {
-                let addrs = format!("{}:{}", host, port).to_socket_addrs()?;
+                let addrs = format!("{host}:{port}").to_socket_addrs()?;
                 result.extend(addrs.map(ResolvedTarget::SocketAddr));
             }
         }
@@ -147,9 +147,9 @@ pub struct Target {
 impl std::fmt::Debug for Target {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.inner {
-            TargetInner::NoTls(target) => write!(f, "{:?}", target),
-            TargetInner::Tls(target, _) => write!(f, "{:?} (TLS)", target),
-            TargetInner::StartTls(target, _) => write!(f, "{:?} (STARTTLS)", target),
+            TargetInner::NoTls(target) => write!(f, "{target:?}"),
+            TargetInner::Tls(target, _) => write!(f, "{target:?} (TLS)"),
+            TargetInner::StartTls(target, _) => write!(f, "{target:?} (STARTTLS)"),
         }
     }
 }
@@ -411,9 +411,9 @@ impl std::fmt::Debug for MaybeResolvedTarget {
                 Ok(())
             }
             MaybeResolvedTarget::Unresolved(host, port, interface) => {
-                write!(f, "{}:{}", host, port)?;
+                write!(f, "{host}:{port}")?;
                 if let Some(interface) = interface {
-                    write!(f, "%{}", interface)?;
+                    write!(f, "%{interface}")?;
                 }
                 Ok(())
             }

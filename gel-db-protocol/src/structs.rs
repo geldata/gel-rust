@@ -19,7 +19,7 @@ pub trait StructMeta: Copy + Clone + std::fmt::Debug {
     const LENGTH_FIELD_INDEX: Option<usize> = Self::FIELDS.length_field_fixed_offset();
     const HAS_LENGTH_FIELD: bool = Self::LENGTH_FIELD_INDEX.is_some();
 
-    fn new<'a>(buf: &'a [u8]) -> Result<Self::Struct<'a>, ParseError>;
+    fn new(buf: &[u8]) -> Result<Self::Struct<'_>, ParseError>;
     fn to_vec(&self) -> Vec<u8>;
 }
 

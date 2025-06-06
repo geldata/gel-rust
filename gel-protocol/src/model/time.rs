@@ -575,13 +575,13 @@ impl Display for LocalTime {
 impl Debug for LocalTime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (hour, minute, second, microsecond) = self.to_hmsu();
-        write!(f, "{:02}:{:02}:{:02}", hour, minute, second)?;
+        write!(f, "{hour:02}:{minute:02}:{second:02}")?;
         // like chrono::NaiveTime it outputs either 0, 3 or 6 decimal digits
         if microsecond != 0 {
             if microsecond % 1000 == 0 {
                 write!(f, ".{:03}", microsecond / 1000)?;
             } else {
-                write!(f, ".{:06}", microsecond)?;
+                write!(f, ".{microsecond:06}")?;
             }
         };
         Ok(())
@@ -713,10 +713,10 @@ impl Debug for LocalDate {
             write!(f, "+")?;
         }
         if year >= 0 {
-            write!(f, "{:04}-{:02}-{:02}", year, month, day)
+            write!(f, "{year:04}-{month:02}-{day:02}")
         } else {
             // rust counts the sign as a digit when padding
-            write!(f, "{:05}-{:02}-{:02}", year, month, day)
+            write!(f, "{year:05}-{month:02}-{day:02}")
         }
     }
 }
@@ -1166,7 +1166,7 @@ mod test {
     }
 
     pub fn to_debug<T: Debug>(x: T) -> String {
-        format!("{:?}", x)
+        format!("{x:?}")
     }
 
     #[test]
@@ -1510,7 +1510,7 @@ impl Display for RelativeDuration {
                     }
                     std::str::from_utf8(&buf[..len]).unwrap()
                 };
-                write!(f, ".{}", text)?;
+                write!(f, ".{text}")?;
             }
             if seconds.abs() > 0 {
                 write!(f, "S")?;

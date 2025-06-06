@@ -906,7 +906,7 @@ mod tests {
     fn fuzz_test_buf<S: StructMeta>(buf: &[u8]) {
         // Use std::fmt::Debug which will walk each field
         if let Ok(m) = S::new(buf) {
-            let _ = format!("{:?}", m);
+            let _ = format!("{m:?}");
         }
     }
 
@@ -1145,7 +1145,7 @@ mod tests {
                     eprintln!("{ready:?}");
                 },
                 unknown => {
-                    panic!("Unknown message type: {:?}", unknown);
+                    panic!("Unknown message type: {unknown:?}");
                 }
             });
         });

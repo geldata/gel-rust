@@ -18,9 +18,9 @@ where
     type DecodeLifetime<'a>;
 
     fn decode<'a>(buf: &mut &'a [u8]) -> Result<Self::DecodeLifetime<'a>, ParseError>;
-    fn encode<'a, 'b>(buf: &mut BufWriter<'a>, value: &'b Self::BuilderForEncode);
+    fn encode(buf: &mut BufWriter<'_>, value: &Self::BuilderForEncode);
     #[allow(unused)]
-    fn encode_usize<'a>(buf: &mut BufWriter<'a>, value: usize) {
+    fn encode_usize(buf: &mut BufWriter<'_>, value: usize) {
         unreachable!("encode usize")
     }
     #[allow(unused)]
@@ -76,10 +76,7 @@ where
         Ok(Array::new(orig_buf, len as _))
     }
 
-    fn encode<'__buffer_lifetime, '__value_lifetime>(
-        buf: &mut BufWriter<'__buffer_lifetime>,
-        value: &'__value_lifetime Self::BuilderForEncode,
-    ) {
+    fn encode(buf: &mut BufWriter<'_>, value: &Self::BuilderForEncode) {
         L::encode_usize(buf, value.len());
         for elem in value.iter() {
             T::encode(buf, elem);
@@ -122,10 +119,7 @@ where
         Ok(ZTArray::new(orig_buf, len))
     }
 
-    fn encode<'__buffer_lifetime, '__value_lifetime>(
-        buf: &mut BufWriter<'__buffer_lifetime>,
-        value: &'__value_lifetime Self::BuilderForEncode,
-    ) {
+    fn encode(buf: &mut BufWriter<'_>, value: &Self::BuilderForEncode) {
         for elem in value.iter() {
             T::encode(buf, elem);
         }
@@ -149,15 +143,12 @@ where
         buf: &mut &'__next_lifetime [u8],
     ) -> Result<Self::DecodeLifetime<'__next_lifetime>, crate::prelude::ParseError> {
         let mut res = [T::DecodeLifetime::<'__next_lifetime>::default(); N];
-        for i in 0..N {
-            res[i] = T::decode(buf)?;
+        for res in res.iter_mut().take(N) {
+            *res = T::decode(buf)?;
         }
         Ok(res)
     }
-    fn encode<'__buffer_lifetime, '__value_lifetime>(
-        buf: &mut crate::prelude::BufWriter<'__buffer_lifetime>,
-        value: &'__value_lifetime Self::BuilderForEncode,
-    ) {
+    fn encode(buf: &mut crate::prelude::BufWriter<'_>, value: &Self::BuilderForEncode) {
         for elem in value {
             T::encode(buf, elem);
         }

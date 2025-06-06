@@ -290,8 +290,7 @@ mod tests {
             eprintln!("{dsn} = {result:?}, {dsn2} = {result2:?}");
             assert_eq!(
                 result, result2,
-                "Expected {} to parse the same as {}",
-                dsn, dsn2
+                "Expected {dsn} to parse the same as {dsn2}"
             );
         }
     }

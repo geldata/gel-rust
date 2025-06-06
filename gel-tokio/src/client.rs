@@ -103,7 +103,7 @@ impl Client {
                         iteration += 1;
                         if iteration < rule.attempts {
                             let duration = (rule.backoff)(iteration);
-                            log::info!("Error: {:#}. Retrying in {:?}...", e, duration);
+                            log::info!("Error: {e:#}. Retrying in {duration:?}...");
                             sleep(duration).await;
                             continue;
                         }
@@ -363,7 +363,7 @@ impl Client {
                         iteration += 1;
                         if iteration < rule.attempts {
                             let duration = (rule.backoff)(iteration);
-                            log::info!("Error: {:#}. Retrying in {:?}...", e, duration);
+                            log::info!("Error: {e:#}. Retrying in {duration:?}...");
                             sleep(duration).await;
                             continue;
                         }

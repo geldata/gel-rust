@@ -31,7 +31,7 @@ pub fn md5_password(password: &str, username: &str, salt: [u8; 4]) -> String {
 fn to_hex_string(bytes: &[u8]) -> String {
     let mut hex = String::with_capacity(bytes.len() * 2);
     for &byte in bytes {
-        hex.push_str(&format!("{:02x}", byte));
+        hex.push_str(&format!("{byte:02x}"));
     }
     hex
 }
@@ -72,7 +72,7 @@ impl StoredHash {
         // Convert second hash to hex string
         let second_hash_hex = to_hex_string(&second_hash.0);
 
-        format!("md5{}", second_hash_hex)
+        format!("md5{second_hash_hex}")
     }
 }
 

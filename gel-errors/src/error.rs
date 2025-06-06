@@ -160,30 +160,30 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let kind = self.kind_name();
         if f.alternate() {
-            write!(f, "{}", kind)?;
+            write!(f, "{kind}")?;
             for msg in self.0.messages.iter().rev() {
-                write!(f, ": {}", msg)?;
+                write!(f, ": {msg}")?;
             }
             if let Some(mut src) = self.source() {
-                write!(f, ": {}", src)?;
+                write!(f, ": {src}")?;
                 while let Some(next) = src.source() {
-                    write!(f, ": {}", next)?;
+                    write!(f, ": {next}")?;
                     src = next;
                 }
             }
         } else if let Some(last) = self.0.messages.last() {
-            write!(f, "{}: {}", kind, last)?;
+            write!(f, "{kind}: {last}")?;
         } else {
-            write!(f, "{}", kind)?;
+            write!(f, "{kind}")?;
         }
         if let Some((line, col)) = self.line().zip(self.column()) {
-            write!(f, " (on line {}, column {})", line, col)?;
+            write!(f, " (on line {line}, column {col})")?;
         }
         if let Some(hint) = self.hint() {
-            write!(f, "\n  Hint: {}", hint)?;
+            write!(f, "\n  Hint: {hint}")?;
         }
         if let Some(detail) = self.details() {
-            write!(f, "\n  Detail: {}", detail)?;
+            write!(f, "\n  Detail: {detail}")?;
         }
         Ok(())
     }

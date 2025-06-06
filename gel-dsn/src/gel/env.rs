@@ -175,7 +175,7 @@ pub fn get_envs(
     for name in names {
         match context.read_env(name) {
             Ok(val) => {
-                found_vars.push(format!("{}={}", name, val));
+                found_vars.push(format!("{name}={val}"));
                 if value.is_none() {
                     value = Some((*name, Cow::Owned(val.to_string())));
                 }

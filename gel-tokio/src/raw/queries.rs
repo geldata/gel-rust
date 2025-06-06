@@ -129,8 +129,7 @@ impl Connection {
                 }
                 _ => {
                     return Err(ProtocolOutOfOrderError::with_message(format!(
-                        "Unsolicited message {:?}",
-                        msg
+                        "Unsolicited message {msg:?}"
                     )));
                 }
             }
@@ -161,8 +160,7 @@ impl Connection {
                 Err(err.into())
             }
             msg => Err(ProtocolOutOfOrderError::with_message(format!(
-                "Unsolicited message {:?}",
-                msg
+                "Unsolicited message {msg:?}"
             ))),
         }
     }
@@ -195,8 +193,7 @@ impl Connection {
             }
             msg => {
                 return Err(ProtocolOutOfOrderError::with_message(format!(
-                    "Unsolicited message {:?}",
-                    msg
+                    "Unsolicited message {msg:?}"
                 )));
             }
         };
@@ -298,8 +295,7 @@ impl Connection {
                 }
                 _ => {
                     return Err(ProtocolOutOfOrderError::with_message(format!(
-                        "Unsolicited message {:?}",
-                        msg
+                        "Unsolicited message {msg:?}"
                     )));
                 }
             }
@@ -343,8 +339,7 @@ impl Connection {
                 }
                 _ => {
                     return Err(ProtocolOutOfOrderError::with_message(format!(
-                        "Unsolicited message {:?}",
-                        msg
+                        "Unsolicited message {msg:?}"
                     )));
                 }
             }
@@ -528,8 +523,7 @@ impl Connection {
                 }
                 _ => {
                     return Err(ProtocolOutOfOrderError::with_message(format!(
-                        "Unsolicited message {:?}",
-                        msg
+                        "Unsolicited message {msg:?}"
                     )));
                 }
             }
@@ -566,8 +560,7 @@ impl Connection {
                 }
                 _ => {
                     return Err(ProtocolOutOfOrderError::with_message(format!(
-                        "Unsolicited message {:?}",
-                        msg
+                        "Unsolicited message {msg:?}"
                     )));
                 }
             }

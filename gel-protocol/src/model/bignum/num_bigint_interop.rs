@@ -145,8 +145,8 @@ mod test_with_decimal {
         let mut rng = StdRng::seed_from_u64(7);
         for _ in 0..10000 {
             let head = gen_i64(&mut rng);
-            let txt = format!("{}", head);
-            assert_eq!(int_roundtrip(&txt), B::from_str(&txt)?, "parsing: {}", txt);
+            let txt = format!("{head}");
+            assert_eq!(int_roundtrip(&txt), B::from_str(&txt)?, "parsing: {txt}");
         }
         Ok(())
     }
@@ -163,9 +163,7 @@ mod test_with_decimal {
             assert_eq!(
                 int_roundtrip(&txt),
                 B::from_str(&txt)?,
-                "parsing {}: {}",
-                iter,
-                txt
+                "parsing {iter}: {txt}"
             );
         }
         Ok(())
@@ -179,14 +177,12 @@ mod test_with_decimal {
         for iter in 0..10000 {
             let head = gen_i64(&mut rng);
             let nulls = rng.random_range(0..100);
-            let edb = format!("{}e{}", head, nulls);
+            let edb = format!("{head}e{nulls}");
             let bigint = format!("{}{1:0<2$}", head, "", nulls);
             assert_eq!(
                 int_roundtrip(&edb),
                 B::from_str(&bigint)?,
-                "parsing {}: {}",
-                iter,
-                edb
+                "parsing {iter}: {edb}"
             );
         }
         Ok(())
@@ -206,9 +202,7 @@ mod test_with_decimal {
             assert_eq!(
                 int_roundtrip(&edb),
                 B::from_str(&bigint)?,
-                "parsing {}: {}",
-                iter,
-                edb
+                "parsing {iter}: {edb}"
             );
         }
         Ok(())

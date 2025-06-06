@@ -640,13 +640,13 @@ impl ServerCertVerifier for ErrorFilteringVerifier {
 
 impl LocalAddress for TlsStream {
     fn local_address(&self) -> std::io::Result<ResolvedTarget> {
-        self.local_addr().map(|addr| ResolvedTarget::from(addr))
+        self.local_addr().map(ResolvedTarget::from)
     }
 }
 
 impl RemoteAddress for TlsStream {
     fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
-        self.peer_addr().map(|addr| ResolvedTarget::from(addr))
+        self.peer_addr().map(ResolvedTarget::from)
     }
 }
 

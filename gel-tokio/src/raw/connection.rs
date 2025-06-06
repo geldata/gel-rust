@@ -56,16 +56,16 @@ impl Connection {
                         if e.is::<IdleSessionTimeoutError>() {
                             log::debug!("Connection reset due to inactivity.");
                         } else {
-                            log::warn!("Unexpected error: {:#}", e);
+                            log::warn!("Unexpected error: {e:#}");
                         }
                         true
                     }
                     Ok(m) => {
-                        log::warn!("Unsolicited message: {:?}", m);
+                        log::warn!("Unsolicited message: {m:?}");
                         true
                     }
                     Err(e) => {
-                        log::debug!("I/O error: {:#}", e);
+                        log::debug!("I/O error: {e:#}");
                         true
                     }
                 }
@@ -160,7 +160,7 @@ impl Connection {
     async fn background_pings<T>(&mut self, interval: Duration) -> T {
         self.do_pings(interval)
             .await
-            .map_err(|e| log::info!("Connection error during background pings: {}", e))
+            .map_err(|e| log::info!("Connection error during background pings: {e}"))
             .ok();
         debug_assert_eq!(self.mode, Mode::Dirty);
         future::pending::<()>().await;
@@ -209,17 +209,14 @@ impl Connection {
                     );
                     if interval.is_zero() {
                         log::warn!(
-                            "session_idle_timeout={:?} is too short; \
+                            "session_idle_timeout={timeout:?} is too short; \
                              pings are disabled.",
-                            timeout,
                         );
                         PingInterval::Disabled
                     } else {
                         log::info!(
-                            "Setting ping interval to {:?} as \
-                             session_idle_timeout={:?}",
-                            interval,
-                            timeout,
+                            "Setting ping interval to {interval:?} as \
+                             session_idle_timeout={timeout:?}",
                         );
                         PingInterval::Interval(interval)
                     }
@@ -238,8 +235,7 @@ impl Connection {
             Err(e) if e.is::<ClientConnectionEosError>() => Ok(()),
             Err(e) => Err(e),
             Ok(msg) => Err(ProtocolError::with_message(format!(
-                "unsolicited message {:?}",
-                msg
+                "unsolicited message {msg:?}"
             ))),
         }
     }
@@ -266,7 +262,7 @@ async fn connect(cfg: &Config, cert_check: Option<CertCheck>) -> Result<Connecti
     let conn = loop {
         match connect_timeout(cfg, connect2(cfg, target.clone(), warned, cert_check.clone())).await {
             Err(e) if is_temporary(&e) => {
-                log::debug!("Temporary connection error: {:#}", e);
+                log::debug!("Temporary connection error: {e:#}");
                 if wait > start.elapsed() {
                     sleep(connect_sleep(retry)).await;
                     retry += 1;
@@ -278,7 +274,7 @@ async fn connect(cfg: &Config, cert_check: Option<CertCheck>) -> Result<Connecti
                 }
             }
             Err(e) => {
-                log::error!("Connection error: {:#}", e);
+                log::error!("Connection error: {e:#}");
                 return Err(e)?;
             }
             Ok(conn) => break conn,
@@ -315,12 +311,11 @@ async fn connect2(
                     res = connector.connect().await;
                 } else {
                     return Err(ClientConnectionError::with_source(e).context(format!(
-                        "TLS handshake failed while connecting to ({:?}) because
+                        "TLS handshake failed while connecting to ({target:?}) because
                         the server did not seem to support TLS. \
                         Check client and server TLS options and try again or \
                         use `GEL_CLIENT_SECURITY=insecure_dev_mode` to try an \
-                        unencrypted connection.",
-                        target
+                        unencrypted connection."
                     )));
                 }
             }
@@ -333,16 +328,14 @@ async fn connect2(
             }
             Some(e) => {
                 return Err(ClientConnectionError::with_source(e).context(format!(
-                    "TLS handshake failed while connecting to ({:?}) ({e:?}). \
-                    Check client and server TLS options and try again.",
-                    target
+                    "TLS handshake failed while connecting to ({target:?}) ({e:?}). \
+                    Check client and server TLS options and try again."
                 )));
             }
             None => {
                 return Err(ClientConnectionError::with_source(e).context(format!(
-                    "TLS handshake failed while connecting to ({:?}). \
-                    Check client and server TLS options and try again.",
-                    target
+                    "TLS handshake failed while connecting to ({target:?}). \
+                    Check client and server TLS options and try again."
                 )));
             }
         }
@@ -427,8 +420,7 @@ async fn connect4(cfg: &Config, mut stream: gel_stream::RawStream, cert_check: O
                 } else {
                     return Err(AuthenticationError::with_message(format!(
                         "No supported authentication \
-                        methods: {:?}",
-                        methods
+                        methods: {methods:?}"
                     )));
                 }
             }
@@ -443,8 +435,7 @@ async fn connect4(cfg: &Config, mut stream: gel_stream::RawStream, cert_check: O
             }
             msg => {
                 return Err(ProtocolError::with_message(format!(
-                    "Error authenticating, unexpected message {:?}",
-                    msg
+                    "Error authenticating, unexpected message {msg:?}"
                 )));
             }
         }
@@ -598,7 +589,7 @@ fn handle_system_config(
                     };
                 }
                 name => {
-                    log::debug!("Unhandled system config: {}={:?}", name, field);
+                    log::debug!("Unhandled system config: {name}={field:?}");
                 }
             }
         }
@@ -618,7 +609,7 @@ pub(crate) async fn send_messages<'x>(
     buf.truncate(0);
     for msg in messages {
         log::debug!(target: "edgedb::outgoing::frame",
-                    "Frame Contents: {:#?}", msg);
+                    "Frame Contents: {msg:#?}");
         msg.encode(&mut Output::new(proto, buf))
             .map_err(ClientEncodingError::with_source)?;
     }
@@ -710,7 +701,7 @@ async fn _wait_message(
         .map_err(ProtocolEncodingError::with_source)?;
 
     log::debug!(target: "edgedb::incoming::frame",
-                "Frame Contents: {:#?}", result);
+                "Frame Contents: {result:#?}");
 
     Ok(result)
 }

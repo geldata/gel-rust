@@ -26,7 +26,7 @@ impl Display for ConfigMemory {
         } else if v >= KIB && v % KIB == 0 {
             write!(f, "{}KiB", v / KIB)
         } else {
-            write!(f, "{}B", v)
+            write!(f, "{v}B")
         }
     }
 }

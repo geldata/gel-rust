@@ -81,10 +81,10 @@ async fn transaction_conflict() -> anyhow::Result<()> {
         transaction1(cli1, "x", iters.clone(), barrier.clone(), lock.clone()),
         transaction1(cli2, "x", iters.clone(), barrier.clone(), lock.clone()),
     );
-    println!("Result {:#?}", res);
+    println!("Result {res:#?}");
     let tup = res?;
 
-    assert!(tup == (1, 2) || tup == (2, 1), "Wrong result: {:?}", tup);
+    assert!(tup == (1, 2) || tup == (2, 1), "Wrong result: {tup:?}");
     assert_eq!(iters.load(Ordering::SeqCst), 3);
     Ok(())
 }
@@ -151,10 +151,10 @@ async fn transaction_conflict_with_complex_err() -> anyhow::Result<()> {
         transaction1e(cli1, "y", iters.clone(), barrier.clone(), lock.clone()),
         transaction1e(cli2, "y", iters.clone(), barrier.clone(), lock.clone()),
     );
-    println!("Result {:#?}", res);
+    println!("Result {res:#?}");
     let tup = res?;
 
-    assert!(tup == (1, 2) || tup == (2, 1), "Wrong result: {:?}", tup);
+    assert!(tup == (1, 2) || tup == (2, 1), "Wrong result: {tup:?}");
     assert_eq!(iters.load(Ordering::SeqCst), 3);
     Ok(())
 }

@@ -14,7 +14,7 @@ async fn test_target_unix() -> Result<(), ConnectionError> {
     // Create a unix socket and connect to it
     let mut acceptor = Acceptor::new_unix_path(&path)?.bind().await?;
     let addr = acceptor.local_address();
-    eprintln!("addr: {:?}", addr);
+    eprintln!("addr: {addr:?}");
 
     let accept_task = tokio::spawn(async move {
         let mut connection = acceptor.next().await.unwrap().unwrap();

@@ -16,7 +16,7 @@ async fn main() {
         Err(e) => {
             e.downcast::<gel_tokio::Error>()
                 .map(|e| eprintln!("{:?}", miette::Report::new(e)))
-                .unwrap_or_else(|e| eprintln!("{:#}", e));
+                .unwrap_or_else(|e| eprintln!("{e:#}"));
             std::process::exit(1);
         }
     }
