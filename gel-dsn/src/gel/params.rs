@@ -1179,8 +1179,8 @@ fn parse_instance(local: &str, context: &impl BuildContext) -> Result<Params, Pa
 fn parse_cloud(profile: &str, context: &impl BuildContext) -> Result<Params, ParseError> {
     let mut explicit = Params::default();
 
-    let Some(cloud_credentials): Option<CloudCredentialsFile> = context
-        .read_config_file(Path::new("cloud-credentials").join(format!("{profile}.json")))?
+    let Some(cloud_credentials): Option<CloudCredentialsFile> =
+        context.read_config_file(Path::new("cloud-credentials").join(format!("{profile}.json")))?
     else {
         return {
             let value = Params::default();

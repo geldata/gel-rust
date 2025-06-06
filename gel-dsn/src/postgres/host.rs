@@ -14,10 +14,9 @@ impl Host {
     pub fn target_name(&self) -> Result<TargetName, std::io::Error> {
         match &self.0 {
             HostType::Hostname(hostname) => Ok(TargetName::new_tcp((hostname, self.1))),
-            HostType::IP(ip, Some(interface)) => Ok(TargetName::new_tcp((
-                format!("{ip}%{interface}"),
-                self.1,
-            ))),
+            HostType::IP(ip, Some(interface)) => {
+                Ok(TargetName::new_tcp((format!("{ip}%{interface}"), self.1)))
+            }
             HostType::IP(ip, None) => Ok(TargetName::new_tcp((format!("{ip}"), self.1))),
             HostType::Path(path) => {
                 TargetName::new_unix_path(format!("{}/.s.PGSQL.{}", path, self.1))

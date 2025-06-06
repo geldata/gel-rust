@@ -193,10 +193,7 @@ impl TlsDriver for OpensslDriver {
                 let crl_ptr = crl.as_ptr();
                 let res = unsafe { X509_STORE_add_crl(ptr, crl_ptr) };
                 if res != 1 {
-                    return Err(std::io::Error::other(
-                        "Failed to add CRL to store",
-                    )
-                    .into());
+                    return Err(std::io::Error::other("Failed to add CRL to store").into());
                 }
             }
 

@@ -517,10 +517,7 @@ mod test {
                 is_final: _,
             } = Duration::from_str(input).unwrap_err();
             assert_eq!(pos, expected_pos);
-            assert!(
-                message.contains(pat),
-                "`{pat}` not found in `{message}`",
-            );
+            assert!(message.contains(pat), "`{pat}` not found in `{message}`",);
         }
         assert_error("blah", 0, "numeric");
         assert_error("!", 0, "unexpected");

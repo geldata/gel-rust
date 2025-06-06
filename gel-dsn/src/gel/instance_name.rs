@@ -99,9 +99,7 @@ impl CloudName {
         let msg = format!("{org_slug}/{name}");
         let checksum = crc16::State::<crc16::XMODEM>::calculate(msg.as_bytes());
         let dns_bucket = format!("c-{:02}", checksum % 100);
-        Ok(format!(
-            "{name}--{org_slug}.{dns_bucket}.i.{dns_zone}"
-        ))
+        Ok(format!("{name}--{org_slug}.{dns_bucket}.i.{dns_zone}"))
     }
 }
 
