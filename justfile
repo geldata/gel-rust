@@ -1,6 +1,10 @@
 _default:
     just --list
 
+build-minimal:
+    # Generate a lockfile with minimal versions and build it
+    cargo +nightly generate-lockfile -Z minimal-versions && cargo build
+
 test:
     # Test all features
     cargo test --workspace --all-features
@@ -23,7 +27,6 @@ test:
     cargo clippy --workspace --all-features --all-targets
 
     cargo fmt --check
-
 
 test-fast:
     cargo fmt
