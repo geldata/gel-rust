@@ -202,8 +202,7 @@ impl<K: IsKey> KeyRegistry<K> {
             self.add_from_pem(source)
         } else {
             Err(KeyError::UnsupportedKeyType(format!(
-                "Expected JWK set or PEM file, got {}",
-                first_char
+                "Expected JWK set or PEM file, got {first_char}"
             )))
         }
     }

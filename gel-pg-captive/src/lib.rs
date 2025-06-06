@@ -229,7 +229,7 @@ impl PostgresBuilder {
         }
 
         for (key, value) in self.server_options {
-            command.arg("-c").arg(format!("{}={}", key, value));
+            command.arg("-c").arg(format!("{key}={value}"));
         }
 
         if let Some(debug_level) = self.debug_level {
@@ -257,7 +257,7 @@ fn spawn(command: &mut Command) -> std::io::Result<()> {
         .to_string_lossy()
         .to_string();
 
-    eprintln!("{program} command:\n  {:?}", command);
+    eprintln!("{program} command:\n  {command:?}");
     let command = command.spawn()?;
     let output = std::thread::scope(|s| {
         #[cfg(unix)]
@@ -296,28 +296,27 @@ fn spawn(command: &mut Command) -> std::io::Result<()> {
     let error_str = String::from_utf8_lossy(&output.stderr).trim().to_string();
 
     if !output_str.is_empty() {
-        eprintln!("=== begin {} stdout:===", program);
-        eprintln!("{}", output_str);
+        eprintln!("=== begin {program} stdout:===");
+        eprintln!("{output_str}");
         if !output_str.ends_with('\n') {
             eprintln!();
         }
-        eprintln!("=== end {} stdout ===", program);
+        eprintln!("=== end {program} stdout ===");
     }
     if !error_str.is_empty() {
-        eprintln!("=== begin {} stderr:===", program);
-        eprintln!("{}", error_str);
+        eprintln!("=== begin {program} stderr:===");
+        eprintln!("{error_str}");
         if !error_str.ends_with('\n') {
             eprintln!();
         }
-        eprintln!("=== end {} stderr ===", program);
+        eprintln!("=== end {program} stderr ===");
     }
     if output_str.is_empty() && error_str.is_empty() {
         eprintln!("{program}: No output\n");
     }
     if !status.success() {
         return Err(std::io::Error::other(format!(
-            "{program} failed with: {}",
-            status
+            "{program} failed with: {status}"
         )));
     }
 
@@ -326,7 +325,7 @@ fn spawn(command: &mut Command) -> std::io::Result<()> {
 
 fn init_postgres(initdb: &Path, data_dir: &Path, auth: AuthType) -> std::io::Result<()> {
     let mut pwfile = tempfile::NamedTempFile::new()?;
-    writeln!(pwfile, "{}", DEFAULT_PASSWORD)?;
+    writeln!(pwfile, "{DEFAULT_PASSWORD}")?;
     let mut command = Command::new(initdb);
     command
         .arg("-D")
@@ -424,7 +423,7 @@ fn run_postgres(
         command.arg("-l");
     }
 
-    eprintln!("postgres command:\n  {:?}", command);
+    eprintln!("postgres command:\n  {command:?}");
     let mut child = command.spawn()?;
 
     let stdout_reader = BufReader::new(child.stdout.take().expect("Failed to capture stdout"));
@@ -449,8 +448,7 @@ fn run_postgres(
         match child.try_wait() {
             Ok(Some(status)) => {
                 return Err(std::io::Error::other(format!(
-                    "PostgreSQL exited with status: {}",
-                    status
+                    "PostgreSQL exited with status: {status}"
                 )))
             }
             Err(e) => return Err(e),
@@ -540,7 +538,7 @@ fn postgres_bin_dir() -> std::io::Result<std::path::PathBuf> {
 }
 
 fn get_unix_socket_path(socket_path: impl AsRef<Path>, port: u16) -> PathBuf {
-    socket_path.as_ref().join(format!(".s.PGSQL.{}", port))
+    socket_path.as_ref().join(format!(".s.PGSQL.{port}"))
 }
 
 #[derive(Debug, Clone, Copy)]

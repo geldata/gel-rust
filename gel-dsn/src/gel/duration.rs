@@ -28,7 +28,7 @@ impl fmt::Display for ParseDurationError {
 
 impl From<std::num::ParseIntError> for ParseDurationError {
     fn from(e: std::num::ParseIntError) -> Self {
-        Self::new(format!("{}", e))
+        Self::new(format!("{e}"))
     }
 }
 
@@ -427,7 +427,7 @@ impl fmt::Display for RelativeDuration {
                     }
                     std::str::from_utf8(&buf[..len]).unwrap()
                 };
-                write!(f, ".{}", text)?;
+                write!(f, ".{text}")?;
             }
             if seconds.abs() > 0 {
                 write!(f, "S")?;
@@ -519,9 +519,7 @@ mod test {
             assert_eq!(pos, expected_pos);
             assert!(
                 message.contains(pat),
-                "`{}` not found in `{}`",
-                pat,
-                message,
+                "`{pat}` not found in `{message}`",
             );
         }
         assert_error("blah", 0, "numeric");

@@ -193,8 +193,7 @@ impl TlsDriver for OpensslDriver {
                 let crl_ptr = crl.as_ptr();
                 let res = unsafe { X509_STORE_add_crl(ptr, crl_ptr) };
                 if res != 1 {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
+                    return Err(std::io::Error::other(
                         "Failed to add CRL to store",
                     )
                     .into());
@@ -419,7 +418,7 @@ fn create_alpn_callback(ssl: &mut SslContextBuilder) {
         };
 
         if let Some(server) = handshake.server_alpn.take() {
-            eprintln!("server: {:?} alpn: {:?}", server, alpn);
+            eprintln!("server: {server:?} alpn: {alpn:?}");
             let Some(selected) = ssl_select_next_proto(&server, alpn) else {
                 return Err(AlpnError::NOACK);
             };
@@ -509,7 +508,7 @@ impl PeekableStream for TlsStream {
         let buf = unsafe { &mut *(buf.unfilled_mut() as *mut _ as *mut [u8]) };
         Pin::new(&mut self.0)
             .poll_peek(cx, buf)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+            .map_err(|e| std::io::Error::other(e))
     }
 }
 

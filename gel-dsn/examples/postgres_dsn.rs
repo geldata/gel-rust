@@ -6,7 +6,7 @@ fn main() {
     let mut params = parse_postgres_dsn_env(&dsn, SystemEnvVars).unwrap();
     #[allow(deprecated)]
     let home = std::env::home_dir().unwrap();
-    eprintln!("DSN: {dsn}\n----\n{:#?}\n", params);
+    eprintln!("DSN: {dsn}\n----\n{params:#?}\n");
     params
         .password
         .resolve(Some(&home), &params.hosts, &params.database, &params.user)

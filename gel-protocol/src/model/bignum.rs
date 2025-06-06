@@ -64,9 +64,9 @@ impl std::fmt::Display for BigInt {
             write!(f, "-")?;
         }
         if let Some(digit) = self.digits.first() {
-            write!(f, "{}", digit)?;
+            write!(f, "{digit}")?;
             for digit in &mut self.digits.iter().skip(1) {
-                write!(f, "{:04}", digit)?;
+                write!(f, "{digit:04}")?;
             }
             let trailing_zero_groups = self.trailing_zero_groups();
             debug_assert!(trailing_zero_groups >= 0);
@@ -196,9 +196,9 @@ impl std::fmt::Display for Decimal {
         while self.weight - index >= 0 {
             if let Some(digit) = self.digits.get(index as usize) {
                 if index == 0 {
-                    write!(f, "{}", digit)?;
+                    write!(f, "{digit}")?;
                 } else {
-                    write!(f, "{:04}", digit)?;
+                    write!(f, "{digit:04}")?;
                 }
                 index += 1;
             } else {

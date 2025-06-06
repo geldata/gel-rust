@@ -15,10 +15,10 @@ impl Host {
         match &self.0 {
             HostType::Hostname(hostname) => Ok(TargetName::new_tcp((hostname, self.1))),
             HostType::IP(ip, Some(interface)) => Ok(TargetName::new_tcp((
-                format!("{}%{}", ip, interface),
+                format!("{ip}%{interface}"),
                 self.1,
             ))),
-            HostType::IP(ip, None) => Ok(TargetName::new_tcp((format!("{}", ip), self.1))),
+            HostType::IP(ip, None) => Ok(TargetName::new_tcp((format!("{ip}"), self.1))),
             HostType::Path(path) => {
                 TargetName::new_unix_path(format!("{}/.s.PGSQL.{}", path, self.1))
             }
@@ -74,13 +74,13 @@ pub enum HostType {
 impl std::fmt::Display for HostType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HostType::Hostname(hostname) => write!(f, "{}", hostname),
-            HostType::IP(ip, Some(interface)) => write!(f, "{}%{}", ip, interface),
+            HostType::Hostname(hostname) => write!(f, "{hostname}"),
+            HostType::IP(ip, Some(interface)) => write!(f, "{ip}%{interface}"),
             HostType::IP(ip, None) => {
-                write!(f, "{}", ip)
+                write!(f, "{ip}")
             }
-            HostType::Path(path) => write!(f, "{}", path),
-            HostType::Abstract(name) => write!(f, "@{}", name),
+            HostType::Path(path) => write!(f, "{path}"),
+            HostType::Abstract(name) => write!(f, "@{name}"),
         }
     }
 }

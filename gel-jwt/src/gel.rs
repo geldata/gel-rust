@@ -284,7 +284,7 @@ impl GelPrivateKeyRegistry for KeyRegistry<Key> {
 
         let token = self.sign(claims_map, signing_ctx)?;
 
-        Ok(format!("edbt1_{}", token))
+        Ok(format!("edbt1_{token}"))
     }
 
     fn generate_legacy_token(
@@ -304,7 +304,7 @@ impl GelPrivateKeyRegistry for KeyRegistry<Key> {
         }
 
         let token = self.sign(claims_map, signing_ctx)?;
-        Ok(format!("edbt_{}", token))
+        Ok(format!("edbt_{token}"))
     }
 }
 
@@ -338,7 +338,7 @@ mod tests {
         let Some(token) = token.strip_prefix("edbt1_") else {
             panic!("token does not start with edbt1_");
         };
-        eprintln!("token: {}", token);
+        eprintln!("token: {token}");
         let decoded = registry.unsafely_decode_without_validation(token).unwrap();
         assert_eq!(decoded.get("edb.i.all").unwrap(), &Any::from(true));
         assert_eq!(decoded.get("edb.r.all").unwrap(), &Any::from(true));

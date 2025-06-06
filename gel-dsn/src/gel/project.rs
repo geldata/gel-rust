@@ -264,7 +264,7 @@ mod tests {
         );
 
         for trace in traces.into_vec() {
-            eprintln!("{}", trace);
+            eprintln!("{trace}");
         }
         let res = res.unwrap().unwrap();
         assert_eq!(

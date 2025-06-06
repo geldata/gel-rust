@@ -358,7 +358,7 @@ impl std::fmt::Debug for TlsAlpn {
                     }
                 }
                 s.push('"');
-                write!(f, "{}", s)?;
+                write!(f, "{s}")?;
             }
             write!(f, "]")?;
             Ok(())

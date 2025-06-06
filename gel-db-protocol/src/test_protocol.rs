@@ -106,7 +106,7 @@ mod tests {
             ..Default::default()
         }
         .to_vec();
-        eprintln!("buf: {:?}", buf);
+        eprintln!("buf: {buf:?}");
         let query = Query::new(&buf).expect("Failed to parse query");
         let types = query.types;
         assert_eq!(1, types.len());
@@ -162,7 +162,7 @@ mod tests {
             ],
         }
         .to_vec();
-        eprintln!("buf: {:?}", buf);
+        eprintln!("buf: {buf:?}");
         let data_row = DataRow::new(&buf).expect("Failed to parse data row");
         assert_eq!(data_row.values.len(), 4);
         let mut iter = data_row.values.into_iter();

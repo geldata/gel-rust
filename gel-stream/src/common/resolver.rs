@@ -14,7 +14,7 @@ pub struct Resolver {
 #[cfg(feature = "tokio")]
 #[allow(unused)]
 async fn resolve_host_to_socket_addrs(host: String) -> std::io::Result<ResolvedTarget> {
-    let res = tokio::task::spawn_blocking(move || format!("{}:0", host).to_socket_addrs())
+    let res = tokio::task::spawn_blocking(move || format!("{host}:0").to_socket_addrs())
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Interrupted, e.to_string()))??;
     res.into_iter()
@@ -123,8 +123,7 @@ impl<T> ResolveResult<T> {
             ResolveResultInner::Async(future) => {
                 ResolveResult::new_async(async move { Ok(f(future.await?)) })
             }
-            ResolveResultInner::Fused => ResolveResult::new_sync(Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            ResolveResultInner::Fused => ResolveResult::new_sync(Err(std::io::Error::other(
                 "Polled a previously awaited result",
             ))),
         }

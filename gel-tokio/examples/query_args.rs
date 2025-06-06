@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
             &(name, title),
         )
         .await?;
-    println!("And person's name was... {}!", val);
+    println!("And person's name was... {val}!");
 
     // Arguments must be positional ($0, $1, $2, etc.), not named
     let named_args_fail: Result<i32, _> = conn

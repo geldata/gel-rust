@@ -37,7 +37,7 @@ impl ValidationError {
     pub fn error_string_not_for_user(&self) -> String {
         match self {
             ValidationError::Invalid(OpaqueValidationFailureReason::Failure(s)) => {
-                format!("Invalid token: {}", s)
+                format!("Invalid token: {s}")
             }
             ValidationError::Invalid(OpaqueValidationFailureReason::InvalidClaimValue(
                 claim,
@@ -54,7 +54,7 @@ impl ValidationError {
             ValidationError::Invalid(OpaqueValidationFailureReason::InvalidSignature) => {
                 "Invalid signature".to_string()
             }
-            ValidationError::KeyError(error) => format!("Key error: {}", error),
+            ValidationError::KeyError(error) => format!("Key error: {error}"),
         }
     }
 }
@@ -182,7 +182,7 @@ mod tests {
         validation_ctx.require_claim_with_allow_list("iss", &["issuer"]);
 
         let token = key.sign(claims.clone(), &signing_ctx).unwrap();
-        println!("token: {}", token);
+        println!("token: {token}");
         let decoded = key.validate(&token, &validation_ctx).unwrap();
         assert_eq!(decoded, claims);
     }

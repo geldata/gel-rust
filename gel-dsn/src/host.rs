@@ -24,10 +24,10 @@ impl Host {
         match &self.0 .0 {
             HostTypeInner::Hostname(hostname) => Ok(TargetName::new_tcp((hostname, self.1))),
             HostTypeInner::IP(ip, Some(interface)) => Ok(TargetName::new_tcp((
-                format!("{}%{}", ip, interface),
+                format!("{ip}%{interface}"),
                 self.1,
             ))),
-            HostTypeInner::IP(ip, None) => Ok(TargetName::new_tcp((format!("{}", ip), self.1))),
+            HostTypeInner::IP(ip, None) => Ok(TargetName::new_tcp((format!("{ip}"), self.1))),
             HostTypeInner::Path(path) => TargetName::new_unix_path(path),
             #[allow(unused)]
             HostTypeInner::Abstract(name) => TargetName::new_unix_domain(name),
@@ -46,15 +46,15 @@ impl std::fmt::Display for Host {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let port = self.1;
         match &self.0 .0 {
-            HostTypeInner::Hostname(hostname) => write!(f, "{}:{}", hostname, port),
-            HostTypeInner::IP(ip, Some(interface)) => write!(f, "[{}%{}]:{}", ip, interface, port),
-            HostTypeInner::IP(ip, None) if ip.is_ipv6() => write!(f, "[{}]:{}", ip, port),
-            HostTypeInner::IP(ip, None) => write!(f, "{}:{}", ip, port),
+            HostTypeInner::Hostname(hostname) => write!(f, "{hostname}:{port}"),
+            HostTypeInner::IP(ip, Some(interface)) => write!(f, "[{ip}%{interface}]:{port}"),
+            HostTypeInner::IP(ip, None) if ip.is_ipv6() => write!(f, "[{ip}]:{port}"),
+            HostTypeInner::IP(ip, None) => write!(f, "{ip}:{port}"),
             HostTypeInner::Path(path) => {
                 write!(f, "{}", path.display())
             }
             HostTypeInner::Abstract(name) => {
-                write!(f, "@{}", name)
+                write!(f, "@{name}")
             }
         }
     }
@@ -95,13 +95,13 @@ enum HostTypeInner {
 impl std::fmt::Display for HostType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.0 {
-            HostTypeInner::Hostname(hostname) => write!(f, "{}", hostname),
-            HostTypeInner::IP(ip, Some(interface)) => write!(f, "{}%{}", ip, interface),
+            HostTypeInner::Hostname(hostname) => write!(f, "{hostname}"),
+            HostTypeInner::IP(ip, Some(interface)) => write!(f, "{ip}%{interface}"),
             HostTypeInner::IP(ip, None) => {
-                write!(f, "{}", ip)
+                write!(f, "{ip}")
             }
             HostTypeInner::Path(path) => write!(f, "{}", path.display()),
-            HostTypeInner::Abstract(name) => write!(f, "@{}", name),
+            HostTypeInner::Abstract(name) => write!(f, "@{name}"),
         }
     }
 }

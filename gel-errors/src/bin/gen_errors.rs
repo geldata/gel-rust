@@ -3,7 +3,7 @@ use std::env::args;
 use std::fs;
 
 fn find_tag<'x>(template: &'x str, tag: &str) -> (usize, usize, &'x str) {
-    let tag_line = format!("// <{}>\n", tag);
+    let tag_line = format!("// <{tag}>\n");
     let pos = template
         .find(&tag_line)
         .unwrap_or_else(|| panic!("missing tag <{}>", tag));
@@ -12,7 +12,7 @@ fn find_tag<'x>(template: &'x str, tag: &str) -> (usize, usize, &'x str) {
 }
 
 fn find_macro<'x>(template: &'x str, name: &str) -> &'x str {
-    let macro_line = format!("macro_rules! {} {{", name);
+    let macro_line = format!("macro_rules! {name} {{");
     let pos = template
         .find(&macro_line)
         .map(|pos| pos + macro_line.len())
@@ -127,8 +127,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         out.push_str(
             &define_err
                 .replace("$name", name)
-                .replace("$code", &format!("0x{:08X}u32", code))
-                .replace("$tag_bits", &format!("0x{:08x}", tags)),
+                .replace("$code", &format!("0x{code:08X}u32"))
+                .replace("$tag_bits", &format!("0x{tags:08x}")),
         );
         out.push('\n');
     }

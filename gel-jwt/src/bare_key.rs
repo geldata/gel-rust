@@ -520,8 +520,7 @@ impl BarePrivateKey {
             return Err(KeyError::DecodeError);
         }
         let jwk = JwkEcKey::from_str(&format!(
-            r#"{{"kty":"EC","crv":"P-256","x":"{}","y":"{}","d":"{}"}}"#,
-            x, y, d
+            r#"{{"kty":"EC","crv":"P-256","x":"{x}","y":"{y}","d":"{d}"}}"#
         ))
         .map_err(|_| KeyError::DecodeError)?;
 
@@ -906,8 +905,7 @@ impl BarePublicKey {
     pub fn from_jwt_ec(crv: &str, x: &str, y: &str) -> Result<Self, KeyError> {
         if crv != "P-256" {
             return Err(KeyError::UnsupportedKeyType(format!(
-                "EC curve ({}) not supported",
-                crv
+                "EC curve ({crv}) not supported"
             )));
         }
 
@@ -1171,7 +1169,7 @@ mod tests {
             .unwrap(),
             _ => unreachable!(),
         };
-        println!("{}", token);
+        println!("{token}");
     }
 
     #[rstest]
@@ -1298,14 +1296,14 @@ mod tests {
     fn test_hs256_key_generation() {
         let key = BarePrivateKey::generate(KeyType::HS256).unwrap();
         let pem = key.to_pem();
-        println!("{}", pem);
+        println!("{pem}");
     }
 
     #[test]
     fn test_es256_key_generation() {
         let key = BarePrivateKey::generate(KeyType::ES256).unwrap();
         let pem = key.to_pem();
-        println!("{}", pem);
+        println!("{pem}");
         let key2 = BarePrivateKey::from_pem(&pem).expect("Failed to round-trip");
         println!("{}", key2.to_pem());
         assert_eq!(key, key2);
@@ -1316,7 +1314,7 @@ mod tests {
     fn test_rs256_key_generation() {
         let key = BarePrivateKey::generate(KeyType::RS256).unwrap();
         let pem = key.to_pem();
-        println!("{}", pem);
+        println!("{pem}");
         let key2 = BarePrivateKey::from_pem(&pem).expect("Failed to round-trip");
         println!("{}", key2.to_pem());
         assert_eq!(key, key2);
@@ -1327,7 +1325,7 @@ mod tests {
     fn test_deserialize_private_keys() {
         let json = load_test_file("jwkset-prv.json");
         let keys: SerializedKeys = serde_json::from_str(&json).unwrap();
-        println!("{:?}", keys);
+        println!("{keys:?}");
 
         println!("{}", serde_json::to_string(&keys).unwrap());
     }
@@ -1336,7 +1334,7 @@ mod tests {
     fn test_deserialize_public_keys() {
         let json = load_test_file("jwkset-pub.json");
         let keys: SerializedKeys = serde_json::from_str(&json).unwrap();
-        println!("{:?}", keys);
+        println!("{keys:?}");
         println!("{}", serde_json::to_string(&keys).unwrap());
     }
 }

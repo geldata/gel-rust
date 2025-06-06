@@ -59,7 +59,7 @@ impl fmt::Display for ParseDurationError {
 
 impl From<std::num::ParseIntError> for ParseDurationError {
     fn from(e: ParseIntError) -> Self {
-        Self::new(format!("{}", e))
+        Self::new(format!("{e}"))
     }
 }
 

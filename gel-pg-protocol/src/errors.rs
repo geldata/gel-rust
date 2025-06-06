@@ -201,7 +201,7 @@ impl std::fmt::Display for PgErrorClass {
             if byte.is_ascii() {
                 write!(f, "{}", byte as char)?;
             } else {
-                write!(f, "{{{:02X}}}", byte)?;
+                write!(f, "{{{byte:02X}}}")?;
             }
         }
         Ok(())
@@ -223,7 +223,7 @@ impl std::fmt::Display for PgError {
             if byte.is_ascii() {
                 write!(f, "{}", byte as char)?;
             } else {
-                write!(f, "{{{:02X}}}", byte)?;
+                write!(f, "{{{byte:02X}}}")?;
             }
         }
         Ok(())

@@ -1180,7 +1180,7 @@ fn parse_cloud(profile: &str, context: &impl BuildContext) -> Result<Params, Par
     let mut explicit = Params::default();
 
     let Some(cloud_credentials): Option<CloudCredentialsFile> = context
-        .read_config_file(Path::new("cloud-credentials").join(format!("{}.json", profile)))?
+        .read_config_file(Path::new("cloud-credentials").join(format!("{profile}.json")))?
     else {
         return {
             let value = Params::default();
@@ -1312,7 +1312,7 @@ mod tests {
             .build()
             .expect("Just a unix path is OK");
         assert_eq!(params.host.to_string(), "/");
-        eprintln!("{:?}", params);
+        eprintln!("{params:?}");
 
         let params = Builder::default()
             .unix_path(UnixPath::with_port_suffix(PathBuf::from(
@@ -1323,7 +1323,7 @@ mod tests {
             .build()
             .expect("Unix path and port is OK");
         assert_eq!(params.host.to_string(), "/.s.EDGEDB.admin.1234");
-        eprintln!("{:?}", params);
+        eprintln!("{params:?}");
 
         // Pull the port from the credentials.
         let params = Builder::default()
@@ -1342,7 +1342,7 @@ mod tests {
             params.instance_name,
             Some(InstanceName::Local("instancename".to_string()))
         );
-        eprintln!("{:?}", params);
+        eprintln!("{params:?}");
     }
 
     #[test]
