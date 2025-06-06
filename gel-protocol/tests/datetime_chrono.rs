@@ -154,7 +154,7 @@ mod chrono {
     fn datetime(input: &str, micros: i64, formatted: &str) {
         let chrono = chrono::DateTime::<chrono::Utc>::from_str(input).unwrap();
         let edgedb: Datetime = chrono.try_into().unwrap();
-        assert_eq!(format!("{:?}", edgedb), formatted);
+        assert_eq!(format!("{edgedb:?}"), formatted);
 
         let mut buf = BytesMut::new();
         let val = Value::Datetime(edgedb);
@@ -164,7 +164,7 @@ mod chrono {
         assert_eq!(serialized_micros, micros);
 
         let rev = chrono::DateTime::<chrono::Utc>::from(edgedb);
-        assert_eq!(format!("{:?}", rev), formatted);
+        assert_eq!(format!("{rev:?}"), formatted);
     }
 
     // ==============
@@ -311,7 +311,7 @@ mod chrono {
     fn local_datetime(input: &str, micros: i64, formatted: &str) {
         let chrono = chrono::NaiveDateTime::from_str(input).unwrap();
         let edgedb: LocalDatetime = chrono.try_into().unwrap();
-        assert_eq!(format!("{:?}", edgedb), formatted);
+        assert_eq!(format!("{edgedb:?}"), formatted);
 
         let mut buf = BytesMut::new();
         let val = Value::LocalDatetime(edgedb);
@@ -321,7 +321,7 @@ mod chrono {
         assert_eq!(serialized_micros, micros);
 
         let rev = chrono::NaiveDateTime::from(edgedb);
-        assert_eq!(format!("{:?}", rev), formatted);
+        assert_eq!(format!("{rev:?}"), formatted);
     }
 
     // ==========
@@ -385,7 +385,7 @@ mod chrono {
     fn local_time(input: &str, micros: i64, formatted: &str) {
         let chrono = chrono::NaiveTime::from_str(input).unwrap();
         let edgedb: LocalTime = chrono.into();
-        assert_eq!(format!("{:?}", edgedb), formatted);
+        assert_eq!(format!("{edgedb:?}"), formatted);
 
         let mut buf = BytesMut::new();
         let val = Value::LocalTime(edgedb);
@@ -395,6 +395,6 @@ mod chrono {
         assert_eq!(serialized_micros, micros);
 
         let rev = chrono::NaiveTime::from(edgedb);
-        assert_eq!(format!("{:?}", rev), formatted);
+        assert_eq!(format!("{rev:?}"), formatted);
     }
 }

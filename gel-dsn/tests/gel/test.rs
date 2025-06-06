@@ -93,6 +93,7 @@ struct TestError {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 enum TestOutcome {
     #[serde(rename = "result")]
     Result(TestResult),

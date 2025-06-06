@@ -101,9 +101,7 @@ mod tests {
                 typ: QueryParameterType::Float,
                 length: 4,
                 meta: &[1, 2, 3, 4],
-                ..Default::default()
             }],
-            ..Default::default()
         }
         .to_vec();
         eprintln!("buf: {buf:?}");
