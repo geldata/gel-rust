@@ -228,6 +228,6 @@ mod tests {
         let resolver = Resolver::new().unwrap();
         let target = TargetName::new_tcp(("www.google.com", 443));
         let result = target.resolve(&resolver).await.unwrap();
-        println!("{:?}", result);
+        println!("{result:?}");
     }
 }
