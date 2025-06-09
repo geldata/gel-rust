@@ -108,11 +108,11 @@ fn derive(item: &syn::Item) -> syn::Result<proc_macro2::TokenStream> {
     };
     let attrs = attrib::ContainerAttrs::from_syn(attrs)?;
     if attrs.json {
-        json::derive(item)
+        json::derive(item, &attrs)
     } else {
         match item {
-            syn::Item::Struct(s) => shape::derive_struct(s),
-            syn::Item::Enum(s) => enums::derive_enum(s),
+            syn::Item::Struct(s) => shape::derive_struct(s, &attrs),
+            syn::Item::Enum(s) => enums::derive_enum(s, &attrs),
             _ => Err(syn::Error::new_spanned(
                 item,
                 "can only derive Queryable for a struct and enum \

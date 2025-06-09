@@ -1,7 +1,10 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-pub fn derive(item: &syn::Item) -> syn::Result<TokenStream> {
+use crate::attrib::ContainerAttrs;
+
+pub fn derive(item: &syn::Item, container_attrs: &ContainerAttrs) -> syn::Result<TokenStream> {
+    let gel_protocol = container_attrs.gel_protocol_path();
     let (name, impl_generics, ty_generics) = match item {
         syn::Item::Struct(s) => {
             let (impl_generics, ty_generics, _) = s.generics.split_for_impl();
@@ -19,25 +22,25 @@ pub fn derive(item: &syn::Item) -> syn::Result<TokenStream> {
         }
     };
     let expanded = quote! {
-        impl #impl_generics ::gel_protocol::queryable::Queryable
+        impl #impl_generics #gel_protocol::queryable::Queryable
             for #name #ty_generics {
             type Args = ();
 
-            fn decode(decoder: &::gel_protocol::queryable::Decoder, _args: &(), buf: &[u8])
-                -> Result<Self, ::gel_protocol::errors::DecodeError>
+            fn decode(decoder: &#gel_protocol::queryable::Decoder, _args: &(), buf: &[u8])
+                -> Result<Self, #gel_protocol::errors::DecodeError>
             {
-                let json: ::gel_protocol::model::Json =
-                    ::gel_protocol::queryable::Queryable::decode(decoder, &(), buf)?;
+                let json: #gel_protocol::model::Json =
+                    #gel_protocol::queryable::Queryable::decode(decoder, &(), buf)?;
                 ::serde_json::from_str(json.as_ref())
-                    .map_err(::gel_protocol::errors::decode_error)
+                    .map_err(#gel_protocol::errors::decode_error)
             }
             fn check_descriptor(
-                ctx: &::gel_protocol::queryable::DescriptorContext,
-                type_pos: ::gel_protocol::descriptors::TypePos)
-                -> Result<(), ::gel_protocol::queryable::DescriptorMismatch>
+                ctx: &#gel_protocol::queryable::DescriptorContext,
+                type_pos: #gel_protocol::descriptors::TypePos)
+                -> Result<(), #gel_protocol::queryable::DescriptorMismatch>
             {
-                <::gel_protocol::model::Json as
-                    ::gel_protocol::queryable::Queryable>
+                <#gel_protocol::model::Json as
+                    #gel_protocol::queryable::Queryable>
                     ::check_descriptor(ctx, type_pos)
             }
         }
