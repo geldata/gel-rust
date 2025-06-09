@@ -4,11 +4,13 @@ use syn::punctuated::Punctuated;
 #[derive(Debug)]
 enum FieldAttr {
     Json,
+    Rename(syn::LitStr),
 }
 
 #[derive(Debug)]
 enum ContainerAttr {
     Json,
+    CratePath(syn::Path),
 }
 
 struct FieldAttrList(pub Punctuated<FieldAttr, syn::Token![,]>);
@@ -16,14 +18,26 @@ struct ContainerAttrList(pub Punctuated<ContainerAttr, syn::Token![,]>);
 
 pub struct FieldAttrs {
     pub json: bool,
+    pub rename: Option<syn::LitStr>,
 }
 
 pub struct ContainerAttrs {
     pub json: bool,
+    pub crate_path: Option<syn::Path>,
+}
+
+impl ContainerAttrs {
+    pub fn gel_protocol_path(&self) -> syn::Path {
+        self.crate_path
+            .clone()
+            .unwrap_or(syn::parse_str("::gel_protocol").unwrap())
+    }
 }
 
 mod kw {
     syn::custom_keyword!(json);
+    syn::custom_keyword!(crate_path);
+    syn::custom_keyword!(rename);
 }
 
 impl Parse for FieldAttr {
@@ -32,6 +46,10 @@ impl Parse for FieldAttr {
         if lookahead.peek(kw::json) {
             let _ident: syn::Ident = input.parse()?;
             Ok(FieldAttr::Json)
+        } else if lookahead.peek(kw::rename) {
+            input.parse::<kw::rename>()?;
+            input.parse::<syn::Token![=]>()?;
+            Ok(FieldAttr::Rename(input.parse()?))
         } else {
             Err(lookahead.error())
         }
@@ -44,6 +62,10 @@ impl Parse for ContainerAttr {
         if lookahead.peek(kw::json) {
             let _ident: syn::Ident = input.parse()?;
             Ok(ContainerAttr::Json)
+        } else if lookahead.peek(kw::crate_path) {
+            input.parse::<kw::crate_path>()?;
+            input.parse::<syn::Token![=]>()?;
+            Ok(ContainerAttr::CratePath(input.parse()?))
         } else {
             Err(lookahead.error())
         }
@@ -64,7 +86,10 @@ impl Parse for FieldAttrList {
 
 impl FieldAttrs {
     fn default() -> FieldAttrs {
-        FieldAttrs { json: false }
+        FieldAttrs {
+            json: false,
+            rename: None,
+        }
     }
     pub fn from_syn(attrs: &[syn::Attribute]) -> syn::Result<FieldAttrs> {
         let mut res = FieldAttrs::default();
@@ -74,6 +99,15 @@ impl FieldAttrs {
                 for item in chunk.0 {
                     match item {
                         FieldAttr::Json => res.json = true,
+                        FieldAttr::Rename(name) => {
+                            if res.rename.is_some() {
+                                return Err(syn::Error::new_spanned(
+                                    name,
+                                    "duplicate gel attribute `rename`",
+                                ));
+                            }
+                            res.rename = Some(name)
+                        }
                     }
                 }
             }
@@ -84,7 +118,10 @@ impl FieldAttrs {
 
 impl ContainerAttrs {
     fn default() -> ContainerAttrs {
-        ContainerAttrs { json: false }
+        ContainerAttrs {
+            json: false,
+            crate_path: None,
+        }
     }
     pub fn from_syn(attrs: &[syn::Attribute]) -> syn::Result<ContainerAttrs> {
         let mut res = ContainerAttrs::default();
@@ -94,6 +131,15 @@ impl ContainerAttrs {
                 for item in chunk.0 {
                     match item {
                         ContainerAttr::Json => res.json = true,
+                        ContainerAttr::CratePath(path) => {
+                            if res.crate_path.is_some() {
+                                return Err(syn::Error::new_spanned(
+                                    path,
+                                    "duplicate gel attribute `crate_path`",
+                                ));
+                            }
+                            res.crate_path = Some(path)
+                        }
                     }
                 }
             }
