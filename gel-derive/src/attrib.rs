@@ -1,13 +1,11 @@
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 
-#[derive(Debug)]
 enum FieldAttr {
     Json,
     Rename(syn::LitStr),
 }
 
-#[derive(Debug)]
 enum ContainerAttr {
     Json,
     CratePath(syn::Path),
