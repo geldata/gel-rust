@@ -69,18 +69,18 @@ impl TlsDriver for NullTlsDriver {
         Err(SslError::SslUnsupported)
     }
 
-    fn upgrade_client<S: Stream>(
+    async fn upgrade_client<S: Stream>(
         params: Self::ClientParams,
         stream: S,
-    ) -> impl Future<Output = Result<(Self::Stream, TlsHandshake), SslError>> + Send {
-        async { Err(SslError::SslUnsupported) }
+    ) -> Result<(Self::Stream, TlsHandshake), SslError> {
+        Err(SslError::SslUnsupported)
     }
 
-    fn upgrade_server<S: Stream>(
+    async fn upgrade_server<S: Stream>(
         params: TlsServerParameterProvider,
         stream: S,
-    ) -> impl Future<Output = Result<(Self::Stream, TlsHandshake), SslError>> + Send {
-        async { Err(SslError::SslUnsupported) }
+    ) -> Result<(Self::Stream, TlsHandshake), SslError> {
+        Err(SslError::SslUnsupported)
     }
 
     fn unclean_shutdown(_this: Self::Stream) -> Result<(), Self::Stream> {
@@ -358,7 +358,7 @@ impl std::fmt::Debug for TlsAlpn {
                     }
                 }
                 s.push('"');
-                write!(f, "{}", s)?;
+                write!(f, "{s}")?;
             }
             write!(f, "]")?;
             Ok(())
@@ -445,7 +445,7 @@ mod tests {
     fn test_tls_parameters_debug() {
         let params = TlsParameters::default();
         assert_eq!(
-            format!("{:?}", params),
+            format!("{params:?}"),
             "TlsParameters { server_cert_verify: VerifyFull, cert: None, key: None, \
             root_cert: System, crl: [], min_protocol_version: None, max_protocol_version: None, \
             enable_keylog: false, sni_override: None, alpn: [] }"
@@ -465,7 +465,7 @@ mod tests {
             alpn: TlsAlpn::new_str(&["h2", "http/1.1"]),
         };
         assert_eq!(
-            format!("{:?}", params),
+            format!("{params:?}"),
             "TlsParameters { server_cert_verify: Insecure, cert: Some(...), key: Some(...), \
             root_cert: SystemPlus([1 cert(s)]), crl: [1 item(s)], min_protocol_version: None, \
             max_protocol_version: None, enable_keylog: false, sni_override: None, \
@@ -485,12 +485,12 @@ mod tests {
             vec![b"h2".to_vec(), b"http/1.1".to_vec()]
         );
         assert!(!alpn.is_empty());
-        assert_eq!(format!("{:?}", alpn), "[b\"h2\", b\"http/1.1\"]");
+        assert_eq!(format!("{alpn:?}"), "[b\"h2\", b\"http/1.1\"]");
 
         let empty_alpn = TlsAlpn::default();
         assert!(empty_alpn.is_empty());
         assert_eq!(empty_alpn.as_bytes(), Vec::<u8>::new());
         assert_eq!(empty_alpn.as_vec_vec(), Vec::<Vec<u8>>::new());
-        assert_eq!(format!("{:?}", empty_alpn), "[]");
+        assert_eq!(format!("{empty_alpn:?}"), "[]");
     }
 }

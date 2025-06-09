@@ -311,9 +311,7 @@ mod tests {
         if expect_success {
             assert!(
                 client.is_ready() && server.is_ready(),
-                "client={:?} server={:?}",
-                client,
-                server
+                "client={client:?} server={server:?}"
             );
         } else {
             assert!(client_error && server_error);

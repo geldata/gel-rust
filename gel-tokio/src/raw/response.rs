@@ -104,8 +104,7 @@ where
                 }
                 msg => {
                     return Err(ProtocolOutOfOrderError::with_message(format!(
-                        "Unsolicited message {:?}",
-                        msg
+                        "Unsolicited message {msg:?}"
                     )))?;
                 }
             }
@@ -193,8 +192,7 @@ where
                 }
                 Ok(msg) => {
                     self.buffer = Error(ProtocolOutOfOrderError::with_message(format!(
-                        "Unsolicited message {:?}",
-                        msg
+                        "Unsolicited message {msg:?}"
                     )));
                     return;
                 }
@@ -265,8 +263,7 @@ where
                 }
                 Ok(msg) => {
                     self.buffer = Error(ProtocolOutOfOrderError::with_message(format!(
-                        "Unsolicited message {:?}",
-                        msg
+                        "Unsolicited message {msg:?}"
                     )));
                     return None;
                 }

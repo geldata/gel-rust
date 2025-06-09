@@ -124,7 +124,7 @@ impl<'a, L> Array<'a, L, u8> {
     }
 }
 
-impl<'a, L, T> std::fmt::Debug for Array<'a, L, T>
+impl<L, T> std::fmt::Debug for Array<'_, L, T>
 where
     for<'b> &'b Self: IntoIterator,
     for<'b> <&'b Self as IntoIterator>::Item: std::fmt::Debug,

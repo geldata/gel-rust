@@ -501,15 +501,14 @@ fn serialize_variables(
         variables
             .len()
             .try_into()
-            .map_err(|_| ClientEncodingError::with_message(format!("too many items in {}", tag)))?,
+            .map_err(|_| ClientEncodingError::with_message(format!("too many items in {tag}")))?,
     );
 
     let desc = match enc.ctx.get(type_pos)? {
         Descriptor::InputShape(desc) => desc,
         _ => {
             return Err(DescriptorMismatch::with_message(format!(
-                "invalid type descriptor for {}",
-                tag
+                "invalid type descriptor for {tag}"
             )));
         }
     };

@@ -264,8 +264,8 @@ mod test {
         let mut rng = StdRng::seed_from_u64(1);
         for _ in 0..10000 {
             let head = gen_u64(&mut rng);
-            let txt = format!("{}", head);
-            assert_eq!(dec_roundtrip(&txt), B::from_str(&txt)?, "parsing: {}", txt);
+            let txt = format!("{head}");
+            assert_eq!(dec_roundtrip(&txt), B::from_str(&txt)?, "parsing: {txt}");
         }
         Ok(())
     }
@@ -282,9 +282,7 @@ mod test {
             assert_eq!(
                 dec_roundtrip(&txt),
                 B::from_str(&txt)?,
-                "parsing {}: {}",
-                iter,
-                txt
+                "parsing {iter}: {txt}"
             );
         }
         Ok(())
@@ -298,13 +296,11 @@ mod test {
         for iter in 0..10000 {
             let head = gen_u64(&mut rng);
             let nulls = rng.random_range(-100..100);
-            let txt = format!("{}e{}", head, nulls);
+            let txt = format!("{head}e{nulls}");
             assert_eq!(
                 dec_roundtrip(&txt),
                 B::from_str(&txt)?,
-                "parsing {}: {}",
-                iter,
-                txt
+                "parsing {iter}: {txt}"
             );
         }
         Ok(())
@@ -319,7 +315,7 @@ mod test {
             let head = gen_i64(&mut rng);
             let fract = gen_u64(&mut rng);
             let nulls = rng.random_range(-100..100);
-            let txt = format!("{}.{}e{}", head, fract, nulls);
+            let txt = format!("{head}.{fract}e{nulls}");
             let rt = dec_roundtrip(&txt);
             let dec = if head == 0 && fract == 0 {
                 // Zeros are normalized
@@ -327,15 +323,14 @@ mod test {
             } else {
                 B::from_str(&txt)?
             };
-            assert_eq!(rt, dec, "parsing {}: {}", iter, txt);
+            assert_eq!(rt, dec, "parsing {iter}: {txt}");
             if dec.as_bigint_and_exponent().1 > 0 {
                 // check precision
                 // (if scale is negative it's integer, we don't have precision)
                 assert_eq!(
                     rt.as_bigint_and_exponent().1,
                     dec.as_bigint_and_exponent().1,
-                    "precision: {}",
-                    txt
+                    "precision: {txt}"
                 );
             }
         }
@@ -354,15 +349,14 @@ mod test {
             let txt = format!("{0}{1:0<2$}e{3}", head, "", nulls1, nulls2);
             let rt = dec_roundtrip(&txt);
             let dec = B::from_str(&txt)?;
-            assert_eq!(rt, dec, "parsing {}: {}", iter, txt);
+            assert_eq!(rt, dec, "parsing {iter}: {txt}");
             if dec.as_bigint_and_exponent().1 > 0 {
                 // check precision
                 // (if scale is negative it's integer, we don't have precision)
                 assert_eq!(
                     rt.as_bigint_and_exponent().1,
                     dec.as_bigint_and_exponent().1,
-                    "precision: {}",
-                    txt
+                    "precision: {txt}"
                 );
             }
         }
@@ -389,12 +383,11 @@ mod test {
             } else {
                 B::from_str(&txt)?
             };
-            assert_eq!(dec_roundtrip(&txt), dec, "parsing {}: {}", iter, txt);
+            assert_eq!(dec_roundtrip(&txt), dec, "parsing {iter}: {txt}");
             assert_eq!(
                 dec_roundtrip(&txt).as_bigint_and_exponent().1,
                 dec.as_bigint_and_exponent().1,
-                "precision: {}",
-                txt
+                "precision: {txt}"
             );
         }
         Ok(())

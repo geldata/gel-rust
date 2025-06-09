@@ -350,9 +350,9 @@ impl Encode for ClientFirstMessage<'_> {
     fn encode(&self) -> String {
         let channel_binding = match self.channel_binding {
             ChannelBinding::NotSpecified => "".to_string(),
-            ChannelBinding::NotSupported(ref s) => format!("n,{},", s),
-            ChannelBinding::Supported(ref s) => format!("y,{},", s),
-            ChannelBinding::Required(ref s, ref t) => format!("p={},{},", t, s),
+            ChannelBinding::NotSupported(ref s) => format!("n,{s},"),
+            ChannelBinding::Supported(ref s) => format!("y,{s},"),
+            ChannelBinding::Required(ref s, ref t) => format!("p={t},{s},"),
         };
         format!("{channel_binding}n={},r={}", self.username, self.nonce)
     }

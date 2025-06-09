@@ -56,7 +56,7 @@ impl From<ConnectionError> for std::io::Error {
     fn from(err: ConnectionError) -> Self {
         match err {
             ConnectionError::Io(e) => e,
-            ConnectionError::Utf8Error(e) => std::io::Error::new(std::io::ErrorKind::Other, e),
+            ConnectionError::Utf8Error(e) => std::io::Error::other(e),
             ConnectionError::SslError(e) => e.into(),
         }
     }
@@ -106,7 +106,7 @@ impl From<SslError> for std::io::Error {
     fn from(err: SslError) -> Self {
         match err {
             SslError::SslIoError(e) => e,
-            other => std::io::Error::new(std::io::ErrorKind::Other, other),
+            other => std::io::Error::other(other),
         }
     }
 }

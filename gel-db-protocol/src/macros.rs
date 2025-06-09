@@ -48,13 +48,13 @@ macro_rules! declare_type {
                     Err($crate::prelude::ParseError::TooShort)
                 }
             }
-            fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
+            fn encode(buf: &mut $crate::prelude::BufWriter<'_>, value: &Self::BuilderForEncode) {
                 let $evalue = *value;
                 let bytes = $encode;
                 buf.write(&bytes);
             }
             $(
-                fn encode_usize<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: usize) {
+                fn encode_usize<'__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'_>, value: usize) {
                     let $eusize = value;
                     let value = $to_usize;
                     Self::encode(buf, &value);
@@ -92,7 +92,7 @@ macro_rules! declare_type {
                 let $dbuf = buf;
                 $decode
             }
-            fn encode<'__buffer_lifetime, '__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'__buffer_lifetime>, value: &'__value_lifetime Self::BuilderForEncode) {
+            fn encode(buf: &mut $crate::prelude::BufWriter<'_>, value: &Self::BuilderForEncode) {
                 let $ebuf = buf;
                 let $evalue = value;
                 $encode

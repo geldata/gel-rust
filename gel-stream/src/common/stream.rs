@@ -421,79 +421,75 @@ impl<S: Stream, D: TlsDriver> UpgradableStream<S, D> {
 }
 
 impl<S: Stream, D: TlsDriver> StreamUpgrade for UpgradableStream<S, D> {
-    fn secure_upgrade(self) -> impl Future<Output = Result<Self, SslError>> + Send {
-        async move {
-            let (upgraded, handshake) = match self.inner {
-                UpgradableStreamInner::BaseClient(base, config) => {
-                    let Some(config) = config else {
-                        return Err(SslError::SslUnsupported);
-                    };
-                    D::upgrade_client(config, base).await?
-                }
-                UpgradableStreamInner::BaseServer(base, config) => {
-                    let Some(config) = config else {
-                        return Err(SslError::SslUnsupported);
-                    };
-                    D::upgrade_server(config, base).await?
-                }
-                UpgradableStreamInner::BaseServerPreview(base, config) => {
-                    let Some(config) = config else {
-                        return Err(SslError::SslUnsupported);
-                    };
-                    D::upgrade_server(config, base).await?
-                }
-                _ => {
-                    return Err(SslError::SslAlreadyUpgraded);
-                }
-            };
-            Ok(Self {
-                inner: UpgradableStreamInner::Upgraded(upgraded, handshake),
-                options: self.options,
-            })
-        }
+    async fn secure_upgrade(self) -> Result<Self, SslError> {
+        let (upgraded, handshake) = match self.inner {
+            UpgradableStreamInner::BaseClient(base, config) => {
+                let Some(config) = config else {
+                    return Err(SslError::SslUnsupported);
+                };
+                D::upgrade_client(config, base).await?
+            }
+            UpgradableStreamInner::BaseServer(base, config) => {
+                let Some(config) = config else {
+                    return Err(SslError::SslUnsupported);
+                };
+                D::upgrade_server(config, base).await?
+            }
+            UpgradableStreamInner::BaseServerPreview(base, config) => {
+                let Some(config) = config else {
+                    return Err(SslError::SslUnsupported);
+                };
+                D::upgrade_server(config, base).await?
+            }
+            _ => {
+                return Err(SslError::SslAlreadyUpgraded);
+            }
+        };
+        Ok(Self {
+            inner: UpgradableStreamInner::Upgraded(upgraded, handshake),
+            options: self.options,
+        })
     }
 
-    fn secure_upgrade_preview(
+    async fn secure_upgrade_preview(
         self,
         options: PreviewConfiguration,
-    ) -> impl Future<Output = Result<(Preview, Self), SslError>> + Send {
-        async move {
-            let (mut upgraded, handshake) = match self.inner {
-                UpgradableStreamInner::BaseClient(base, config) => {
-                    let Some(config) = config else {
-                        return Err(SslError::SslUnsupported);
-                    };
-                    D::upgrade_client(config, base).await?
-                }
-                UpgradableStreamInner::BaseServer(base, config) => {
-                    let Some(config) = config else {
-                        return Err(SslError::SslUnsupported);
-                    };
-                    D::upgrade_server(config, base).await?
-                }
-                UpgradableStreamInner::BaseServerPreview(base, config) => {
-                    let Some(config) = config else {
-                        return Err(SslError::SslUnsupported);
-                    };
-                    D::upgrade_server(config, base).await?
-                }
-                _ => {
-                    return Err(SslError::SslAlreadyUpgraded);
-                }
-            };
-            let mut buffer = smallvec::SmallVec::with_capacity(options.max_preview_bytes.get());
-            buffer.resize(options.max_preview_bytes.get(), 0);
-            upgraded.read_exact(&mut buffer).await?;
-            let mut rewind = RewindStream::new(upgraded);
-            rewind.rewind(&buffer);
-            Ok((
-                Preview { buffer },
-                Self {
-                    inner: UpgradableStreamInner::UpgradedPreview(rewind, handshake),
-                    options: self.options,
-                },
-            ))
-        }
+    ) -> Result<(Preview, Self), SslError> {
+        let (mut upgraded, handshake) = match self.inner {
+            UpgradableStreamInner::BaseClient(base, config) => {
+                let Some(config) = config else {
+                    return Err(SslError::SslUnsupported);
+                };
+                D::upgrade_client(config, base).await?
+            }
+            UpgradableStreamInner::BaseServer(base, config) => {
+                let Some(config) = config else {
+                    return Err(SslError::SslUnsupported);
+                };
+                D::upgrade_server(config, base).await?
+            }
+            UpgradableStreamInner::BaseServerPreview(base, config) => {
+                let Some(config) = config else {
+                    return Err(SslError::SslUnsupported);
+                };
+                D::upgrade_server(config, base).await?
+            }
+            _ => {
+                return Err(SslError::SslAlreadyUpgraded);
+            }
+        };
+        let mut buffer = smallvec::SmallVec::with_capacity(options.max_preview_bytes.get());
+        buffer.resize(options.max_preview_bytes.get(), 0);
+        upgraded.read_exact(&mut buffer).await?;
+        let mut rewind = RewindStream::new(upgraded);
+        rewind.rewind(&buffer);
+        Ok((
+            Preview { buffer },
+            Self {
+                inner: UpgradableStreamInner::UpgradedPreview(rewind, handshake),
+                options: self.options,
+            },
+        ))
     }
 
     fn handshake(&self) -> Option<&TlsHandshake> {
@@ -523,11 +519,10 @@ impl<S: Stream, D: TlsDriver> tokio::io::AsyncRead for UpgradableStream<S, D> {
                 Pin::new(upgraded).poll_read(cx, buf)
             }
         };
-        if ignore_missing_close_notify {
-            if matches!(res, std::task::Poll::Ready(Err(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof)
-            {
-                return std::task::Poll::Ready(Ok(()));
-            }
+        if ignore_missing_close_notify
+            && matches!(res, std::task::Poll::Ready(Err(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof)
+        {
+            return std::task::Poll::Ready(Ok(()));
         }
         res
     }
@@ -752,9 +747,15 @@ where
         match &mut self.inner {
             UpgradableStreamInner::BaseClient(stm, _) => stm.rewind(bytes),
             UpgradableStreamInner::BaseServer(stm, _) => stm.rewind(bytes),
-            UpgradableStreamInner::BaseServerPreview(stm, _) => Ok(stm.rewind(bytes)),
+            UpgradableStreamInner::BaseServerPreview(stm, _) => {
+                stm.rewind(bytes);
+                Ok(())
+            }
             UpgradableStreamInner::Upgraded(stm, _) => stm.rewind(bytes),
-            UpgradableStreamInner::UpgradedPreview(stm, _) => Ok(stm.rewind(bytes)),
+            UpgradableStreamInner::UpgradedPreview(stm, _) => {
+                stm.rewind(bytes);
+                Ok(())
+            }
         }
     }
 }

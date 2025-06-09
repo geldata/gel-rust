@@ -14,7 +14,7 @@ pub struct Resolver {
 #[cfg(feature = "tokio")]
 #[allow(unused)]
 async fn resolve_host_to_socket_addrs(host: String) -> std::io::Result<ResolvedTarget> {
-    let res = tokio::task::spawn_blocking(move || format!("{}:0", host).to_socket_addrs())
+    let res = tokio::task::spawn_blocking(move || format!("{host}:0").to_socket_addrs())
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Interrupted, e.to_string()))??;
     res.into_iter()
@@ -23,7 +23,7 @@ async fn resolve_host_to_socket_addrs(host: String) -> std::io::Result<ResolvedT
             std::io::ErrorKind::NotFound,
             "No address found",
         ))
-        .map(|addr| ResolvedTarget::SocketAddr(addr))
+        .map(ResolvedTarget::SocketAddr)
 }
 
 impl Resolver {
@@ -44,7 +44,7 @@ impl Resolver {
                 ResolveResult::new_sync(Ok(resolved.clone()))
             }
             MaybeResolvedTarget::Unresolved(host, port, _) => {
-                if let Ok(ip) = IpAddr::from_str(&host) {
+                if let Ok(ip) = IpAddr::from_str(host) {
                     ResolveResult::new_sync(Ok(ResolvedTarget::SocketAddr(SocketAddr::from((
                         ip, *port,
                     )))))
@@ -123,8 +123,7 @@ impl<T> ResolveResult<T> {
             ResolveResultInner::Async(future) => {
                 ResolveResult::new_async(async move { Ok(f(future.await?)) })
             }
-            ResolveResultInner::Fused => ResolveResult::new_sync(Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            ResolveResultInner::Fused => ResolveResult::new_sync(Err(std::io::Error::other(
                 "Polled a previously awaited result",
             ))),
         }
@@ -229,6 +228,6 @@ mod tests {
         let resolver = Resolver::new().unwrap();
         let target = TargetName::new_tcp(("www.google.com", 443));
         let result = target.resolve(&resolver).await.unwrap();
-        println!("{:?}", result);
+        println!("{result:?}");
     }
 }

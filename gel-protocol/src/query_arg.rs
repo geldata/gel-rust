@@ -97,10 +97,7 @@ impl DescriptorContext<'_> {
         ))
     }
     pub fn field_number(&self, expected: usize, unexpected: usize) -> Error {
-        DescriptorMismatch::with_message(format!(
-            "expected {} fields, got {}",
-            expected, unexpected
-        ))
+        DescriptorMismatch::with_message(format!("expected {expected} fields, got {unexpected}"))
     }
 }
 

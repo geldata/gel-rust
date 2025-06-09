@@ -96,13 +96,10 @@ impl CloudName {
         ))?;
         let org_slug = org_slug.to_lowercase();
         let name = name.to_lowercase();
-        let msg = format!("{}/{}", org_slug, name);
+        let msg = format!("{org_slug}/{name}");
         let checksum = crc16::State::<crc16::XMODEM>::calculate(msg.as_bytes());
         let dns_bucket = format!("c-{:02}", checksum % 100);
-        Ok(format!(
-            "{}--{}.{}.i.{}",
-            name, org_slug, dns_bucket, dns_zone
-        ))
+        Ok(format!("{name}--{org_slug}.{dns_bucket}.i.{dns_zone}"))
     }
 }
 
@@ -134,15 +131,15 @@ impl fmt::Display for InstanceName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if f.alternate() {
             match self {
-                InstanceName::Local(name) => write!(f, "{BRANDING} instance '{}'", name),
+                InstanceName::Local(name) => write!(f, "{BRANDING} instance '{name}'"),
                 InstanceName::Cloud(cloud_name) => {
-                    write!(f, "{BRANDING_CLOUD} instance '{}'", cloud_name)
+                    write!(f, "{BRANDING_CLOUD} instance '{cloud_name}'")
                 }
             }
         } else {
             match self {
-                InstanceName::Local(name) => write!(f, "{}", name),
-                InstanceName::Cloud(cloud_name) => write!(f, "{}", cloud_name),
+                InstanceName::Local(name) => write!(f, "{name}"),
+                InstanceName::Cloud(cloud_name) => write!(f, "{cloud_name}"),
             }
         }
     }
@@ -351,7 +348,7 @@ mod tests {
                     assert_eq!(org_slug, o);
                     assert_eq!(name, i);
                 }
-                Err(e) => panic!("{:#}", e),
+                Err(e) => panic!("{e:#}"),
             }
         }
         for name in [
@@ -369,8 +366,7 @@ mod tests {
         ] {
             assert!(
                 InstanceName::from_str(name).is_err(),
-                "unexpected success: {}",
-                name
+                "unexpected success: {name}"
             );
         }
     }

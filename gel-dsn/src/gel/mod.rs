@@ -87,7 +87,7 @@ impl Logging {
                 #[cfg(feature = "log")]
                 {
                     if self.log_trace || auto_trace {
-                        log::trace!("{}", message);
+                        log::trace!("{message}");
                     }
                 }
                 {
@@ -104,7 +104,7 @@ impl Logging {
         {
             let auto_warning = cfg!(feature = "auto-log-warning");
             if self.log_warning || auto_warning {
-                log::warn!("{}", warning);
+                log::warn!("{warning}");
             }
         }
         if let Some(warning_fn) = &self.warning {

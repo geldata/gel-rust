@@ -43,7 +43,7 @@ protocol!(
         /// The type of the query parameter.
         typ: QueryParameterType,
         /// The length of the query parameter.
-        len: u32,
+        length: u32,
         /// The metadata of the query parameter.
         meta: Array<'a, u32, u8>,
     }
@@ -99,23 +99,21 @@ mod tests {
             query: "SELECT * from foo",
             types: &[QueryTypeBuilder {
                 typ: QueryParameterType::Float,
-                len: 4,
+                length: 4,
                 meta: &[1, 2, 3, 4],
-                ..Default::default()
             }],
-            ..Default::default()
         }
         .to_vec();
-        eprintln!("buf: {:?}", buf);
+        eprintln!("buf: {buf:?}");
         let query = Query::new(&buf).expect("Failed to parse query");
         let types = query.types;
         assert_eq!(1, types.len());
         assert_eq!(
-            r#"QueryType { typ: Float, len: 4, meta: [1, 2, 3, 4] }"#,
+            r#"QueryType { typ: Float, length: 4, meta: [1, 2, 3, 4] }"#,
             format!("{:?}", types.into_iter().next().unwrap())
         );
         assert_eq!(
-            r#"Query { mtype: 81, mlen: 37, query: "SELECT * from foo", types: [QueryType { typ: Float, len: 4, meta: [1, 2, 3, 4] }] }"#,
+            r#"Query { mtype: 81, mlen: 37, query: "SELECT * from foo", types: [QueryType { typ: Float, length: 4, meta: [1, 2, 3, 4] }] }"#,
             format!("{query:?}")
         );
     }
@@ -162,7 +160,7 @@ mod tests {
             ],
         }
         .to_vec();
-        eprintln!("buf: {:?}", buf);
+        eprintln!("buf: {buf:?}");
         let data_row = DataRow::new(&buf).expect("Failed to parse data row");
         assert_eq!(data_row.values.len(), 4);
         let mut iter = data_row.values.into_iter();

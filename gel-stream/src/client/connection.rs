@@ -35,7 +35,7 @@ impl Connector<Ssl> {
 
     /// Create a new connector with the given resolved target.
     pub fn new_resolved(target: ResolvedTarget) -> Self {
-        Self::new_explicit_resolved(target.into())
+        Self::new_explicit_resolved(target)
     }
 
     /// Create a new connector with the given target and resolver.

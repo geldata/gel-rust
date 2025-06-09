@@ -59,8 +59,7 @@ impl Connection {
             }
             msg => {
                 return Err(ProtocolOutOfOrderError::with_message(format!(
-                    "unsolicited message {:?}",
-                    msg
+                    "unsolicited message {msg:?}"
                 )))?;
             }
         }
@@ -87,7 +86,7 @@ impl Connection {
                         }
                         msg => {
                             return Err(ProtocolOutOfOrderError::with_message(
-                                format!("unsolicited message {:?}", msg)))?;
+                                format!("unsolicited message {msg:?}")))?;
                         }
                     },
                 res = send_messages(&mut wr, &mut self.out_buf,
@@ -146,8 +145,7 @@ impl Connection {
                 }
                 _ => {
                     return Err(ProtocolOutOfOrderError::with_message(format!(
-                        "unsolicited message {:?}",
-                        msg
+                        "unsolicited message {msg:?}"
                     )))?;
                 }
             }
@@ -194,8 +192,7 @@ impl Connection {
             }
             _ => {
                 return Err(ProtocolOutOfOrderError::with_message(format!(
-                    "unsolicited message {:?}",
-                    msg
+                    "unsolicited message {msg:?}"
                 )))?;
             }
         };
@@ -271,8 +268,7 @@ impl DumpStream<'_> {
                 }
                 Ok(msg) => {
                     self.state = DumpState::Error(ProtocolOutOfOrderError::with_message(format!(
-                        "unsolicited message {:?}",
-                        msg
+                        "unsolicited message {msg:?}"
                     )));
                     None
                 }

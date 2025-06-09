@@ -403,7 +403,7 @@ impl<D: TlsDriver> futures::Stream for AcceptedStream<(Preview, Connection<D>), 
             };
 
             let tls_provider = self.tls_provider.clone();
-            let preview_configuration = self.preview_configuration.clone().unwrap();
+            let preview_configuration = self.preview_configuration.unwrap();
             let ignore_missing_tls_close_notify = self.ignore_missing_tls_close_notify;
             self.tls_backlog.push(async move {
                 let mut buf = smallvec::SmallVec::with_capacity(
@@ -432,6 +432,7 @@ impl<D: TlsDriver> futures::Stream for AcceptedStream<(Preview, Connection<D>), 
 
 struct TlsAcceptBacklog<C> {
     capacity: usize,
+    #[allow(clippy::type_complexity)]
     futures: FuturesUnordered<
         Pin<Box<dyn Future<Output = Result<C, ConnectionError>> + Send + 'static>>,
     >,
@@ -484,7 +485,7 @@ mod tests {
             )),
         );
 
-        let mut conns = acceptor.bind().await?;
+        let mut conns = acceptor.bind_explicit::<D>().await?;
 
         let addr = conns.local_address()?;
         tokio::task::spawn(async move {
