@@ -16,7 +16,7 @@ LOG_FILE=/tmp/gel-rust-publish.log
 TEMP_DIR=$(mktemp -d)
 trap "echo '💥 Failed, log:' $LOG_FILE; rm -rf $TEMP_DIR" EXIT
 
-if [ -z "$CRATE" ]; then
+if [ $# -gt 1 ]; then
     echo "$USAGE"
     exit 1
 fi
@@ -28,24 +28,16 @@ CRATE_ROOT=$(cd $(dirname $0)/.. && pwd)
 
 cd $CRATE_ROOT
 
-# Compute the crate depedency graph for all gel-* crates from $CRATE
-# This will be a list of crates in publishing order, ending with $CRATE
-
-CRATES=$(cargo tree -p $CRATE --depth 1 --prefix none | grep "gel-" | cut -d ' ' -f 1 | sort | uniq)
-DEP_GRAPH=$(mktemp)
-
-for CRATE in $CRATES; do
-    for DEP in $(cargo tree -p $CRATE --depth 1 --prefix none --edges=no-dev --all-features | grep "gel-" | cut -d ' ' -f 1 | sort | uniq); do
-        echo "$DEP $CRATE" >> $DEP_GRAPH
-    done
-done
-
-CRATE_ORDER=$(tsort $DEP_GRAPH)
+CRATE_ORDER=$(./tools/list.sh $CRATE)
 
 # Step 1: Ensure that all crates with differences from the published version
 # have a different version
 
-echo "Checking publication state for:" $CRATE_ORDER
+if [ -z "$CRATE" ]; then
+    echo "Checking publication state for all crates"
+else
+    echo "Checking publication state for:" $CRATE_ORDER
+fi
 
 # Collect crates that need bump or publish
 NEEDS_BUMP=()

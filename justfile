@@ -1,6 +1,16 @@
 _default:
     just --list
 
+build-minimal:
+    #!/bin/bash
+    # Generate a lockfile with minimal versions and build it
+    cargo +nightly generate-lockfile -Z minimal-versions && cargo build
+
+    for crate in $(tools/list.sh); do
+        echo "Building $crate..."
+        cargo build -p $crate
+    done
+
 test:
     # Test all features
     cargo test --workspace --all-features
@@ -24,7 +34,6 @@ test:
 
     cargo fmt --check
 
-
 test-fast:
     cargo fmt
 
@@ -41,7 +50,7 @@ check:
 
     # Check all crates in the workspace
     CRATES=`cargo tree --workspace --depth 1 --prefix none | grep "gel-" | cut -d ' ' -f 1 | sort | uniq`
-    for crate in $CRATES; do
+    for crate in $(tools/list.sh); do
         echo "Checking $crate..."
         # TODO: this doesn't currently pass because we've got some crates that fail to check
         cargo check --quiet --package $crate --no-default-features || echo "Failed to check $crate with no default features"
