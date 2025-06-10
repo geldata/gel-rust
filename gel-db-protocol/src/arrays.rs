@@ -49,10 +49,18 @@ where
     }
 }
 
+// ZTArrays of type [`u8`] are special-cased to return a slice of bytes.
 impl<'a> ZTArray<'a, u8> {
     #[inline(always)]
     pub fn into_slice(self) -> &'a [u8] {
         self.buf
+    }
+}
+
+impl AsRef<[u8]> for ZTArray<'_, u8> {
+    #[inline(always)]
+    fn as_ref(&self) -> &[u8] {
+        &self.buf[..self.len as _]
     }
 }
 
@@ -117,10 +125,18 @@ impl<'a, L, T> Array<'a, L, T> {
     }
 }
 
+// Arrays of type [`u8`] are special-cased to return a slice of bytes.
 impl<'a, L> Array<'a, L, u8> {
     #[inline(always)]
     pub fn into_slice(self) -> &'a [u8] {
-        self.buf
+        &self.buf[..self.len as _]
+    }
+}
+
+impl<T> AsRef<[u8]> for Array<'_, T, u8> {
+    #[inline(always)]
+    fn as_ref(&self) -> &[u8] {
+        &self.buf[..self.len as _]
     }
 }
 
@@ -174,13 +190,6 @@ impl<'a, T: DataType> Iterator for ArrayIter<'a, T> {
         self.len -= 1;
         let value = T::decode(&mut self.buf).ok()?;
         Some(value)
-    }
-}
-
-// Arrays of type [`u8`] are special-cased to return a slice of bytes.
-impl<T> AsRef<[u8]> for Array<'_, T, u8> {
-    fn as_ref(&self) -> &[u8] {
-        &self.buf[..self.len as _]
     }
 }
 
