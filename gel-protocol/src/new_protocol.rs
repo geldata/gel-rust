@@ -515,15 +515,45 @@ struct ConnectionParam<'a> {
     value: LString<'a>,
 }
 
-#[repr(u8)]
-/// The state of the current transaction.
-enum TransactionState {
-    #[default]
-    NotInTransaction = 0x49,
-    InTransaction = 0x54,
-    InFailedTransaction = 0x45,
+/// Legacy version of [`CommandComplete`].
+struct CommandComplete0<'a>: Message {
+    mtype: u8 = 'C',
+    mlen: len,
+    headers: Array<'a, i16, KeyValue<'a>>,
+    status_data: Array<'a, u32, u8>,
 }
 
+/// Legacy version of [`CommandDataDescription`].
+struct CommandDataDescription0<'a>: Message {
+    mtype: u8 = 'T',
+    mlen: len,
+    headers: Array<'a, i16, KeyValue<'a>>,
+    result_cardinality: u8,
+    input: Array<'a, u32, u8>,
+    output: Array<'a, u32, u8>,
+}
+
+/// Legacy version of [`Execute`].
+struct Execute0<'a>: Message {
+    mtype: u8 = 'E',
+    mlen: len,
+    headers: Array<'a, i16, KeyValue<'a>>,
+    statement_name: Array<'a, u32, u8>,
+    arguments: Array<'a, u32, u8>,
+}
+
+/// Legacy version of [`Execute`].
+struct OptimisticExecute0<'a>: Message {
+    mtype: u8 = 'O',
+    mlen: len,
+    headers: Array<'a, i16, KeyValue<'a>>,
+    io_format: u8,
+    expected_cardinality: u8,
+    command_text: LString<'a>,
+    input_typedesc_id: Uuid,
+    output_typedesc_id: Uuid,
+    arguments: Array<'a, u32, u8>,
+}
 );
 
 #[derive(
