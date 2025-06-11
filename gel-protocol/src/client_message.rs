@@ -212,6 +212,11 @@ impl ClientMessage {
     /// an arbitrary error or be silent if a message is only partially present
     /// in the buffer or if extra data is present.
     pub fn decode(buf: &mut Input) -> Result<ClientMessage, DecodeError> {
+        let message = new_protocol::Message::new(buf)?;
+        let mut next = buf.slice(..message.mlen() + 1);
+        buf.advance(message.mlen() + 1);
+        let mut buf = &mut next;
+
         use self::ClientMessage as M;
         let result = match buf[0] {
             0x56 => ClientHandshake::decode(buf).map(M::ClientHandshake)?,
@@ -261,7 +266,6 @@ impl ClientMessage {
             0x44 => DescribeStatement::decode(buf).map(M::DescribeStatement)?,
             code => M::UnknownMessage(code, buf.copy_to_bytes(buf.remaining())),
         };
-        // ensure!(buf.remaining() == 0, errors::ExtraData);
         Ok(result)
     }
 }

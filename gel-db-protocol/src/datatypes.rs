@@ -1,4 +1,4 @@
-use std::str::Utf8Error;
+use std::{ops::Add, str::Utf8Error};
 pub use uuid::Uuid;
 
 /// Represents the remainder of data in a message.
@@ -233,3 +233,10 @@ impl PartialEq<&[u8]> for Encoded<'_> {
 #[display("{_0}")]
 #[debug("{_0}")]
 pub struct Length(pub i32);
+
+impl Add<usize> for Length {
+    type Output = usize;
+    fn add(self, other: usize) -> Self::Output {
+        (self.0 as isize + other as isize) as usize
+    }
+}
