@@ -626,7 +626,7 @@ impl Decode for ServerKeyData {
     fn decode(buf: &mut Input) -> Result<ServerKeyData, DecodeError> {
         let message = new_protocol::ServerKeyData::new(buf)?;
         let decoded = ServerKeyData {
-            data: message.data().try_into().unwrap(),
+            data: message.data(),
         };
         buf.advance(message.buf.len());
         Ok(decoded)
