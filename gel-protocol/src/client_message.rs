@@ -30,7 +30,7 @@ use std::convert::TryFrom;
 use std::sync::Arc;
 
 use bytes::{Buf, BufMut, Bytes};
-use snafu::{ensure, OptionExt};
+use snafu::OptionExt;
 use uuid::Uuid;
 
 pub use crate::common::CompilationOptions;

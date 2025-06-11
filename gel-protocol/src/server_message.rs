@@ -29,7 +29,7 @@ use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 
 use bytes::{Buf, BufMut, Bytes};
-use snafu::{ensure, OptionExt};
+use snafu::OptionExt;
 use uuid::Uuid;
 
 use crate::common::Capabilities;
@@ -38,7 +38,7 @@ use crate::descriptors::Typedesc;
 use crate::encoding::{Annotations, Decode, Encode, Input, KeyValues, Output};
 use crate::errors::{self, DecodeError, EncodeError};
 use crate::features::ProtocolVersion;
-use crate::{annotations, new_protocol};
+use crate::new_protocol;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
