@@ -645,7 +645,7 @@ impl Decode for Execute1 {
             let message = new_protocol::Execute::new(buf)?;
 
             // Convert annotations
-            let annotations = if message.annotations().len() > 0 {
+            let annotations = if !message.annotations().is_empty() {
                 let mut ann_map = HashMap::new();
                 for ann in message.annotations() {
                     ann_map.insert(
@@ -689,7 +689,7 @@ impl Decode for Execute1 {
             let message = new_protocol::Execute2::new(buf)?;
 
             // Convert annotations
-            let annotations = if message.annotations().len() > 0 {
+            let annotations = if !message.annotations().is_empty() {
                 let mut ann_map = HashMap::new();
                 for ann in message.annotations() {
                     ann_map.insert(
@@ -931,7 +931,7 @@ impl Decode for Parse {
             let message = new_protocol::Parse::new(buf)?;
 
             // Convert annotations
-            let annotations = if message.annotations().len() > 0 {
+            let annotations = if !message.annotations().is_empty() {
                 let mut ann_map = HashMap::new();
                 for ann in message.annotations() {
                     ann_map.insert(
@@ -970,7 +970,7 @@ impl Decode for Parse {
             let message = new_protocol::Parse2::new(buf)?;
 
             // Convert annotations
-            let annotations = if message.annotations().len() > 0 {
+            let annotations = if !message.annotations().is_empty() {
                 let mut ann_map = HashMap::new();
                 for ann in message.annotations() {
                     ann_map.insert(
