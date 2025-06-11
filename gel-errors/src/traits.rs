@@ -17,6 +17,7 @@ pub trait ErrorKind: Sealed {
             error: Some(Source::Box(src.into())),
             headers: HashMap::new(),
             fields: HashMap::new(),
+            annotations: HashMap::new(),
         }))
     }
     fn with_source_box(src: Box<dyn std::error::Error + Send + Sync>) -> Error {
@@ -26,6 +27,7 @@ pub trait ErrorKind: Sealed {
             error: Some(Source::Box(src)),
             headers: HashMap::new(),
             fields: HashMap::new(),
+            annotations: HashMap::new(),
         }))
     }
     fn with_source_ref<T>(src: T) -> Error
@@ -39,6 +41,7 @@ pub trait ErrorKind: Sealed {
             error: Some(Source::Ref(Box::new(src))),
             headers: HashMap::new(),
             fields: HashMap::new(),
+            annotations: HashMap::new(),
         }))
     }
     fn build() -> Error {
@@ -48,6 +51,7 @@ pub trait ErrorKind: Sealed {
             error: None,
             headers: HashMap::new(),
             fields: HashMap::new(),
+            annotations: HashMap::new(),
         }))
     }
 }

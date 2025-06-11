@@ -78,7 +78,7 @@ fn ready_for_command() -> Result<(), Box<dyn Error>> {
     encoding_eq!(
         ServerMessage::ReadyForCommand(ReadyForCommand {
             transaction_state: TransactionState::NotInTransaction,
-            headers: HashMap::new(),
+            annotations: HashMap::new(),
         }),
         b"Z\0\0\0\x07\0\0I"
     );
@@ -148,7 +148,7 @@ fn command_complete1() -> Result<(), Box<dyn Error>> {
         ServerMessage::CommandComplete1(CommandComplete1 {
             annotations: HashMap::new(),
             capabilities: Capabilities::MODIFICATIONS,
-            status_data: Bytes::from_static(b"okay"),
+            status: "okay".to_string(),
             state: None,
         }),
         b"C\0\0\0*\0\0\0\0\0\0\0\0\0\x01\0\0\0\x04okay\
@@ -346,7 +346,7 @@ fn log_message() -> Result<(), Box<dyn Error>> {
             severity: MessageSeverity::Notice,
             code: 0xF0_00_00_00,
             text: "changing system config".into(),
-            attributes: map! {},
+            annotations: HashMap::new(),
         }),
         b"L\0\0\0%<\xf0\0\0\0\0\0\0\x16changing system config\0\0"
     );

@@ -42,8 +42,16 @@ impl<const N: usize, T: DataType> DataTypeFixedSize for [T; N] {
 pub enum ParseError {
     #[display("Buffer is too short")]
     TooShort,
-    #[display("Invalid data")]
-    InvalidData,
+    #[display("Invalid data for {_0}: {_1}")]
+    InvalidData(
+        #[error(not(source))] &'static str,
+        #[error(not(source))] usize,
+    ),
+    #[display("Invalid data for field {_0}: {_1}")]
+    InvalidFieldData(
+        #[error(not(source))] &'static str,
+        #[error(not(source))] &'static str,
+    ),
 }
 
 pub struct EncodeTarget<'a> {
@@ -197,7 +205,7 @@ declare_type!(DataType, Encoded<'a>, builder: Encoded<'a>, {
                 *buf = array;
                 Ok(Encoded::Null)
             } else if len < 0 {
-                Err(ParseError::InvalidData)
+                Err(ParseError::InvalidData("Encoded", len as usize))
             } else if array.len() < len as _ {
                 Err(ParseError::TooShort)
             } else {

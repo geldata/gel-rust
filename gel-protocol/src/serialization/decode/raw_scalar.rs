@@ -368,7 +368,7 @@ impl RawCodec<'_> for Decimal {
 }
 
 #[cfg(feature = "bigdecimal")]
-impl<'t> RawCodec<'t> for bigdecimal::BigDecimal {
+impl RawCodec<'_> for bigdecimal::BigDecimal {
     fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         let dec: Decimal = RawCodec::decode(buf)?;
         Ok(dec.into())
@@ -388,7 +388,7 @@ impl ScalarArg for Decimal {
 }
 
 #[cfg(feature = "num-bigint")]
-impl<'t> RawCodec<'t> for num_bigint::BigInt {
+impl RawCodec<'_> for num_bigint::BigInt {
     fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
         let dec: BigInt = RawCodec::decode(buf)?;
         Ok(dec.into())

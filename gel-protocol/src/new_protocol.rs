@@ -86,6 +86,18 @@ struct LogMessage<'a>: Message {
 }
 
 /// The `ReadyForCommand` struct represents a message indicating the server is ready for a new command.
+struct ReadyForCommand0<'a>: Message {
+    /// Identifies the message as ready for command.
+    mtype: u8 = 'Z',
+    /// Length of message contents in bytes, including self.
+    mlen: len,
+    /// Message headers.
+    headers: Array<'a, i16, KeyValue<'a>>,
+    /// Transaction state.
+    transaction_state: TransactionState,
+}
+
+/// The `ReadyForCommand` struct represents a message indicating the server is ready for a new command.
 struct ReadyForCommand<'a>: Message {
     /// Identifies the message as ready for command.
     mtype: u8 = 'Z',
@@ -103,8 +115,8 @@ struct RestoreReady<'a>: Message {
     mtype: u8 = '+',
     /// Length of message contents in bytes, including self.
     mlen: len,
-    /// Message annotations.
-    annotations: Array<'a, i16, Annotation<'a>>,
+    /// Message headers.
+    headers: Array<'a, i16, KeyValue<'a>>,
     /// Number of parallel jobs for restore.
     jobs: i16,
 }
@@ -230,11 +242,21 @@ struct ServerHandshake<'a>: Message {
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Maximum supported or client-requested protocol major version.
-    major_ver: i16,
+    major_ver: u16,
     /// Maximum supported or client-requested protocol minor version.
-    minor_ver: i16,
+    minor_ver: u16,
     /// Supported protocol extensions.
     extensions: Array<'a, i16, ProtocolExtension<'a>>,
+}
+
+/// The `AuthenticationRequired` struct represents an authentication message.
+struct Authentication<'a>: Message {
+    /// Identifies the message as authentication OK.
+    mtype: u8 = 'R',
+    /// Length of message contents in bytes, including self.
+    mlen: len,
+    /// The type of authentication message.
+    auth_status: i32,
 }
 
 /// The `AuthenticationOk` struct represents a successful authentication message.
@@ -293,6 +315,28 @@ struct Dump<'a>: Message {
     annotations: Array<'a, i16, Annotation<'a>>,
 }
 
+/// The `Dump2` struct represents a dump message from the client.
+struct Dump2<'a>: Message {
+    /// Identifies the message as dump.
+    mtype: u8 = '>',
+    /// Length of message contents in bytes, including self.
+    mlen: len,
+    /// Message headers.
+    headers: Array<'a, i16, KeyValue<'a>>,
+}
+
+/// The `Dump3` struct represents a dump message from the client.
+struct Dump3<'a>: Message {
+    /// Identifies the message as dump.
+    mtype: u8 = '>',
+    /// Length of message contents in bytes, including self.
+    mlen: len,
+    /// Message annotations.
+    annotations: Array<'a, i16, Annotation<'a>>,
+    /// A bit mask of dump options.
+    flags: u64,
+}
+
 /// The `Sync` struct represents a synchronization message from the client.
 struct Sync<'a>: Message {
     /// Identifies the message as sync.
@@ -315,12 +359,12 @@ struct Restore<'a>: Message {
     mtype: u8 = '<',
     /// Length of message contents in bytes, including self.
     mlen: len,
-    /// Restore attributes.
-    attributes: Array<'a, i16, KeyValue<'a>>,
+    /// Restore headers.
+    headers: Array<'a, i16, KeyValue<'a>>,
     /// Number of parallel jobs for restore.
-    jobs: i16,
+    jobs: u16,
     /// Original DumpHeader packet data excluding mtype and message_length.
-    header_data: Array<'a, u32, u8>,
+    data: Rest<'a>,
 }
 
 /// The `RestoreBlock` struct represents a restore block message from the client.
@@ -342,7 +386,7 @@ struct RestoreEof<'a>: Message {
 }
 
 /// The `Parse` struct represents a parse message from the client.
-struct Parse<'a>: Message {
+struct Parse2<'a>: Message {
     /// Identifies the message as parse.
     mtype: u8 = 'P',
     /// Length of message contents in bytes, including self.
@@ -356,7 +400,35 @@ struct Parse<'a>: Message {
     /// Implicit LIMIT clause on returned sets.
     implicit_limit: u64,
     /// Data output format.
-    output_format: u8,
+    output_format: IoFormat,
+    /// Expected result cardinality.
+    expected_cardinality: u8,
+    /// Command text.
+    command_text: LString<'a>,
+    /// State data descriptor ID.
+    state_typedesc_id: Uuid,
+    /// Encoded state data.
+    state_data: Array<'a, u32, u8>,
+}
+
+/// The `Parse` struct represents a parse message from the client.
+struct Parse<'a>: Message {
+    /// Identifies the message as parse.
+    mtype: u8 = 'P',
+    /// Length of message contents in bytes, including self.
+    mlen: len,
+    /// Message annotations.
+    annotations: Array<'a, i16, Annotation<'a>>,
+    /// A bit mask of allowed capabilities.
+    allowed_capabilities: u64,
+    /// A bit mask of query options.
+    compilation_flags: u64,
+    /// Implicit LIMIT clause on returned sets.
+    implicit_limit: u64,
+    /// Input language.
+    input_language: InputLanguage,
+    /// Data output format.
+    output_format: IoFormat,
     /// Expected result cardinality.
     expected_cardinality: u8,
     /// Command text.
@@ -393,8 +465,10 @@ struct Execute<'a>: Message {
     compilation_flags: u64,
     /// Implicit LIMIT clause on returned sets.
     implicit_limit: u64,
+    /// Input language.
+    input_language: InputLanguage,
     /// Data output format.
-    output_format: u8,
+    output_format: IoFormat,
     /// Expected result cardinality.
     expected_cardinality: u8,
     /// Command text.
@@ -418,9 +492,9 @@ struct ClientHandshake<'a>: Message {
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Requested protocol major version.
-    major_ver: i16,
+    major_ver: u16,
     /// Requested protocol minor version.
-    minor_ver: i16,
+    minor_ver: u16,
     /// Connection parameters.
     params: Array<'a, i16, ConnectionParam<'a>>,
     /// Requested protocol extensions.
@@ -460,7 +534,7 @@ struct AuthenticationSASLResponse<'a>: Message {
 /// The `KeyValue` struct represents a key-value pair.
 struct KeyValue<'a> {
     /// Key code (specific to the type of the Message).
-    code: i16,
+    code: u16,
     /// Value data.
     value: Array<'a, u32, u8>,
 }
@@ -513,6 +587,146 @@ struct ConnectionParam<'a> {
     name: LString<'a>,
     /// Parameter value.
     value: LString<'a>,
+}
+
+/// Legacy response of [`Prepare0`].
+struct PrepareComplete0<'a>: Message {
+    mtype: u8 = '1',
+    mlen: len,
+    headers: Array<'a, i16, KeyValue<'a>>,
+    cardinality: u8,
+    input_typedesc_id: Uuid,
+    output_typedesc_id: Uuid,
+}
+
+/// Legacy request.
+struct ExecuteScript0<'a>: Message {
+    mtype: u8 = 'Q',
+    mlen: len,
+    headers: Array<'a, i16, KeyValue<'a>>,
+    script_text: LString<'a>,
+}
+
+/// Legacy equivalent of [`Parse`].
+struct Prepare0<'a>: Message {
+    mtype: u8 = 'P',
+    mlen: len,
+    headers: Array<'a, i16, KeyValue<'a>>,
+    io_format: IoFormat,
+    expected_cardinality: u8,
+    statement_name: Array<'a, u32, u8>,
+    command_text: LString<'a>,
+}
+
+/// Legacy equivalent of [`Parse`].
+struct DescribeStatement0<'a>: Message {
+    mtype: u8 = 'D',
+    mlen: len,
+    headers: Array<'a, i16, KeyValue<'a>>,
+    aspect: DescribeAspect,
+    statement_name: Array<'a, u32, u8>,
+}
+
+/// Legacy version of [`CommandComplete`].
+struct CommandComplete0<'a>: Message {
+    mtype: u8 = 'C',
+    mlen: len,
+    headers: Array<'a, i16, KeyValue<'a>>,
+    status_data: Array<'a, u32, u8>,
+}
+
+/// Legacy version of [`CommandDataDescription`].
+struct CommandDataDescription0<'a>: Message {
+    mtype: u8 = 'T',
+    mlen: len,
+    headers: Array<'a, i16, KeyValue<'a>>,
+    result_cardinality: u8,
+    input_typedesc_id: Uuid,
+    input_typedesc: Array<'a, u32, u8>,
+    output_typedesc_id: Uuid,
+    output_typedesc: Array<'a, u32, u8>,
+}
+
+/// Legacy version of [`Execute`].
+struct Execute0<'a>: Message {
+    mtype: u8 = 'E',
+    mlen: len,
+    headers: Array<'a, i16, KeyValue<'a>>,
+    statement_name: Array<'a, u32, u8>,
+    arguments: Array<'a, u32, u8>,
+}
+
+
+/// Legacy version of [`Execute`] without `input_language`.
+struct Execute2<'a>: Message {
+    /// Identifies the message as execute.
+    mtype: u8 = 'O',
+    /// Length of message contents in bytes, including self.
+    mlen: len,
+    /// Message annotations.
+    annotations: Array<'a, i16, Annotation<'a>>,
+    /// A bit mask of allowed capabilities.
+    allowed_capabilities: u64,
+    /// A bit mask of query options.
+    compilation_flags: u64,
+    /// Implicit LIMIT clause on returned sets.
+    implicit_limit: u64,
+    /// Data output format.
+    output_format: IoFormat,
+    /// Expected result cardinality.
+    expected_cardinality: u8,
+    /// Command text.
+    command_text: LString<'a>,
+    /// State data descriptor ID.
+    state_typedesc_id: Uuid,
+    /// Encoded state data.
+    state_data: Array<'a, u32, u8>,
+    /// Argument data descriptor ID.
+    input_typedesc_id: Uuid,
+    /// Output data descriptor ID.
+    output_typedesc_id: Uuid,
+    /// Encoded argument data.
+    arguments: Array<'a, u32, u8>,
+}
+
+/// Legacy version of [`Execute`].
+struct OptimisticExecute0<'a>: Message {
+    mtype: u8 = 'O',
+    mlen: len,
+    headers: Array<'a, i16, KeyValue<'a>>,
+    io_format: IoFormat,
+    expected_cardinality: u8,
+    command_text: LString<'a>,
+    input_typedesc_id: Uuid,
+    output_typedesc_id: Uuid,
+    arguments: Array<'a, u32, u8>,
+}
+
+#[repr(u8)]
+/// Data format.
+enum IoFormat {
+    Binary = 0x62,
+    Json = 0x6a,
+    JsonElements = 0x4a,
+    #[default]
+    None = 0x6e,
+}
+
+
+#[repr(u8)]
+/// Aspect for [`DescribeStatement0`].
+enum DescribeAspect {
+    #[default]
+    DataDescription = 0x54,
+}
+
+#[repr(u8)]
+/// Input language.
+enum InputLanguage {
+    #[default]
+    None = 0,
+    EdgeQL = 0x45,
+    SQL = 0x53,
 }
 
 #[repr(u8)]

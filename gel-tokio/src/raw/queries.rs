@@ -276,10 +276,9 @@ impl Connection {
                 ServerMessage::CommandComplete1(complete) => {
                     self.expect_ready(guard).await?;
                     return Ok(Response {
-                        status_data: complete.status_data,
                         new_state: complete.state,
-                        data,
                         warnings,
+                        ..Response::new(complete.status, data)
                     });
                 }
                 ServerMessage::ErrorResponse(err) => {
@@ -323,12 +322,7 @@ impl Connection {
                 }
                 ServerMessage::CommandComplete0(complete) => {
                     self.expect_ready(guard).await?;
-                    return Ok(Response {
-                        status_data: complete.status_data,
-                        new_state: None,
-                        data,
-                        warnings: vec![],
-                    });
+                    return Ok(Response::new_bytes(complete.status_data, data));
                 }
                 ServerMessage::ErrorResponse(err) => {
                     self.expect_ready_or_eos(guard)

@@ -71,10 +71,26 @@ pub struct Connection {
 
 #[derive(Debug)]
 pub struct Response<T> {
+    pub status: String,
+    #[deprecated(note = "use `status` instead")]
     pub status_data: Bytes,
     pub new_state: Option<gel_protocol::common::State>,
     pub data: T,
     pub warnings: Vec<gel_protocol::annotations::Warning>,
+}
+
+impl<T> Response<T> {
+    pub fn new(status: String, data: T) -> Self {
+        #![allow(deprecated)]
+        let status_data = Bytes::from(status.clone());
+        Self { status, status_data, new_state: None, data, warnings: vec![] }
+    }
+
+    pub fn new_bytes(status_data: Bytes, data: T) -> Self {
+        #![allow(deprecated)]
+        let status = String::from_utf8_lossy(status_data.as_ref()).to_string();
+        Self { status, status_data, new_state: None, data, warnings: vec![] }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -173,7 +189,9 @@ impl Drop for PoolConnection {
 
 impl<T> Response<T> {
     fn map<U, R>(self, f: impl FnOnce(T) -> Result<U, R>) -> Result<Response<U>, R> {
+        #![allow(deprecated)]
         Ok(Response {
+            status: self.status,
             status_data: self.status_data,
             new_state: self.new_state,
             data: f(self.data)?,

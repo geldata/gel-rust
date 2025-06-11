@@ -79,5 +79,5 @@ pub mod query_arg;
 
 pub use query_result::QueryResult;
 
-#[cfg(feature = "__new-protocol")]
+#[doc(hidden)]
 pub mod new_protocol;

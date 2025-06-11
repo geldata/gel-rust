@@ -204,7 +204,7 @@ macro_rules! __protocol {
                             $(
                                 $emvalue => Ok($ename::$emname),
                             )+
-                            _ => Err(ParseError::InvalidData),
+                            _ => Err(ParseError::InvalidData(stringify!($ename), repr as usize)),
                         }
                     }
                     fn encode(value: Self) -> [u8; N] {
