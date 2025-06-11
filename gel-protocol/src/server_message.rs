@@ -355,7 +355,8 @@ impl Encode for ServerHandshake {
                     .context(errors::TooManyHeaders)?,
             );
             for (name, value) in headers {
-                unimplemented!("Extension encoding not yet supported");
+                String::encode(name, buf)?;
+                String::encode(value, buf)?;
             }
         }
         Ok(())
@@ -439,7 +440,8 @@ impl Encode for LogMessage {
                 .context(errors::TooManyHeaders)?,
         );
         for (name, value) in &self.annotations {
-            unimplemented!("Annotation encoding not yet supported");
+            name.encode(buf)?;
+            value.encode(buf)?;
         }
         Ok(())
     }
@@ -542,7 +544,8 @@ impl Encode for ReadyForCommand {
                 .context(errors::TooManyHeaders)?,
         );
         for (name, value) in &self.annotations {
-            unimplemented!("Annotation encoding not yet supported");
+            String::encode(name, buf)?;
+            String::encode(value, buf)?;
         }
         buf.reserve(1);
         buf.put_u8(self.transaction_state as u8);
