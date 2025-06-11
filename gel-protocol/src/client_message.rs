@@ -40,6 +40,7 @@ pub use crate::common::{RawTypedesc, State};
 use crate::encoding::{encode, Decode, Encode, Input, Output};
 use crate::encoding::{Annotations, KeyValues};
 use crate::errors::{self, DecodeError, EncodeError};
+use crate::new_protocol;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -81,7 +82,7 @@ pub struct ClientHandshake {
     pub major_ver: u16,
     pub minor_ver: u16,
     pub params: HashMap<String, String>,
-    pub extensions: HashMap<String, KeyValues>,
+    pub extensions: HashMap<String, Annotations>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -176,24 +177,7 @@ pub struct RestoreBlock {
     pub data: Bytes,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum DescribeAspect {
-    DataDescription = 0x54,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum InputLanguage {
-    EdgeQL = 0x45,
-    SQL = 0x53,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum IoFormat {
-    Binary = 0x62,
-    Json = 0x6a,
-    JsonElements = 0x4a,
-    None = 0x6e,
-}
+pub use crate::new_protocol::{DescribeAspect, InputLanguage, IoFormat};
 
 struct Empty;
 impl ClientMessage {
@@ -229,46 +213,55 @@ impl ClientMessage {
     /// in the buffer or if extra data is present.
     pub fn decode(buf: &mut Input) -> Result<ClientMessage, DecodeError> {
         use self::ClientMessage as M;
-        let mut data = buf.slice(5..);
         let result = match buf[0] {
-            0x56 => ClientHandshake::decode(&mut data).map(M::ClientHandshake)?,
-            0x70 => {
-                SaslInitialResponse::decode(&mut data).map(M::AuthenticationSaslInitialResponse)?
-            }
-            0x72 => SaslResponse::decode(&mut data).map(M::AuthenticationSaslResponse)?,
-            0x51 => ExecuteScript::decode(&mut data).map(M::ExecuteScript)?,
+            0x56 => ClientHandshake::decode(buf).map(M::ClientHandshake)?,
+            0x70 => SaslInitialResponse::decode(buf).map(M::AuthenticationSaslInitialResponse)?,
+            0x72 => SaslResponse::decode(buf).map(M::AuthenticationSaslResponse)?,
+            0x51 => ExecuteScript::decode(buf).map(M::ExecuteScript)?,
             0x50 => {
                 if buf.proto().is_1() {
-                    Parse::decode(&mut data).map(M::Parse)?
+                    Parse::decode(buf).map(M::Parse)?
                 } else {
-                    Prepare::decode(&mut data).map(M::Prepare)?
+                    Prepare::decode(buf).map(M::Prepare)?
                 }
             }
-            0x45 => Execute0::decode(&mut data).map(M::Execute0)?,
+            0x45 => Execute0::decode(buf).map(M::Execute0)?,
             0x4f => {
                 if buf.proto().is_1() {
-                    Execute1::decode(&mut data).map(M::Execute1)?
+                    Execute1::decode(buf).map(M::Execute1)?
                 } else {
-                    OptimisticExecute::decode(&mut data).map(M::OptimisticExecute)?
+                    OptimisticExecute::decode(buf).map(M::OptimisticExecute)?
                 }
             }
             0x3e => {
                 if buf.proto().is_3() {
-                    Dump3::decode(&mut data).map(M::Dump3)?
+                    Dump3::decode(buf).map(M::Dump3)?
                 } else {
-                    Dump2::decode(&mut data).map(M::Dump2)?
+                    Dump2::decode(buf).map(M::Dump2)?
                 }
             }
-            0x3c => Restore::decode(&mut data).map(M::Restore)?,
-            0x3d => RestoreBlock::decode(&mut data).map(M::RestoreBlock)?,
-            0x2e => M::RestoreEof,
-            0x53 => M::Sync,
-            0x48 => M::Flush,
-            0x58 => M::Terminate,
-            0x44 => DescribeStatement::decode(&mut data).map(M::DescribeStatement)?,
-            code => M::UnknownMessage(code, data.copy_to_bytes(data.remaining())),
+            0x3c => Restore::decode(buf).map(M::Restore)?,
+            0x3d => RestoreBlock::decode(buf).map(M::RestoreBlock)?,
+            0x2e => {
+                buf.advance(5);
+                M::RestoreEof
+            }
+            0x53 => {
+                buf.advance(5);
+                M::Sync
+            }
+            0x48 => {
+                buf.advance(5);
+                M::Flush
+            }
+            0x58 => {
+                buf.advance(5);
+                M::Terminate
+            }
+            0x44 => DescribeStatement::decode(buf).map(M::DescribeStatement)?,
+            code => M::UnknownMessage(code, buf.copy_to_bytes(buf.remaining())),
         };
-        ensure!(data.remaining() == 0, errors::ExtraData);
+        // ensure!(buf.remaining() == 0, errors::ExtraData);
         Ok(result)
     }
 }
@@ -300,18 +293,19 @@ impl Encode for ClientHandshake {
                 .context(errors::TooManyExtensions)?,
         );
         for (name, headers) in &self.extensions {
-            name.encode(buf)?;
-            buf.reserve(2);
-            buf.put_u16(
-                u16::try_from(headers.len())
-                    .ok()
-                    .context(errors::TooManyHeaders)?,
-            );
-            for (&name, value) in headers {
-                buf.reserve(2);
-                buf.put_u16(name);
-                value.encode(buf)?;
-            }
+            // This is wrong!
+            // name.encode(buf)?;
+            // buf.reserve(2);
+            // buf.put_u16(
+            //     u16::try_from(headers.len())
+            //         .ok()
+            //         .context(errors::TooManyHeaders)?,
+            // );
+            // for (&name, value) in headers {
+            //     buf.reserve(2);
+            //     buf.put_u16(name);
+            //     value.encode(buf)?;
+            // }
         }
         Ok(())
     }
@@ -319,35 +313,35 @@ impl Encode for ClientHandshake {
 
 impl Decode for ClientHandshake {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        ensure!(buf.remaining() >= 8, errors::Underflow);
-        let major_ver = buf.get_u16();
-        let minor_ver = buf.get_u16();
-        let num_params = buf.get_u16();
+        let message = new_protocol::ClientHandshake::new(buf)?;
         let mut params = HashMap::new();
-        for _ in 0..num_params {
-            params.insert(String::decode(buf)?, String::decode(buf)?);
+        for param in message.params() {
+            params.insert(
+                param.name().to_string_lossy().to_string(),
+                param.value().to_string_lossy().to_string(),
+            );
         }
 
-        ensure!(buf.remaining() >= 2, errors::Underflow);
-        let num_ext = buf.get_u16();
         let mut extensions = HashMap::new();
-        for _ in 0..num_ext {
-            let name = String::decode(buf)?;
-            ensure!(buf.remaining() >= 2, errors::Underflow);
-            let num_headers = buf.get_u16();
+        for ext in message.extensions() {
             let mut headers = HashMap::new();
-            for _ in 0..num_headers {
-                ensure!(buf.remaining() >= 4, errors::Underflow);
-                headers.insert(buf.get_u16(), Bytes::decode(buf)?);
+            for ann in ext.annotations() {
+                headers.insert(
+                    ann.name().to_string_lossy().to_string(),
+                    ann.value().to_string_lossy().to_string(),
+                );
             }
-            extensions.insert(name, headers);
+            extensions.insert(ext.name().to_string_lossy().to_string(), headers);
         }
-        Ok(ClientHandshake {
-            major_ver,
-            minor_ver,
+
+        let decoded = ClientHandshake {
+            major_ver: message.major_ver(),
+            minor_ver: message.minor_ver(),
             params,
             extensions,
-        })
+        };
+        buf.advance(message.buf.len());
+        Ok(decoded)
     }
 }
 
@@ -361,9 +355,13 @@ impl Encode for SaslInitialResponse {
 
 impl Decode for SaslInitialResponse {
     fn decode(buf: &mut Input) -> Result<SaslInitialResponse, DecodeError> {
-        let method = String::decode(buf)?;
-        let data = Bytes::decode(buf)?;
-        Ok(SaslInitialResponse { method, data })
+        let message = new_protocol::AuthenticationSASLInitialResponse::new(buf)?;
+        let decoded = SaslInitialResponse {
+            method: message.method().to_string_lossy().to_string(),
+            data: message.sasl_data().into_slice().to_owned().into(),
+        };
+        buf.advance(message.buf.len());
+        Ok(decoded)
     }
 }
 
@@ -376,8 +374,12 @@ impl Encode for SaslResponse {
 
 impl Decode for SaslResponse {
     fn decode(buf: &mut Input) -> Result<SaslResponse, DecodeError> {
-        let data = Bytes::decode(buf)?;
-        Ok(SaslResponse { data })
+        let message = new_protocol::AuthenticationSASLResponse::new(buf)?;
+        let decoded = SaslResponse {
+            data: message.sasl_data().into_slice().to_owned().into(),
+        };
+        buf.advance(message.buf.len());
+        Ok(decoded)
     }
 }
 
@@ -401,18 +403,18 @@ impl Encode for ExecuteScript {
 
 impl Decode for ExecuteScript {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        ensure!(buf.remaining() >= 6, errors::Underflow);
-        let num_headers = buf.get_u16();
+        let message = new_protocol::ExecuteScript0::new(buf)?;
         let mut headers = HashMap::new();
-        for _ in 0..num_headers {
-            ensure!(buf.remaining() >= 4, errors::Underflow);
-            headers.insert(buf.get_u16(), Bytes::decode(buf)?);
+        for header in message.headers() {
+            headers.insert(header.code(), header.value().into_slice().to_owned().into());
         }
-        let script_text = String::decode(buf)?;
-        Ok(ExecuteScript {
-            script_text,
+
+        let decoded = ExecuteScript {
             headers,
-        })
+            script_text: message.script_text().to_string_lossy().to_string(),
+        };
+        buf.advance(message.buf.len());
+        Ok(decoded)
     }
 }
 
@@ -441,30 +443,21 @@ impl Encode for Prepare {
 
 impl Decode for Prepare {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        ensure!(buf.remaining() >= 12, errors::Underflow);
-        let num_headers = buf.get_u16();
+        let message = new_protocol::Prepare0::new(buf)?;
         let mut headers = HashMap::new();
-        for _ in 0..num_headers {
-            ensure!(buf.remaining() >= 4, errors::Underflow);
-            headers.insert(buf.get_u16(), Bytes::decode(buf)?);
+        for header in message.headers() {
+            headers.insert(header.code(), header.value().into_slice().to_owned().into());
         }
-        ensure!(buf.remaining() >= 8, errors::Underflow);
-        let io_format = match buf.get_u8() {
-            0x62 => IoFormat::Binary,
-            0x6a => IoFormat::Json,
-            0x4a => IoFormat::JsonElements,
-            c => errors::InvalidIoFormat { io_format: c }.fail()?,
-        };
-        let expected_cardinality = TryFrom::try_from(buf.get_u8())?;
-        let statement_name = Bytes::decode(buf)?;
-        let command_text = String::decode(buf)?;
-        Ok(Prepare {
+
+        let decoded = Prepare {
             headers,
-            io_format,
-            expected_cardinality,
-            statement_name,
-            command_text,
-        })
+            io_format: message.io_format(),
+            expected_cardinality: TryFrom::try_from(message.expected_cardinality())?,
+            statement_name: message.statement_name().into_slice().to_owned().into(),
+            command_text: message.command_text().to_string_lossy().to_string(),
+        };
+        buf.advance(message.buf.len());
+        Ok(decoded)
     }
 }
 
@@ -485,24 +478,19 @@ impl Encode for DescribeStatement {
 
 impl Decode for DescribeStatement {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        ensure!(buf.remaining() >= 12, errors::Underflow);
-        let num_headers = buf.get_u16();
+        let message = new_protocol::DescribeStatement0::new(buf)?;
         let mut headers = HashMap::new();
-        for _ in 0..num_headers {
-            ensure!(buf.remaining() >= 4, errors::Underflow);
-            headers.insert(buf.get_u16(), Bytes::decode(buf)?);
+        for header in message.headers() {
+            headers.insert(header.code(), header.value().into_slice().to_owned().into());
         }
-        ensure!(buf.remaining() >= 8, errors::Underflow);
-        let aspect = match buf.get_u8() {
-            0x54 => DescribeAspect::DataDescription,
-            c => errors::InvalidAspect { aspect: c }.fail()?,
-        };
-        let statement_name = Bytes::decode(buf)?;
-        Ok(DescribeStatement {
+
+        let decoded = DescribeStatement {
             headers,
-            aspect,
-            statement_name,
-        })
+            aspect: message.aspect(),
+            statement_name: message.statement_name().into_slice().to_owned().into(),
+        };
+        buf.advance(message.buf.len());
+        Ok(decoded)
     }
 }
 
@@ -528,20 +516,19 @@ impl Encode for Execute0 {
 
 impl Decode for Execute0 {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        ensure!(buf.remaining() >= 12, errors::Underflow);
-        let num_headers = buf.get_u16();
+        let message = new_protocol::Execute0::new(buf)?;
         let mut headers = HashMap::new();
-        for _ in 0..num_headers {
-            ensure!(buf.remaining() >= 4, errors::Underflow);
-            headers.insert(buf.get_u16(), Bytes::decode(buf)?);
+        for header in message.headers() {
+            headers.insert(header.code(), header.value().into_slice().to_owned().into());
         }
-        let statement_name = Bytes::decode(buf)?;
-        let arguments = Bytes::decode(buf)?;
-        Ok(Execute0 {
+
+        let decoded = Execute0 {
             headers,
-            statement_name,
-            arguments,
-        })
+            statement_name: message.statement_name().into_slice().to_owned().into(),
+            arguments: message.arguments().into_slice().to_owned().into(),
+        };
+        buf.advance(message.buf.len());
+        Ok(decoded)
     }
 }
 
@@ -606,33 +593,23 @@ impl Encode for OptimisticExecute {
 
 impl Decode for OptimisticExecute {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        ensure!(buf.remaining() >= 12, errors::Underflow);
-        let num_headers = buf.get_u16();
+        let message = new_protocol::OptimisticExecute0::new(buf)?;
         let mut headers = HashMap::new();
-        for _ in 0..num_headers {
-            ensure!(buf.remaining() >= 4, errors::Underflow);
-            headers.insert(buf.get_u16(), Bytes::decode(buf)?);
+        for header in message.headers() {
+            headers.insert(header.code(), header.value().into_slice().to_owned().into());
         }
-        let io_format = match buf.get_u8() {
-            0x62 => IoFormat::Binary,
-            0x6a => IoFormat::Json,
-            0x4a => IoFormat::JsonElements,
-            c => errors::InvalidIoFormat { io_format: c }.fail()?,
-        };
-        let expected_cardinality = TryFrom::try_from(buf.get_u8())?;
-        let command_text = String::decode(buf)?;
-        let input_typedesc_id = Uuid::decode(buf)?;
-        let output_typedesc_id = Uuid::decode(buf)?;
-        let arguments = Bytes::decode(buf)?;
-        Ok(OptimisticExecute {
+
+        let decoded = OptimisticExecute {
             headers,
-            io_format,
-            expected_cardinality,
-            command_text,
-            input_typedesc_id,
-            output_typedesc_id,
-            arguments,
-        })
+            io_format: message.io_format(),
+            expected_cardinality: TryFrom::try_from(message.expected_cardinality())?,
+            command_text: message.command_text().to_string_lossy().to_string(),
+            input_typedesc_id: message.input_typedesc_id(),
+            output_typedesc_id: message.output_typedesc_id(),
+            arguments: message.arguments().into_slice().to_owned().into(),
+        };
+        buf.advance(message.buf.len());
+        Ok(decoded)
     }
 }
 
@@ -674,65 +651,91 @@ impl Encode for Execute1 {
 
 impl Decode for Execute1 {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        ensure!(
-            buf.remaining() >= 2 + 3 * 8 + 2 + 4 + 16 + 4 + 16 + 16 + 4,
-            errors::Underflow
-        );
-        let num_annotations = buf.get_u16();
-        let annotations = if num_annotations == 0 {
-            None
+        if buf.proto().is_multilingual() {
+            let message = new_protocol::Execute::new(buf)?;
+
+            // Convert annotations
+            let annotations = if message.annotations().len() > 0 {
+                let mut ann_map = HashMap::new();
+                for ann in message.annotations() {
+                    ann_map.insert(
+                        ann.name().to_string_lossy().to_string(),
+                        ann.value().to_string_lossy().to_string(),
+                    );
+                }
+                Some(Arc::new(ann_map))
+            } else {
+                None
+            };
+
+            // Convert state
+            let state = State {
+                typedesc_id: message.state_typedesc_id(),
+                data: message.state_data().into_slice().to_owned().into(),
+            };
+
+            let decoded = Execute1 {
+                annotations,
+                allowed_capabilities: decode_capabilities(message.allowed_capabilities())?,
+                compilation_flags: decode_compilation_flags(message.compilation_flags())?,
+                implicit_limit: match message.implicit_limit() {
+                    0 => None,
+                    val => Some(val),
+                },
+                output_format: message.output_format(),
+                expected_cardinality: TryFrom::try_from(message.expected_cardinality())?,
+                command_text: message.command_text().to_string_lossy().to_string(),
+                state,
+                input_typedesc_id: message.input_typedesc_id(),
+                output_typedesc_id: message.output_typedesc_id(),
+                arguments: message.arguments().into_slice().to_owned().into(),
+                input_language: message.input_language(),
+            };
+            buf.advance(message.buf.len());
+            Ok(decoded)
         } else {
-            let mut annotations = HashMap::new();
-            for _ in 0..num_annotations {
-                ensure!(buf.remaining() >= 4, errors::Underflow);
-                annotations.insert(String::decode(buf)?, String::decode(buf)?);
-            }
-            Some(Arc::new(annotations))
-        };
-        ensure!(
-            buf.remaining() >= 3 * 8 + 2 + 4 + 16 + 4 + 16 + 16 + 4,
-            errors::Underflow
-        );
-        let allowed_capabilities = decode_capabilities(buf.get_u64())?;
-        let compilation_flags = decode_compilation_flags(buf.get_u64())?;
-        let implicit_limit = match buf.get_u64() {
-            0 => None,
-            val => Some(val),
-        };
-        let input_language = if buf.proto().is_multilingual() {
-            TryFrom::try_from(buf.get_u8())?
-        } else {
-            InputLanguage::EdgeQL
-        };
-        let output_format = match buf.get_u8() {
-            0x62 => IoFormat::Binary,
-            0x6a => IoFormat::Json,
-            0x4a => IoFormat::JsonElements,
-            c => errors::InvalidIoFormat { io_format: c }.fail()?,
-        };
-        let expected_cardinality = TryFrom::try_from(buf.get_u8())?;
-        let command_text = String::decode(buf)?;
-        let state = State {
-            typedesc_id: Uuid::decode(buf)?,
-            data: Bytes::decode(buf)?,
-        };
-        let input_typedesc_id = Uuid::decode(buf)?;
-        let output_typedesc_id = Uuid::decode(buf)?;
-        let arguments = Bytes::decode(buf)?;
-        Ok(Execute1 {
-            annotations,
-            allowed_capabilities,
-            compilation_flags,
-            implicit_limit,
-            output_format,
-            expected_cardinality,
-            command_text,
-            state,
-            input_typedesc_id,
-            output_typedesc_id,
-            arguments,
-            input_language,
-        })
+            let message = new_protocol::Execute2::new(buf)?;
+
+            // Convert annotations
+            let annotations = if message.annotations().len() > 0 {
+                let mut ann_map = HashMap::new();
+                for ann in message.annotations() {
+                    ann_map.insert(
+                        ann.name().to_string_lossy().to_string(),
+                        ann.value().to_string_lossy().to_string(),
+                    );
+                }
+                Some(Arc::new(ann_map))
+            } else {
+                None
+            };
+
+            // Convert state
+            let state = State {
+                typedesc_id: message.state_typedesc_id(),
+                data: message.state_data().into_slice().to_owned().into(),
+            };
+
+            let decoded = Execute1 {
+                annotations,
+                allowed_capabilities: decode_capabilities(message.allowed_capabilities())?,
+                compilation_flags: decode_compilation_flags(message.compilation_flags())?,
+                implicit_limit: match message.implicit_limit() {
+                    0 => None,
+                    val => Some(val),
+                },
+                output_format: message.output_format(),
+                expected_cardinality: TryFrom::try_from(message.expected_cardinality())?,
+                command_text: message.command_text().to_string_lossy().to_string(),
+                state,
+                input_typedesc_id: message.input_typedesc_id(),
+                output_typedesc_id: message.output_typedesc_id(),
+                arguments: message.arguments().into_slice().to_owned().into(),
+                input_language: InputLanguage::EdgeQL,
+            };
+            buf.advance(message.buf.len());
+            Ok(decoded)
+        }
     }
 }
 
@@ -755,14 +758,15 @@ impl Encode for Dump2 {
 
 impl Decode for Dump2 {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        ensure!(buf.remaining() >= 12, errors::Underflow);
-        let num_headers = buf.get_u16();
+        let message = new_protocol::Dump2::new(buf)?;
         let mut headers = HashMap::new();
-        for _ in 0..num_headers {
-            ensure!(buf.remaining() >= 4, errors::Underflow);
-            headers.insert(buf.get_u16(), Bytes::decode(buf)?);
+        for header in message.headers() {
+            headers.insert(header.code(), header.value().into_slice().to_owned().into());
         }
-        Ok(Dump2 { headers })
+
+        let decoded = Dump2 { headers };
+        buf.advance(message.buf.len());
+        Ok(decoded)
     }
 }
 
@@ -790,21 +794,21 @@ impl Encode for Dump3 {
 
 impl Decode for Dump3 {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        ensure!(buf.remaining() >= 2, errors::Underflow);
-        let num_headers = buf.get_u16();
-        let annotations = if num_headers == 0 {
-            None
-        } else {
-            let mut annotations = HashMap::new();
-            for _ in 0..num_headers {
-                ensure!(buf.remaining() >= 8, errors::Underflow);
-                annotations.insert(String::decode(buf)?, String::decode(buf)?);
-            }
-            Some(Arc::new(annotations))
+        let message = new_protocol::Dump3::new(buf)?;
+        let mut annotations = HashMap::new();
+        for ann in message.annotations() {
+            annotations.insert(
+                ann.name().to_string_lossy().to_string(),
+                ann.value().to_string_lossy().to_string(),
+            );
+        }
+
+        let decoded = Dump3 {
+            annotations: Some(Arc::new(annotations)),
+            flags: decode_dump_flags(message.flags())?,
         };
-        ensure!(buf.remaining() >= 8, errors::Underflow);
-        let flags = decode_dump_flags(buf.get_u64())?;
-        Ok(Dump3 { annotations, flags })
+        buf.advance(message.buf.len());
+        Ok(decoded)
     }
 }
 
@@ -829,23 +833,19 @@ impl Encode for Restore {
 
 impl Decode for Restore {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        ensure!(buf.remaining() >= 4, errors::Underflow);
-
-        let num_headers = buf.get_u16();
+        let message = new_protocol::Restore::new(buf)?;
         let mut headers = HashMap::new();
-        for _ in 0..num_headers {
-            ensure!(buf.remaining() >= 4, errors::Underflow);
-            headers.insert(buf.get_u16(), Bytes::decode(buf)?);
+        for header in message.headers() {
+            headers.insert(header.code(), header.value().into_slice().to_owned().into());
         }
 
-        let jobs = buf.get_u16();
-
-        let data = buf.copy_to_bytes(buf.remaining());
-        Ok(Restore {
-            jobs,
+        let decoded = Restore {
             headers,
-            data,
-        })
+            jobs: message.jobs(),
+            data: message.data().as_ref().to_owned().into(),
+        };
+        buf.advance(message.buf.len());
+        Ok(decoded)
     }
 }
 
@@ -858,8 +858,12 @@ impl Encode for RestoreBlock {
 
 impl Decode for RestoreBlock {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        let data = buf.copy_to_bytes(buf.remaining());
-        Ok(RestoreBlock { data })
+        let message = new_protocol::RestoreBlock::new(buf)?;
+        let decoded = RestoreBlock {
+            data: message.block_data().into_slice().to_owned().into(),
+        };
+        buf.advance(message.buf.len());
+        Ok(decoded)
     }
 }
 
@@ -931,53 +935,85 @@ fn decode_dump_flags(val: u64) -> Result<DumpFlags, DecodeError> {
 
 impl Decode for Parse {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        ensure!(buf.remaining() >= 52, errors::Underflow);
-        let num_headers = buf.get_u16();
-        let annotations = if num_headers == 0 {
-            None
+        if buf.proto().is_multilingual() {
+            let message = new_protocol::Parse::new(buf)?;
+
+            // Convert annotations
+            let annotations = if message.annotations().len() > 0 {
+                let mut ann_map = HashMap::new();
+                for ann in message.annotations() {
+                    ann_map.insert(
+                        ann.name().to_string_lossy().to_string(),
+                        ann.value().to_string_lossy().to_string(),
+                    );
+                }
+                Some(Arc::new(ann_map))
+            } else {
+                None
+            };
+
+            // Convert state
+            let state = State {
+                typedesc_id: message.state_typedesc_id(),
+                data: message.state_data().into_slice().to_owned().into(),
+            };
+
+            let decoded = Parse {
+                annotations,
+                allowed_capabilities: decode_capabilities(message.allowed_capabilities())?,
+                compilation_flags: decode_compilation_flags(message.compilation_flags())?,
+                implicit_limit: match message.implicit_limit() {
+                    0 => None,
+                    val => Some(val),
+                },
+                output_format: message.output_format(),
+                expected_cardinality: TryFrom::try_from(message.expected_cardinality())?,
+                command_text: message.command_text().to_string_lossy().to_string(),
+                state,
+                input_language: message.input_language(),
+            };
+            buf.advance(message.buf.len());
+            Ok(decoded)
         } else {
-            let mut annotations = HashMap::new();
-            for _ in 0..num_headers {
-                ensure!(buf.remaining() >= 8, errors::Underflow);
-                annotations.insert(String::decode(buf)?, String::decode(buf)?);
-            }
-            Some(Arc::new(annotations))
-        };
-        ensure!(buf.remaining() >= 50, errors::Underflow);
-        let allowed_capabilities = decode_capabilities(buf.get_u64())?;
-        let compilation_flags = decode_compilation_flags(buf.get_u64())?;
-        let implicit_limit = match buf.get_u64() {
-            0 => None,
-            val => Some(val),
-        };
-        let input_language = if buf.proto().is_multilingual() {
-            TryFrom::try_from(buf.get_u8())?
-        } else {
-            InputLanguage::EdgeQL
-        };
-        let output_format = match buf.get_u8() {
-            0x62 => IoFormat::Binary,
-            0x6a => IoFormat::Json,
-            0x4a => IoFormat::JsonElements,
-            c => errors::InvalidIoFormat { io_format: c }.fail()?,
-        };
-        let expected_cardinality = TryFrom::try_from(buf.get_u8())?;
-        let command_text = String::decode(buf)?;
-        let state = State {
-            typedesc_id: Uuid::decode(buf)?,
-            data: Bytes::decode(buf)?,
-        };
-        Ok(Parse {
-            annotations,
-            allowed_capabilities,
-            compilation_flags,
-            implicit_limit,
-            output_format,
-            expected_cardinality,
-            command_text,
-            state,
-            input_language,
-        })
+            let message = new_protocol::Parse2::new(buf)?;
+
+            // Convert annotations
+            let annotations = if message.annotations().len() > 0 {
+                let mut ann_map = HashMap::new();
+                for ann in message.annotations() {
+                    ann_map.insert(
+                        ann.name().to_string_lossy().to_string(),
+                        ann.value().to_string_lossy().to_string(),
+                    );
+                }
+                Some(Arc::new(ann_map))
+            } else {
+                None
+            };
+
+            // Convert state
+            let state = State {
+                typedesc_id: message.state_typedesc_id(),
+                data: message.state_data().into_slice().to_owned().into(),
+            };
+
+            let decoded = Parse {
+                annotations,
+                allowed_capabilities: decode_capabilities(message.allowed_capabilities())?,
+                compilation_flags: decode_compilation_flags(message.compilation_flags())?,
+                implicit_limit: match message.implicit_limit() {
+                    0 => None,
+                    val => Some(val),
+                },
+                output_format: message.output_format(),
+                expected_cardinality: TryFrom::try_from(message.expected_cardinality())?,
+                command_text: message.command_text().to_string_lossy().to_string(),
+                state,
+                input_language: InputLanguage::EdgeQL, // Default for non-multilingual
+            };
+            buf.advance(message.buf.len());
+            Ok(decoded)
+        }
     }
 }
 

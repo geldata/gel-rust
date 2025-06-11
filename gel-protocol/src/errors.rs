@@ -168,6 +168,20 @@ pub enum EncodeError {
     MissingEnumValue { backtrace: Backtrace },
 }
 
+impl From<crate::new_protocol::prelude::ParseError> for DecodeError {
+    fn from(e: crate::new_protocol::prelude::ParseError) -> Self {
+        match e {
+            crate::new_protocol::prelude::ParseError::TooShort => DecodeError::Underflow {
+                backtrace: Backtrace::capture(),
+            },
+            e => DecodeError::DecodeValue {
+                backtrace: Backtrace::capture(),
+                source: Box::new(e),
+            },
+        }
+    }
+}
+
 #[derive(Snafu, Debug)]
 #[snafu(visibility(pub(crate)), context(suffix(false)))]
 #[non_exhaustive]

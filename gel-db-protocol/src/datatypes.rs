@@ -136,7 +136,7 @@ impl LString<'_> {
     }
 
     pub fn to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
-        String::from_utf8_lossy(self.buf)
+        String::from_utf8_lossy(&self.buf)
     }
 
     pub fn to_bytes(&self) -> &[u8] {
