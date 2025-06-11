@@ -113,22 +113,12 @@ impl Connection {
                 ServerMessage::CommandComplete0(complete) => {
                     log::info!("Complete in {:?}", start_headers.elapsed());
                     self.end_request(guard);
-                    return Ok(Response {
-                        status_data: complete.status_data,
-                        new_state: None,
-                        data: (),
-                        warnings: vec![],
-                    });
+                    return Ok(Response::new_bytes(complete.status_data, ()));
                 }
                 ServerMessage::CommandComplete1(complete) => {
                     log::info!("Complete in {:?}", start_headers.elapsed());
                     self.end_request(guard);
-                    return Ok(Response {
-                        status_data: complete.status_data,
-                        new_state: complete.state,
-                        data: (),
-                        warnings: vec![],
-                    });
+                    return Ok(Response::new(complete.status, ()));
                 }
                 ServerMessage::ErrorResponse(err) => {
                     self.send_messages(&[ClientMessage::Sync]).await?;
@@ -231,12 +221,7 @@ impl DumpStream<'_> {
                     if let Err(e) = self.conn.expect_ready(guard).await {
                         self.state = DumpState::Error(e)
                     } else {
-                        self.state = DumpState::Complete(Response {
-                            status_data: complete.status_data,
-                            new_state: None,
-                            data: (),
-                            warnings: vec![],
-                        });
+                        self.state = DumpState::Complete(Response::new_bytes(complete.status_data, ()));
                     }
                     None
                 }
@@ -248,10 +233,8 @@ impl DumpStream<'_> {
                         self.state = DumpState::Error(e)
                     } else {
                         self.state = DumpState::Complete(Response {
-                            status_data: complete.status_data,
                             new_state: complete.state,
-                            data: (),
-                            warnings: vec![],
+                            ..Response::new(complete.status, ())
                         });
                     }
                     None

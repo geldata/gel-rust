@@ -46,6 +46,7 @@ pub(crate) struct Inner {
     pub error: Option<Source>,
     // TODO(tailhook) put headers into the fields
     pub headers: HashMap<u16, bytes::Bytes>,
+    pub annotations: HashMap<String, String>,
     pub fields: HashMap<(&'static str, TypeId), Box<dyn Any + Send + Sync>>,
 }
 
@@ -68,6 +69,13 @@ impl Error {
     }
     pub fn with_headers(mut self, headers: HashMap<u16, bytes::Bytes>) -> Error {
         self.0.headers = headers;
+        self
+    }
+    pub fn annotations(&self) -> &HashMap<String, String> {
+        &self.0.annotations
+    }
+    pub fn with_annotations(mut self, annotations: HashMap<String, String>) -> Error {
+        self.0.annotations = annotations;
         self
     }
     pub fn kind_name(&self) -> &str {
@@ -132,6 +140,7 @@ impl Error {
             messages: Vec::new(),
             error: None,
             headers: HashMap::new(),
+            annotations: HashMap::new(),
             fields: HashMap::new(),
         }))
     }

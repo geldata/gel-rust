@@ -247,22 +247,10 @@ impl ClientMessage {
             }
             0x3c => Restore::decode(buf).map(M::Restore)?,
             0x3d => RestoreBlock::decode(buf).map(M::RestoreBlock)?,
-            0x2e => {
-                buf.advance(5);
-                M::RestoreEof
-            }
-            0x53 => {
-                buf.advance(5);
-                M::Sync
-            }
-            0x48 => {
-                buf.advance(5);
-                M::Flush
-            }
-            0x58 => {
-                buf.advance(5);
-                M::Terminate
-            }
+            0x2e => M::RestoreEof,
+            0x53 => M::Sync,
+            0x48 => M::Flush,
+            0x58 => M::Terminate,
             0x44 => DescribeStatement::decode(buf).map(M::DescribeStatement)?,
             code => M::UnknownMessage(code, buf.copy_to_bytes(buf.remaining())),
         };
@@ -680,7 +668,9 @@ impl Decode for Execute1 {
 
             let decoded = Execute1 {
                 annotations,
-                allowed_capabilities: decode_capabilities(message.allowed_capabilities())?,
+                allowed_capabilities: Capabilities::from_bits_retain(
+                    message.allowed_capabilities(),
+                ),
                 compilation_flags: decode_compilation_flags(message.compilation_flags())?,
                 implicit_limit: match message.implicit_limit() {
                     0 => None,

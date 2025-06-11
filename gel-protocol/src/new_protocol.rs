@@ -86,6 +86,18 @@ struct LogMessage<'a>: Message {
 }
 
 /// The `ReadyForCommand` struct represents a message indicating the server is ready for a new command.
+struct ReadyForCommand0<'a>: Message {
+    /// Identifies the message as ready for command.
+    mtype: u8 = 'Z',
+    /// Length of message contents in bytes, including self.
+    mlen: len,
+    /// Message headers.
+    headers: Array<'a, i16, KeyValue<'a>>,
+    /// Transaction state.
+    transaction_state: TransactionState,
+}
+
+/// The `ReadyForCommand` struct represents a message indicating the server is ready for a new command.
 struct ReadyForCommand<'a>: Message {
     /// Identifies the message as ready for command.
     mtype: u8 = 'Z',
@@ -103,8 +115,8 @@ struct RestoreReady<'a>: Message {
     mtype: u8 = '+',
     /// Length of message contents in bytes, including self.
     mlen: len,
-    /// Message annotations.
-    annotations: Array<'a, i16, Annotation<'a>>,
+    /// Message headers.
+    headers: Array<'a, i16, KeyValue<'a>>,
     /// Number of parallel jobs for restore.
     jobs: i16,
 }
@@ -230,11 +242,21 @@ struct ServerHandshake<'a>: Message {
     /// Length of message contents in bytes, including self.
     mlen: len,
     /// Maximum supported or client-requested protocol major version.
-    major_ver: i16,
+    major_ver: u16,
     /// Maximum supported or client-requested protocol minor version.
-    minor_ver: i16,
+    minor_ver: u16,
     /// Supported protocol extensions.
     extensions: Array<'a, i16, ProtocolExtension<'a>>,
+}
+
+/// The `AuthenticationRequired` struct represents an authentication message.
+struct Authentication<'a>: Message {
+    /// Identifies the message as authentication OK.
+    mtype: u8 = 'R',
+    /// Length of message contents in bytes, including self.
+    mlen: len,
+    /// The type of authentication message.
+    auth_status: i32,
 }
 
 /// The `AuthenticationOk` struct represents a successful authentication message.
@@ -619,8 +641,10 @@ struct CommandDataDescription0<'a>: Message {
     mlen: len,
     headers: Array<'a, i16, KeyValue<'a>>,
     result_cardinality: u8,
-    input: Array<'a, u32, u8>,
-    output: Array<'a, u32, u8>,
+    input_typedesc_id: Uuid,
+    input_typedesc: Array<'a, u32, u8>,
+    output_typedesc_id: Uuid,
+    output_typedesc: Array<'a, u32, u8>,
 }
 
 /// Legacy version of [`Execute`].

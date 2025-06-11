@@ -18,7 +18,7 @@ use crate::raw::{Connection, Description, Response};
 enum Buffer {
     Reading(VecDeque<Bytes>),
     Complete {
-        status_data: Bytes,
+        status: String,
         new_state: Option<State>,
     },
     ErrorResponse(ErrorResponse),
@@ -65,7 +65,7 @@ where
                     let guard = guard.take().unwrap();
                     connection.expect_ready(guard).await?;
                     buffer = Complete {
-                        status_data: complete.status_data,
+                        status: complete.status,
                         new_state: complete.state,
                     };
                     break;
@@ -74,7 +74,7 @@ where
                     let guard = guard.take().unwrap();
                     connection.expect_ready(guard).await?;
                     buffer = Complete {
-                        status_data: complete.status_data,
+                        status: String::from_utf8_lossy(complete.status_data.as_ref()).to_string(),
                         new_state: None,
                     };
                     break;
@@ -164,7 +164,7 @@ where
                     if self.guard.is_some() && self.connection.proto.is_1() =>
                 {
                     self.buffer = Complete {
-                        status_data: complete.status_data,
+                        status: complete.status,
                         new_state: complete.state,
                     };
                     self.expect_ready().await;
@@ -174,7 +174,7 @@ where
                     if self.guard.is_some() && !self.connection.proto.is_1() =>
                 {
                     self.buffer = Complete {
-                        status_data: complete.status_data,
+                        status: String::from_utf8_lossy(complete.status_data.as_ref()).to_string(),
                         new_state: None,
                     };
                     self.expect_ready().await;
@@ -236,7 +236,7 @@ where
                 {
                     self.expect_ready().await;
                     self.buffer = Complete {
-                        status_data: complete.status_data,
+                        status: complete.status,
                         new_state: complete.state,
                     };
                     return None;
@@ -246,7 +246,7 @@ where
                 {
                     self.expect_ready().await;
                     self.buffer = Complete {
-                        status_data: complete.status_data,
+                        status: String::from_utf8_lossy(complete.status_data.as_ref()).to_string(),
                         new_state: None,
                     };
                     return None;
@@ -289,15 +289,14 @@ where
         match mem::replace(&mut self.buffer, Buffer::Reset) {
             Reading(_) => unreachable!(),
             Complete {
-                status_data,
+                status,
                 new_state,
             } => {
                 let warnings = std::mem::take(&mut self.warnings);
                 let response = Response {
-                    status_data,
                     new_state,
-                    data: (),
                     warnings,
+                    ..Response::new(status, ())
                 };
                 response.log_warnings();
                 Ok(response)
