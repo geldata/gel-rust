@@ -285,19 +285,17 @@ impl Encode for ClientHandshake {
                 .context(errors::TooManyExtensions)?,
         );
         for (name, headers) in &self.extensions {
-            // This is wrong!
-            // name.encode(buf)?;
-            // buf.reserve(2);
-            // buf.put_u16(
-            //     u16::try_from(headers.len())
-            //         .ok()
-            //         .context(errors::TooManyHeaders)?,
-            // );
-            // for (&name, value) in headers {
-            //     buf.reserve(2);
-            //     buf.put_u16(name);
-            //     value.encode(buf)?;
-            // }
+            String::encode(name, buf)?;
+            buf.reserve(2);
+            buf.put_u16(
+                u16::try_from(headers.len())
+                    .ok()
+                    .context(errors::TooManyHeaders)?,
+            );
+            for (name, value) in headers {
+                String::encode(name, buf)?;
+                String::encode(value, buf)?;
+            }
         }
         Ok(())
     }
