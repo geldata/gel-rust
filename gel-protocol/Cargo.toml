@@ -13,7 +13,7 @@ readme = "README.md"
 rust-version.workspace = true
 
 [dependencies]
-gel-errors = {path = "../gel-errors", version = "^0.5.3" }
+gel-errors = {path = "../gel-errors", version = "^0.5.4" }
 gel-db-protocol = {path = "../gel-db-protocol", version = "^0.1.2" }
 
 bytes = "1.5.0"
