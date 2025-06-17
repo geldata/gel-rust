@@ -5,7 +5,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{gel::context_trace, FileAccess};
+use crate::{
+    gel::{context_trace, DatabaseBranch},
+    FileAccess,
+};
 
 use super::{BuildContext, BuildContextImpl, InstanceName};
 
@@ -33,11 +36,11 @@ impl ProjectSearchResult {
 }
 
 pub enum ProjectDir {
-    /// Search the current directory.
+    /// Search the current directory (include parents).
     SearchCwd,
-    /// Search the given path.
+    /// Search the given path (include paths).
     Search(PathBuf),
-    /// Check the given path.
+    /// Check the given path without searching parents.
     NoSearch(PathBuf),
     /// Assume the given path is a valid project file.
     Exact(PathBuf),
@@ -54,7 +57,7 @@ impl ProjectDir {
     }
 }
 
-/// Searches for a project file either from the current directory or from a
+/// Searches for a project file either from the current directory or exact path.
 pub fn find_project_file(
     context: &impl BuildContext,
     start_path: ProjectDir,
@@ -188,11 +191,23 @@ fn get_stash_path(context: &impl BuildContext, project_dir: &Path) -> io::Result
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Project {
-    pub(crate) cloud_profile: Option<String>,
-    pub(crate) instance_name: InstanceName,
-    pub(crate) project_path: Option<PathBuf>,
-    pub(crate) branch: Option<String>,
-    pub(crate) database: Option<String>,
+    pub cloud_profile: Option<String>,
+    pub instance_name: InstanceName,
+    pub project_path: Option<PathBuf>,
+    pub branch: Option<String>,
+    pub database: Option<String>,
+}
+
+impl Project {
+    /// Returns the database or branch for the project.
+    pub fn db(&self) -> DatabaseBranch {
+        match (self.branch.clone(), self.database.clone()) {
+            (Some(branch), Some(_database)) => DatabaseBranch::Ambiguous(branch),
+            (Some(branch), None) => DatabaseBranch::Branch(branch),
+            (None, Some(database)) => DatabaseBranch::Database(database),
+            (None, None) => DatabaseBranch::Default,
+        }
+    }
 }
 
 impl Project {
