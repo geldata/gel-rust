@@ -503,11 +503,21 @@ pub enum DatabaseBranch {
 
 impl std::fmt::Display for DatabaseBranch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Database(database) => write!(f, "database '{database}'"),
-            Self::Branch(branch) => write!(f, "branch '{branch}'"),
-            Self::Ambiguous(ambiguous) => write!(f, "'{ambiguous}'"),
-            Self::Default => write!(f, "default database/branch"),
+        // Alternate display is the short form, just the name or (default)
+        if f.alternate() {
+            match self {
+                Self::Database(database) => write!(f, "{database}"),
+                Self::Branch(branch) => write!(f, "{branch}"),
+                Self::Ambiguous(ambiguous) => write!(f, "{ambiguous}"),
+                Self::Default => write!(f, "(default)"),
+            }
+        } else {
+            match self {
+                Self::Database(database) => write!(f, "database '{database}'"),
+                Self::Branch(branch) => write!(f, "branch '{branch}'"),
+                Self::Ambiguous(ambiguous) => write!(f, "'{ambiguous}'"),
+                Self::Default => write!(f, "default database/branch"),
+            }
         }
     }
 }

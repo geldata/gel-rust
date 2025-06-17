@@ -5,7 +5,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{gel::context_trace, FileAccess};
+use crate::{
+    gel::{context_trace, DatabaseBranch},
+    FileAccess,
+};
 
 use super::{BuildContext, BuildContextImpl, InstanceName};
 
@@ -193,6 +196,18 @@ pub struct Project {
     pub project_path: Option<PathBuf>,
     pub branch: Option<String>,
     pub database: Option<String>,
+}
+
+impl Project {
+    /// Returns the database or branch for the project.
+    pub fn db(&self) -> DatabaseBranch {
+        match (self.branch.clone(), self.database.clone()) {
+            (Some(branch), Some(_database)) => DatabaseBranch::Ambiguous(branch),
+            (Some(branch), None) => DatabaseBranch::Branch(branch),
+            (None, Some(database)) => DatabaseBranch::Database(database),
+            (None, None) => DatabaseBranch::Default,
+        }
+    }
 }
 
 impl Project {
