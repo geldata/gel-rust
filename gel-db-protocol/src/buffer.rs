@@ -202,7 +202,7 @@ mod tests {
         let mut buffer = StructBuffer::<Message>::default();
         let mut f = |msg: Result<Message, ParseError>| {
             let msg = msg.unwrap();
-            eprintln!("Message: {msg:?}");
+            eprintln!("Message: {msg:?} (buf = {:?})", msg.as_ref());
             accumulated_messages.push(msg.to_vec());
         };
 
@@ -218,9 +218,9 @@ mod tests {
 
         assert_eq!(accumulated_messages.len(), 3);
 
-        let mut out = vec![];
+        let mut out: Vec<u8> = vec![];
         for message in accumulated_messages {
-            out.append(&mut message.to_vec());
+            out.extend(&message);
         }
 
         assert_eq!(&out, buf);

@@ -559,7 +559,9 @@ mod tests {
     #[timeout(10_000)]
 
     fn test_raw_postgres() {
+        use gel_pg_protocol::prelude::*;
         use gel_pg_protocol::protocol::{StartupMessageBuilder, StartupNameValueBuilder};
+
         run_test_service(TestMode::Tcp, |mut stm| async move {
             let msg = StartupMessageBuilder {
                 params: &[

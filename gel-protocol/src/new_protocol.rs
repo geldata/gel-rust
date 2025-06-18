@@ -62,7 +62,7 @@ struct ErrorResponse<'a>: Message {
     /// Message severity.
     severity: u8,
     /// Message code.
-    error_code: i32,
+    error_code: u32,
     /// Error message.
     message: LString<'a>,
     /// Error attributes.

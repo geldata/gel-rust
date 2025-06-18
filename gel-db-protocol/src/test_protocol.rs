@@ -1,5 +1,14 @@
 //! A pseudo-Postgres protocol for testing.
-use crate::gen::protocol;
+use crate::prelude::*;
+
+message_group!(
+    /// The `Backend` message group contains messages sent from the backend to the frontend.
+    Backend: Message = [
+        Parameter,
+        ParameterZT,
+        FixedLength
+    ]
+);
 
 protocol!(
     struct Message<'a> {
@@ -68,6 +77,10 @@ protocol!(
         length: u32,
         /// The metadata of the query parameter.
         meta: Array<'a, u32, u8>,
+        /// The docs of the query.
+        docs: ZTArray<'a, ZTString<'a>>,
+        /// The docs of the query.
+        docs2: Array<'a, u32, LString<'a>>,
     }
 
     struct Query<'a>: Message {
@@ -111,18 +124,21 @@ protocol!(
 
 #[cfg(test)]
 mod tests {
-    use uuid::Uuid;
-
     use super::*;
+    use uuid::Uuid;
 
     #[test]
     fn test_query() {
+        let docs = vec!["docs"];
+
         let buf = QueryBuilder {
             query: "SELECT * from foo",
             types: &[QueryTypeBuilder {
                 typ: QueryParameterType::Float,
                 length: 4,
-                meta: &[1, 2, 3, 4],
+                meta: &[1, 2, 3],
+                docs: || docs.iter().map(|s| format!("{s}{}", "a")),
+                docs2: &["docs2"],
             }],
         }
         .to_vec();
@@ -131,11 +147,11 @@ mod tests {
         let types = query.types;
         assert_eq!(1, types.len());
         assert_eq!(
-            r#"QueryType { typ: Float, length: 4, meta: [1, 2, 3, 4] }"#,
+            r#"QueryType { typ: Float, length: 4, meta: [1, 2, 3], docs: ["docsa"], docs2: ["docs2"] }"#,
             format!("{:?}", types.into_iter().next().unwrap())
         );
         assert_eq!(
-            r#"Query { mtype: 81, mlen: 37, query: "SELECT * from foo", types: [QueryType { typ: Float, length: 4, meta: [1, 2, 3, 4] }] }"#,
+            r#"Query { mtype: 81, mlen: 56, query: "SELECT * from foo", types: [QueryType { typ: Float, length: 4, meta: [1, 2, 3], docs: ["docsa"], docs2: ["docs2"] }] }"#,
             format!("{query:?}")
         );
     }
@@ -156,7 +172,7 @@ mod tests {
     #[test]
     fn test_uuid() {
         let buf = UuidsBuilder {
-            uuids: &[Uuid::NAMESPACE_DNS],
+            uuids: [Uuid::NAMESPACE_DNS],
         }
         .to_vec();
 
@@ -198,7 +214,7 @@ mod tests {
     #[test]
     fn test_encoded() {
         let buf = DataRowBuilder {
-            values: &[
+            values: [
                 Encoded::Null,
                 Encoded::Value(b"123"),
                 Encoded::Null,

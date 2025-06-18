@@ -6,13 +6,19 @@ pub use std::marker::PhantomData;
 
 /// Inflated version of a zero-terminated array with zero-copy iterator access.
 #[derive(Copy, Clone, Default)]
-pub struct ZTArray<'a, T> {
+pub struct ZTArray<'a, T>
+where
+    T: DecoderFor<'a, T>,
+{
     _phantom: PhantomData<T>,
     buf: &'a [u8],
     len: usize,
 }
 
-impl<'a, T> ZTArray<'a, T> {
+impl<'a, T> ZTArray<'a, T>
+where
+    T: DecoderFor<'a, T>,
+{
     #[inline(always)]
     pub const fn new(buf: &'a [u8], len: usize) -> Self {
         Self {
@@ -41,8 +47,8 @@ pub struct ZTArrayIter<'a, T> {
 
 impl<'a, T> std::fmt::Debug for ZTArray<'a, T>
 where
-    T: DataType,
-    T::DecodeLifetime<'a>: std::fmt::Debug,
+    T: DecoderFor<'a, T>,
+    T: std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_list().entries(self).finish()
@@ -64,8 +70,11 @@ impl AsRef<[u8]> for ZTArray<'_, u8> {
     }
 }
 
-impl<'a, T: DataType> IntoIterator for ZTArray<'a, T> {
-    type Item = T::DecodeLifetime<'a>;
+impl<'a, T> IntoIterator for ZTArray<'a, T>
+where
+    T: DecoderFor<'a, T>,
+{
+    type Item = T;
     type IntoIter = ZTArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         ZTArrayIter {
@@ -75,8 +84,11 @@ impl<'a, T: DataType> IntoIterator for ZTArray<'a, T> {
     }
 }
 
-impl<'a, T: DataType> IntoIterator for &ZTArray<'a, T> {
-    type Item = T::DecodeLifetime<'a>;
+impl<'a, T> IntoIterator for &ZTArray<'a, T>
+where
+    T: DecoderFor<'a, T>,
+{
+    type Item = T;
     type IntoIter = ZTArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         ZTArrayIter {
@@ -86,26 +98,43 @@ impl<'a, T: DataType> IntoIterator for &ZTArray<'a, T> {
     }
 }
 
-impl<'a, T: DataType> Iterator for ZTArrayIter<'a, T> {
-    type Item = T::DecodeLifetime<'a>;
+impl<'a, T> Iterator for ZTArrayIter<'a, T>
+where
+    T: DecoderFor<'a, T>,
+{
+    type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         if self.buf[0] == 0 {
             return None;
         }
-        let value = T::decode(&mut self.buf).ok()?;
+        let value = T::decode_for(&mut self.buf).ok()?;
         Some(value)
     }
 }
 
 /// Inflated version of a length-specified array with zero-copy iterator access.
 #[derive(Copy, Clone, Default)]
-pub struct Array<'a, L, T> {
+pub struct Array<'a, L, T>
+where
+    T: DecoderFor<'a, T>,
+{
     _phantom: PhantomData<(L, T)>,
     buf: &'a [u8],
     len: u32,
 }
 
-impl<'a, L, T> Array<'a, L, T> {
+impl<'a, L, T> Array<'a, L, T>
+where
+    T: DecoderFor<'a, T>,
+{
+    pub const fn empty() -> Self {
+        Self {
+            buf: &[],
+            len: 0,
+            _phantom: PhantomData,
+        }
+    }
+
     pub const fn new(buf: &'a [u8], len: u32) -> Self {
         Self {
             buf,
@@ -140,10 +169,9 @@ impl<T> AsRef<[u8]> for Array<'_, T, u8> {
     }
 }
 
-impl<L, T> std::fmt::Debug for Array<'_, L, T>
+impl<'a, L, T> std::fmt::Debug for Array<'a, L, T>
 where
-    for<'b> &'b Self: IntoIterator,
-    for<'b> <&'b Self as IntoIterator>::Item: std::fmt::Debug,
+    T: DecoderFor<'a, T> + std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_list().entries(self).finish()
@@ -157,8 +185,11 @@ pub struct ArrayIter<'a, T> {
     len: u32,
 }
 
-impl<'a, L, T: DataType> IntoIterator for Array<'a, L, T> {
-    type Item = T::DecodeLifetime<'a>;
+impl<'a, L, T> IntoIterator for Array<'a, L, T>
+where
+    T: DecoderFor<'a, T>,
+{
+    type Item = T;
     type IntoIter = ArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         ArrayIter {
@@ -169,8 +200,11 @@ impl<'a, L, T: DataType> IntoIterator for Array<'a, L, T> {
     }
 }
 
-impl<'a, L, T: DataType> IntoIterator for &Array<'a, L, T> {
-    type Item = T::DecodeLifetime<'a>;
+impl<'a, L, T> IntoIterator for &Array<'a, L, T>
+where
+    T: DecoderFor<'a, T>,
+{
+    type Item = T;
     type IntoIter = ArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         ArrayIter {
@@ -181,21 +215,24 @@ impl<'a, L, T: DataType> IntoIterator for &Array<'a, L, T> {
     }
 }
 
-impl<'a, T: DataType> Iterator for ArrayIter<'a, T> {
-    type Item = T::DecodeLifetime<'a>;
+impl<'a, T> Iterator for ArrayIter<'a, T>
+where
+    T: DecoderFor<'a, T>,
+{
+    type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         if self.len == 0 {
             return None;
         }
         self.len -= 1;
-        let value = T::decode(&mut self.buf).ok()?;
+        let value = T::decode_for(&mut self.buf).ok()?;
         Some(value)
     }
 }
 
 // Arrays of fixed-size elements can extract elements in O(1).
-impl<'a, L: TryInto<usize>, T: DataTypeFixedSize + DataType> Array<'a, L, T> {
-    pub fn get(&self, index: L) -> Option<T::DecodeLifetime<'a>> {
+impl<'a, L: TryInto<usize>, T: DataTypeFixedSize + DecoderFor<'a, T>> Array<'a, L, T> {
+    pub fn get(&self, index: L) -> Option<T> {
         let Ok(index) = index.try_into() else {
             return None;
         };
@@ -205,7 +242,7 @@ impl<'a, L: TryInto<usize>, T: DataTypeFixedSize + DataType> Array<'a, L, T> {
         } else {
             let mut segment = &self.buf[T::SIZE * index..T::SIZE * (index + 1)];
             // As we've normally pre-scanned all items, this will not panic
-            Some(T::decode(&mut segment).unwrap())
+            Some(T::decode_for(&mut segment).unwrap())
         }
     }
 }

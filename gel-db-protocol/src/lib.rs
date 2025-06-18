@@ -24,11 +24,16 @@ pub use message_group::{match_message, message_group};
 /// Re-export for the `protocol!` macro.
 #[doc(hidden)]
 pub use paste::paste;
+#[doc(hidden)]
+pub use type_mapper;
 
 pub mod prelude {
+    pub use super::encoding::BuilderFor;
     pub use super::encoding::DataType;
     pub use super::encoding::DataTypeFixedSize;
-    pub use super::encoding::EncodeTarget;
+    pub use super::encoding::DecoderFor;
+    pub use super::encoding::EncoderFor;
+    pub use super::encoding::EncoderForExt;
     pub use super::encoding::ParseError;
     pub use super::writer::BufWriter;
 

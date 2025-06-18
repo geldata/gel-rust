@@ -1,8 +1,9 @@
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __message_group {
-    ($(#[$doc:meta])* $group:ident : $super:ident = [$($message:ident),*]) => {
+    ($(#[$doc:meta])* $group:ident : $super:ident = [ $($message:ident),* $(,)? ] ) => {
         $crate::paste!(
+
         $(#[$doc])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         #[allow(unused)]
@@ -13,40 +14,69 @@ macro_rules! __message_group {
             ),*
         }
 
-        #[derive(Debug)]
-        #[allow(unused)]
         pub enum [<$group Builder>]<'a> {
             $(
-                $message([<$message Builder>]<'a>)
-            ),*
+                $message(&'a dyn $crate::prelude::EncoderFor<$message<'static>>),
+            )*
         }
 
-        #[allow(unused)]
-        impl [<$group Builder>]<'_> {
-            pub fn to_vec(self) -> Vec<u8> {
+        impl<'a> [<$group Builder>]<'a> {
+            #[allow(private_bounds)]
+            pub fn new<T>(message: impl [<Into $group Builder>]<'a, T>) -> Self {
+                message.into_builder()
+            }
+
+            pub fn encode<'b>(&self, buf: &mut BufWriter<'b>) {
                 match self {
                     $(
-                        Self::$message(message) => message.to_vec(),
+                        Self::$message(message) => message.encode_for(buf),
                     )*
                 }
             }
 
-            // pub fn copy_to_buf(&self, writer: &mut $crate::BufWriter) {
-            //     match self {
-            //         $(
-            //             Self::$message(message) => message.copy_to_buf(writer),
-            //         )*
-            //     }
-            // }
+            pub fn to_vec(self) -> Vec<u8> {
+                match self {
+                    $(
+                        Self::$message(message) => EncoderForExt::to_vec(message),
+                    )*
+                }
+            }
+        }
+
+        pub trait [<Into $group Builder>]<'a, T> {
+            fn into_builder(self) -> [<$group Builder>]<'a>;
+        }
+
+        impl <'a, T, U> [<Into $group Builder>]<'a, T> for U where U: [<sealed_ $group:lower>]::[<$group BuilderTrait>]<'a, T> {
+            fn into_builder(self) -> [<$group Builder>]<'a> {
+                self.into_builder_private()
+            }
+        }
+
+        mod [< sealed_ $group:lower>] {
+            use super::*;
+            pub(crate) trait [<$group BuilderTrait>]<'a, T>: Sized {
+                fn into_builder_private(self) -> [<$group Builder>]<'a>;
+            }
         }
 
         $(
-        impl <'a> From<[<$message Builder>]<'a>> for [<$group Builder>]<'a> {
-            fn from(message: [<$message Builder>]<'a>) -> Self {
-                Self::$message(message)
+        impl <'a, T> [< sealed_ $group:lower>]::[<$group BuilderTrait>]<'a, $message<'static>> for &'a T where T: $crate::prelude::EncoderFor<$message<'static>> {
+            fn into_builder_private(self) -> [<$group Builder>]<'a> {
+                [<$group Builder>]::$message(self)
             }
         }
         )*
+
+        impl<'a> ::std::fmt::Debug for [<$group Builder>]<'a> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    $(
+                        Self::$message(_) => write!(f, stringify!($message)),
+                    )*
+                }
+            }
+        }
 
         #[allow(unused)]
         pub trait [<$group Match>] {
@@ -142,6 +172,8 @@ pub use __match_message as match_message;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prelude::*;
+    use crate::test_protocol;
     use crate::test_protocol::*;
 
     #[test]
@@ -158,5 +190,13 @@ mod tests {
                 return;
             }
         });
+    }
+
+    #[test]
+    fn dyn_message() {
+        use test_protocol::IntoBackendBuilder;
+        let msg = test_protocol::FixedLengthBuilder::default();
+        let message = (&msg).into_builder();
+        eprintln!("{message:?}");
     }
 }

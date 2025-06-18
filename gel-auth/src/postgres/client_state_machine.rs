@@ -69,8 +69,14 @@ pub enum ConnectionDrive<'a> {
 }
 
 pub trait ConnectionStateSend {
-    fn send_initial(&mut self, message: InitialBuilder) -> Result<(), std::io::Error>;
-    fn send(&mut self, message: FrontendBuilder) -> Result<(), std::io::Error>;
+    fn send_initial<'a, M>(
+        &mut self,
+        message: impl IntoInitialBuilder<'a, M>,
+    ) -> Result<(), std::io::Error>;
+    fn send<'a, M>(
+        &mut self,
+        message: impl IntoFrontendBuilder<'a, M>,
+    ) -> Result<(), std::io::Error>;
     fn upgrade(&mut self) -> Result<(), std::io::Error>;
 }
 
@@ -149,7 +155,7 @@ impl ConnectionState {
         trace!("Received drive {drive:?} in state {:?}", self.0);
         match (&mut self.0, drive) {
             (SslInitializing(credentials, mode), ConnectionDrive::Initial) => {
-                update.send_initial(InitialBuilder::SSLRequest(SSLRequestBuilder::default()))?;
+                update.send_initial(&SSLRequestBuilder::default())?;
                 self.0 = SslWaiting(std::mem::take(credentials), *mode);
                 update.state_changed(ConnectionStateType::Connecting);
             }
@@ -217,10 +223,10 @@ impl ConnectionState {
                             return Err(SCRAMError::ProtocolError.into());
                         };
                         update.auth(AuthType::ScramSha256);
-                        update.send(SASLInitialResponseBuilder {
+                        update.send(&SASLInitialResponseBuilder {
                             mechanism: "SCRAM-SHA-256",
-                            response: &initial_message,
-                        }.into())?;
+                            response: initial_message.as_slice(),
+                        })?;
                         self.0 = Scram(tx, env);
                         update.state_changed(ConnectionStateType::Authenticating);
                     },
@@ -229,17 +235,17 @@ impl ConnectionState {
                         trace!("auth md5");
                         let md5_hash = md5_password(&credentials.password, &credentials.username, md5.salt());
                         update.auth(AuthType::Md5);
-                        update.send(PasswordMessageBuilder {
+                        update.send(&PasswordMessageBuilder {
                             password: &md5_hash,
-                        }.into())?;
+                        })?;
                     },
                     (AuthenticationCleartextPassword) => {
                         *sent_auth = true;
                         trace!("auth cleartext");
                         update.auth(AuthType::Plain);
-                        update.send(PasswordMessageBuilder {
+                        update.send(&PasswordMessageBuilder {
                             password: &credentials.password,
-                        }.into())?;
+                        })?;
                     },
                     (NoticeResponse as notice) => {
                         let err = PgServerError::from(notice);
@@ -262,9 +268,9 @@ impl ConnectionState {
                         let Some(message) = tx.process_message(&sasl.data(), env)? else {
                             return Err(SCRAMError::ProtocolError.into());
                         };
-                        update.send(SASLResponseBuilder {
+                        update.send(&SASLResponseBuilder {
                             response: &message,
-                        }.into())?;
+                        })?;
                     },
                     (AuthenticationSASLFinal as sasl) => {
                         let None = tx.process_message(&sasl.data(), env)? else {
@@ -351,9 +357,7 @@ impl ConnectionState {
             params.push(StartupNameValueBuilder { name, value })
         }
 
-        update.send_initial(InitialBuilder::StartupMessage(StartupMessageBuilder {
-            params: &params,
-        }))
+        update.send_initial(&StartupMessageBuilder { params: || &params })
     }
 }
 

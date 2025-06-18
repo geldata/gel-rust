@@ -193,6 +193,30 @@ impl<'a> AsRef<Encoded<'a>> for Encoded<'a> {
     }
 }
 
+impl<'a> From<&'a [u8]> for Encoded<'a> {
+    fn from(value: &'a [u8]) -> Self {
+        Encoded::Value(value)
+    }
+}
+
+impl<'a> Into<Option<&'a [u8]>> for Encoded<'a> {
+    fn into(self) -> Option<&'a [u8]> {
+        match self {
+            Encoded::Null => None,
+            Encoded::Value(value) => Some(value),
+        }
+    }
+}
+
+impl<'a, 'b> Into<Option<&'a [u8]>> for &'b Encoded<'a> {
+    fn into(self) -> Option<&'a [u8]> {
+        match self {
+            Encoded::Null => None,
+            Encoded::Value(value) => Some(value),
+        }
+    }
+}
+
 impl Encoded<'_> {}
 
 impl PartialEq<str> for Encoded<'_> {
