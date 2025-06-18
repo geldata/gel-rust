@@ -190,7 +190,7 @@ pub async fn connect_raw_ssl(
             }
         }
         if state.read_ssl_response() {
-            let ssl_response = SSLResponse::new(&buffer)?;
+            let ssl_response = SSLResponse::new(&buffer[..n]).unwrap();
             stream = update
                 .drive(
                     &mut state,
