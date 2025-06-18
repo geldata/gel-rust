@@ -203,7 +203,7 @@ pub struct RawPacket {
     pub data: Bytes,
 }
 
-fn encode<T: Encode>(buf: &mut Output, _code: u8, msg: &T) -> Result<(), EncodeError> {
+fn encode<T: Encode>(buf: &mut Output, msg: &T) -> Result<(), EncodeError> {
     msg.encode(buf)?;
     Ok(())
 }
@@ -276,23 +276,23 @@ impl ServerMessage {
     pub fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
         use ServerMessage::*;
         match self {
-            ServerHandshake(h) => encode(buf, 0x76, h),
-            ErrorResponse(h) => encode(buf, 0x45, h),
-            LogMessage(h) => encode(buf, 0x4c, h),
-            Authentication(h) => encode(buf, 0x52, h),
-            ReadyForCommand(h) => encode(buf, 0x5a, h),
-            ServerKeyData(h) => encode(buf, 0x4b, h),
-            ParameterStatus(h) => encode(buf, 0x53, h),
-            CommandComplete0(h) => encode(buf, 0x43, h),
-            CommandComplete1(h) => encode(buf, 0x43, h),
-            PrepareComplete(h) => encode(buf, 0x31, h),
-            CommandDataDescription0(h) => encode(buf, 0x54, h),
-            CommandDataDescription1(h) => encode(buf, 0x54, h),
-            StateDataDescription(h) => encode(buf, 0x73, h),
-            Data(h) => encode(buf, 0x44, h),
-            RestoreReady(h) => encode(buf, 0x2b, h),
-            DumpHeader(h) => encode(buf, 0x40, h),
-            DumpBlock(h) => encode(buf, 0x3d, h),
+            ServerHandshake(h) => encode(buf, h),
+            ErrorResponse(h) => encode(buf, h),
+            LogMessage(h) => encode(buf, h),
+            Authentication(h) => encode(buf, h),
+            ReadyForCommand(h) => encode(buf, h),
+            ServerKeyData(h) => encode(buf, h),
+            ParameterStatus(h) => encode(buf, h),
+            CommandComplete0(h) => encode(buf, h),
+            CommandComplete1(h) => encode(buf, h),
+            PrepareComplete(h) => encode(buf, h),
+            CommandDataDescription0(h) => encode(buf, h),
+            CommandDataDescription1(h) => encode(buf, h),
+            StateDataDescription(h) => encode(buf, h),
+            Data(h) => encode(buf, h),
+            RestoreReady(h) => encode(buf, h),
+            DumpHeader(h) => encode(buf, h),
+            DumpBlock(h) => encode(buf, h),
 
             UnknownMessage(_, _) => errors::UnknownMessageCantBeEncoded.fail()?,
         }
