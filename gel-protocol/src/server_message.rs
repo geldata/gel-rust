@@ -38,14 +38,10 @@ use crate::descriptors::Typedesc;
 use crate::encoding::{Annotations, Decode, Encode, Input, KeyValues, Output};
 use crate::errors::{self, DecodeError, EncodeError, MessageTooLong};
 use crate::features::ProtocolVersion;
-<<<<<<< HEAD
-use crate::new_protocol;
-=======
 use crate::new_protocol::{
     self, prelude::EncoderForExt, AnnotationBuilder, ProtocolExtensionBuilder,
     ServerHandshakeBuilder,
 };
->>>>>>> 16381a9 (Use new serializer)
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -335,29 +331,6 @@ impl ServerMessage {
 
 impl Encode for ServerHandshake {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-<<<<<<< HEAD
-        buf.reserve(6);
-        buf.put_u16(self.major_ver);
-        buf.put_u16(self.minor_ver);
-        buf.put_u16(
-            u16::try_from(self.extensions.len())
-                .ok()
-                .context(errors::TooManyExtensions)?,
-        );
-        for (name, headers) in &self.extensions {
-            name.encode(buf)?;
-            buf.reserve(2);
-            buf.put_u16(
-                u16::try_from(headers.len())
-                    .ok()
-                    .context(errors::TooManyHeaders)?,
-            );
-            for (name, value) in headers {
-                String::encode(name, buf)?;
-                String::encode(value, buf)?;
-            }
-        }
-=======
         let extensions = || {
             self.extensions.iter().map(|(name, headers)| {
                 let annotations = move || {
@@ -377,8 +350,6 @@ impl Encode for ServerHandshake {
         builder
             .encode_buffer(buf)
             .map_err(|_| MessageTooLong.build())?;
-
->>>>>>> 16381a9 (Use new serializer)
         Ok(())
     }
 }
@@ -410,22 +381,6 @@ impl Decode for ServerHandshake {
 
 impl Encode for ErrorResponse {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-<<<<<<< HEAD
-        buf.reserve(11);
-        buf.put_u8(self.severity.to_u8());
-        buf.put_u32(self.code);
-        self.message.encode(buf)?;
-        buf.reserve(2);
-        buf.put_u16(
-            u16::try_from(self.attributes.len())
-                .ok()
-                .context(errors::TooManyHeaders)?,
-        );
-        for (name, value) in &self.attributes {
-            buf.put_u16(*name);
-            value.encode(buf)?;
-        }
-=======
         let builder = new_protocol::ErrorResponseBuilder {
             severity: self.severity.to_u8(),
             error_code: self.code,
@@ -444,7 +399,6 @@ impl Encode for ErrorResponse {
             .encode_buffer(buf)
             .map_err(|_| MessageTooLong.build())?;
 
->>>>>>> 16381a9 (Use new serializer)
         Ok(())
     }
 }
