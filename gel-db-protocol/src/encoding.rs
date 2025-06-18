@@ -1,3 +1,5 @@
+use std::mem::MaybeUninit;
+
 use crate::datatypes::*;
 use crate::declare_type;
 use crate::prelude::*;
@@ -81,6 +83,22 @@ pub trait EncoderForExt {
         let mut writer = BufWriter::new(buf);
         EncoderFor::<F>::encode_for(self, &mut writer);
         writer.finish()
+    }
+
+    /// Encode this builder into a given buffer. If the buffer is
+    /// too small, the function will return the number of bytes
+    /// required to encode the builder.
+    #[allow(unused)]
+    fn encode_buffer_uninit<'a, F: 'static>(
+        &self,
+        buf: &'a mut [MaybeUninit<u8>],
+    ) -> Result<&'a mut [u8], usize>
+    where
+        Self: EncoderFor<F>,
+    {
+        let mut writer = BufWriter::new_uninit(buf);
+        EncoderFor::<F>::encode_for(self, &mut writer);
+        writer.finish_buf()
     }
 
     #[allow(unused)]

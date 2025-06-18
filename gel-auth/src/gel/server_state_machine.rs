@@ -364,7 +364,7 @@ fn send_error(
     update.server_error(&code);
     update.send(&ErrorResponseBuilder {
         severity: ErrorSeverity::Error as u8,
-        error_code: code as i32,
+        error_code: code as u32,
         message,
         attributes: Array::<_, KeyValue>::default(),
     })
