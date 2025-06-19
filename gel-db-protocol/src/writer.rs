@@ -1,13 +1,28 @@
+use std::mem::MaybeUninit;
+
 #[derive(Debug)]
 pub struct BufWriter<'a> {
-    buf: &'a mut [u8],
+    buf: &'a mut [MaybeUninit<u8>],
     size: usize,
     error: bool,
 }
 
 impl<'a> BufWriter<'a> {
+    /// Create a new `BufWriter` from a slice of bytes.
     #[inline(always)]
     pub fn new(buf: &'a mut [u8]) -> Self {
+        Self {
+            // SAFETY: it's safe to go the other way as long as we never
+            // uninitialize bytes
+            buf: unsafe { std::mem::transmute(buf) },
+            size: 0,
+            error: false,
+        }
+    }
+
+    /// Create a new `BufWriter` from a slice of uninitialized bytes.
+    #[inline(always)]
+    pub fn new_uninit(buf: &'a mut [MaybeUninit<u8>]) -> Self {
         Self {
             buf,
             size: 0,
@@ -36,7 +51,7 @@ impl<'a> BufWriter<'a> {
         if self.error {
             return;
         }
-        self.buf[offset..offset + buf.len()].copy_from_slice(buf);
+        self.buf[offset..offset + buf.len()].copy_from_slice(unsafe { std::mem::transmute(buf) });
     }
 
     #[inline]
@@ -50,7 +65,7 @@ impl<'a> BufWriter<'a> {
             self.error = true;
             return;
         }
-        self.buf[self.size - len..self.size].copy_from_slice(buf);
+        self.buf[self.size - len..self.size].copy_from_slice(unsafe { std::mem::transmute(buf) });
     }
 
     #[inline]
@@ -63,7 +78,7 @@ impl<'a> BufWriter<'a> {
             self.error = true;
             return;
         }
-        self.buf[self.size - 1] = value;
+        self.buf[self.size - 1].write(value);
     }
 
     pub const fn finish(self) -> Result<usize, usize> {
@@ -71,6 +86,17 @@ impl<'a> BufWriter<'a> {
             Err(self.size)
         } else {
             Ok(self.size)
+        }
+    }
+
+    /// Finish the writer and return a slice of the written bytes.
+    pub const fn finish_buf(self) -> Result<&'a mut [u8], usize> {
+        if self.error {
+            Err(self.size)
+        } else {
+            // SAFETY: we know that the buffer is valid because we've written to
+            // every byte
+            Ok(unsafe { std::slice::from_raw_parts_mut(self.buf.as_mut_ptr().cast(), self.size) })
         }
     }
 }

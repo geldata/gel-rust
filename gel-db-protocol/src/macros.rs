@@ -5,12 +5,6 @@ macro_rules! declare_type {
     ($ty:ident) =>
     {
         $crate::declare_type!($crate::prelude::DataType, $ty, {
-            fn decode(buf: [u8; N]) -> Result<Self, ParseError> {
-                Ok($ty::from_be_bytes(buf))
-            }
-            fn encode(value: $ty) -> [u8; N] {
-                value.to_be_bytes()
-            }
             fn to_usize(value: usize) -> $ty {
                 value as $ty
             }
@@ -18,11 +12,30 @@ macro_rules! declare_type {
                 value as usize
             }
         });
+
+        impl $crate::prelude::EncoderFor<$ty> for $ty {
+            fn encode_for(&self, buf: &mut $crate::BufWriter<'_>) {
+                buf.write(&self.to_be_bytes());
+            }
+        }
+
+        impl <'a> $crate::prelude::DecoderFor<'a, $ty> for $ty {
+            fn decode_for(buf: &mut &'a [u8]) -> Result<Self, $crate::prelude::ParseError> {
+                if let Some((chunk, next)) = buf.split_first_chunk::<{std::mem::size_of::<$ty>()}>() {
+                    let res = {
+                        let buf = *chunk;
+                        Ok($ty::from_be_bytes(buf))
+                    };
+                    *buf = next;
+                    res
+                } else {
+                    Err($crate::prelude::ParseError::TooShort)
+                }
+            }
+        }
     };
     ($datatype:path, $ty:ident , $( flags=[$($flag:ident),*], )?
     {
-        fn decode($ebuf:ident: [u8; $dsize:expr]) -> Result<Self, ParseError> $decode:block
-        fn encode($evalue:ident: $encode_type:ty) -> [u8; $esize:expr] $encode:block
         $( fn to_usize($eusize:ident: usize) -> $eusize_self:ty $to_usize:block )?
         $( fn from_usize($eusize2:ident: $eusize_self2:ty) -> usize $from_usize:block )?
     }
@@ -33,34 +46,15 @@ macro_rules! declare_type {
                 constant_size = Some(std::mem::size_of::<$ty>()),
                 flags = [$($($flag),*)?]
             );
-            type BuilderForStruct<'unused> = $ty;
-            type BuilderForEncode = $ty;
-            type DecodeLifetime<'a> = $ty;
-            fn decode(buf: &mut &[u8]) -> Result<Self, $crate::prelude::ParseError> {
-                if let Some((chunk, next)) = buf.split_first_chunk::<{std::mem::size_of::<$ty>()}>() {
-                    let res = {
-                        let $ebuf = *chunk;
-                        $decode
-                    };
-                    *buf = next;
-                    res
-                } else {
-                    Err($crate::prelude::ParseError::TooShort)
-                }
-            }
-            fn encode(buf: &mut $crate::prelude::BufWriter<'_>, value: &Self::BuilderForEncode) {
-                let $evalue = *value;
-                let bytes = $encode;
-                buf.write(&bytes);
-            }
+
             $(
                 fn encode_usize<'__value_lifetime>(buf: &mut $crate::prelude::BufWriter<'_>, value: usize) {
                     let $eusize = value;
                     let value = $to_usize;
-                    Self::encode(buf, &value);
+                    $crate::prelude::EncoderFor::<$ty>::encode_for(&value, buf);
                 }
                 fn decode_usize(buf: &mut &[u8]) -> Result<usize, $crate::prelude::ParseError> {
-                    let $eusize2 = Self::decode(buf)?;
+                    let $eusize2 = <$ty as $crate::prelude::DecoderFor<$ty>>::decode_for(buf)?;
                     Ok($from_usize)
                 }
             )?
@@ -75,8 +69,6 @@ macro_rules! declare_type {
     // Lifetime type, non-fixed size
     ($datatype:path, $ty:ident<$lt:lifetime>, builder: $builder:ty, $( flags=[$($flag:ident),*], )?
     {
-        fn decode($dbuf:ident: &mut &[u8]) -> Result<Self, ParseError> $decode:block
-        fn encode($ebuf:ident: &mut BufWriter, $evalue:ident: $encode_type:ty) $encode:block
     }) => {
         impl <$lt> $datatype
             for $ty<$lt> {
@@ -85,18 +77,6 @@ macro_rules! declare_type {
                 constant_size = None,
                 flags = [$($($flag),*)?]
             );
-            type BuilderForStruct<'unused> = $builder;
-            type BuilderForEncode = $builder;
-            type DecodeLifetime<'__next_lifetime> = $ty<'__next_lifetime>;
-            fn decode<'__next_lifetime>(buf: &mut &'__next_lifetime [u8]) -> Result<Self::DecodeLifetime<'__next_lifetime>, $crate::prelude::ParseError> {
-                let $dbuf = buf;
-                $decode
-            }
-            fn encode(buf: &mut $crate::prelude::BufWriter<'_>, value: &Self::BuilderForEncode) {
-                let $ebuf = buf;
-                let $evalue = value;
-                $encode
-            }
         }
     };
 }

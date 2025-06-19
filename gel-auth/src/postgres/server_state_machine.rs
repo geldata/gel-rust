@@ -53,7 +53,10 @@ pub trait ConnectionStateSend {
     /// Send the response to the SSL initiation.
     fn send_ssl(&mut self, message: SSLResponseBuilder) -> Result<(), std::io::Error>;
     /// Send an ordinary message.
-    fn send(&mut self, message: BackendBuilder) -> Result<(), std::io::Error>;
+    fn send<'a, M>(
+        &mut self,
+        message: impl IntoBackendBuilder<'a, M>,
+    ) -> Result<(), std::io::Error>;
     /// Perform the SSL upgrade.
     fn upgrade(&mut self) -> Result<(), std::io::Error>;
     /// Notify the environment that a user and database were selected.
@@ -72,7 +75,7 @@ pub trait ConnectionStateUpdate: ConnectionStateSend {
 
 #[derive(Debug)]
 pub enum ConnectionEvent<'a> {
-    SendSSL(SSLResponseBuilder<'a>),
+    SendSSL(SSLResponseBuilder),
     Send(BackendBuilder<'a>),
     Upgrade,
     Auth(String, String),
@@ -90,8 +93,11 @@ where
         self(ConnectionEvent::SendSSL(message))
     }
 
-    fn send(&mut self, message: BackendBuilder) -> Result<(), std::io::Error> {
-        self(ConnectionEvent::Send(message))
+    fn send<'a, M>(
+        &mut self,
+        message: impl IntoBackendBuilder<'a, M>,
+    ) -> Result<(), std::io::Error> {
+        self(ConnectionEvent::Send(message.into_builder()))
     }
 
     fn upgrade(&mut self) -> Result<(), std::io::Error> {
@@ -159,26 +165,26 @@ fn send_error(
 ) -> std::io::Result<()> {
     let error = PgServerError::new(code, message, Default::default());
     update.server_error(&error);
-    update.send(BackendBuilder::ErrorResponse(ErrorResponseBuilder {
+    update.send(&ErrorResponseBuilder {
         fields: &[
-            ErrorFieldBuilder {
-                etype: PgServerErrorField::Severity as _,
+            &ErrorFieldBuilder {
+                etype: PgServerErrorField::Severity as u8,
                 value: "ERROR",
             },
-            ErrorFieldBuilder {
-                etype: PgServerErrorField::SeverityNonLocalized as _,
+            &ErrorFieldBuilder {
+                etype: PgServerErrorField::SeverityNonLocalized as u8,
                 value: "ERROR",
             },
-            ErrorFieldBuilder {
-                etype: PgServerErrorField::Code as _,
+            &ErrorFieldBuilder {
+                etype: PgServerErrorField::Code as u8,
                 value: std::str::from_utf8(&code.to_code()).unwrap(),
             },
-            ErrorFieldBuilder {
-                etype: PgServerErrorField::Message as _,
+            &ErrorFieldBuilder {
+                etype: PgServerErrorField::Message as u8,
                 value: message,
             },
         ],
-    }))
+    })
 }
 
 #[derive(Debug, derive_more::Display, derive_more::Error, derive_more::From)]
@@ -341,26 +347,20 @@ impl ServerStateImpl {
                 let mut auth = ServerAuth::new(username.clone(), auth_type, credential_data);
                 match auth.drive(ServerAuthDrive::Initial) {
                     ServerAuthResponse::Initial(AuthType::Plain, _) => {
-                        update.send(BackendBuilder::AuthenticationCleartextPassword(
-                            Default::default(),
-                        ))?;
+                        update.send(&AuthenticationCleartextPasswordBuilder::default())?;
                     }
                     ServerAuthResponse::Initial(AuthType::Md5, salt) => {
-                        update.send(BackendBuilder::AuthenticationMD5Password(
-                            AuthenticationMD5PasswordBuilder {
-                                salt: salt.try_into().unwrap(),
-                            },
-                        ))?;
+                        update.send(&AuthenticationMD5PasswordBuilder {
+                            salt: TryInto::<[u8; 4]>::try_into(salt).map_err(|_| PROTOCOL_ERROR)?,
+                        })?;
                     }
                     ServerAuthResponse::Initial(AuthType::ScramSha256, _) => {
-                        update.send(BackendBuilder::AuthenticationSASL(
-                            AuthenticationSASLBuilder {
-                                mechanisms: &["SCRAM-SHA-256"],
-                            },
-                        ))?;
+                        update.send(&AuthenticationSASLBuilder {
+                            mechanisms: ["SCRAM-SHA-256"],
+                        })?;
                     }
                     ServerAuthResponse::Complete(..) => {
-                        update.send(BackendBuilder::AuthenticationOk(Default::default()))?;
+                        update.send(&AuthenticationOkBuilder::default())?;
                         *self = Synchronizing;
                         update.params()?;
                         return Ok(());
@@ -382,7 +382,7 @@ impl ServerStateImpl {
                     (PasswordMessage as password) if matches!(auth.auth_type(), AuthType::Plain | AuthType::Md5) => {
                         match auth.drive(ServerAuthDrive::Message(auth.auth_type(), password.password().to_bytes())) {
                             ServerAuthResponse::Complete(..) => {
-                                update.send(BackendBuilder::AuthenticationOk(Default::default()))?;
+                                update.send(&AuthenticationOkBuilder::default())?;
                                 *self = Synchronizing;
                                 update.params()?;
                             }
@@ -403,9 +403,9 @@ impl ServerStateImpl {
                         }
                         match auth.drive(ServerAuthDrive::Message(AuthType::ScramSha256, sasl.response().as_ref())) {
                             ServerAuthResponse::Continue(final_message) => {
-                                update.send(BackendBuilder::AuthenticationSASLContinue(AuthenticationSASLContinueBuilder {
+                                update.send(&AuthenticationSASLContinueBuilder {
                                     data: &final_message,
-                                }))?;
+                                })?;
                             }
                             ServerAuthResponse::Error(e) => {
                                 error!("Authentication error for SASL initial response: {e:?}");
@@ -420,10 +420,10 @@ impl ServerStateImpl {
                     (SASLResponse as sasl) if !auth.is_initial_message() => {
                         match auth.drive(ServerAuthDrive::Message(AuthType::ScramSha256, sasl.response().as_ref())) {
                             ServerAuthResponse::Complete(data) => {
-                                update.send(BackendBuilder::AuthenticationSASLFinal(AuthenticationSASLFinalBuilder {
-                                    data: &data,
-                                }))?;
-                                update.send(BackendBuilder::AuthenticationOk(Default::default()))?;
+                                update.send(&AuthenticationSASLFinalBuilder {
+                                    data,
+                                })?;
+                                update.send(&AuthenticationOkBuilder::default())?;
                                 *self = Synchronizing;
                                 update.params()?;
                             }
@@ -443,19 +443,11 @@ impl ServerStateImpl {
                 });
             }
             (Synchronizing, ConnectionDrive::Parameter(name, value)) => {
-                update.send(BackendBuilder::ParameterStatus(ParameterStatusBuilder {
-                    name: &name,
-                    value: &value,
-                }))?;
+                update.send(&ParameterStatusBuilder { name, value })?;
             }
             (Synchronizing, ConnectionDrive::Ready(pid, key)) => {
-                update.send(BackendBuilder::BackendKeyData(BackendKeyDataBuilder {
-                    pid,
-                    key,
-                }))?;
-                update.send(BackendBuilder::ReadyForQuery(ReadyForQueryBuilder {
-                    status: b'I',
-                }))?;
+                update.send(&BackendKeyDataBuilder { pid, key })?;
+                update.send(&ReadyForQueryBuilder { status: b'I' })?;
                 *self = Ready;
             }
             (_, ConnectionDrive::Fail(error, _)) => {

@@ -209,6 +209,9 @@ impl StructFields {
             if let Some(value) = self.fields[i].field.value {
                 if let Some(fixed_offset) = self.fields[i].fixed_offset {
                     if let Some(constant_size) = self.fields[i].field.meta.constant_size {
+                        if buf.len() < fixed_offset {
+                            return false;
+                        }
                         let buf = buf.split_at(fixed_offset).1;
                         if buf.len() < constant_size {
                             return false;
@@ -274,9 +277,10 @@ impl<T: StructAttributeHasLengthField<true> + StructMeta> StructLength for T {
         if buf.len() < index + std::mem::size_of::<u32>() {
             None
         } else {
-            let len =
-                <u32 as DataType>::decode(&mut &buf[index..index + std::mem::size_of::<u32>()])
-                    .ok()?;
+            let len = <u32 as DecoderFor<'_, u32>>::decode_for(
+                &mut &buf[index..index + std::mem::size_of::<u32>()],
+            )
+            .ok()?;
             Some(index + len as usize)
         }
     }

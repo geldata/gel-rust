@@ -13,6 +13,7 @@ use crate::features::ProtocolVersion;
 
 pub use crate::client_message::{InputLanguage, IoFormat};
 
+#[repr(u8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Cardinality {
     NoResult = 0x6e,

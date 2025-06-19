@@ -1,9 +1,11 @@
 use gel_protocol::new_protocol::{prelude::*, TransactionState};
 use gel_protocol::new_protocol::{
-    AuthenticationRequiredSASLMessageBuilder, AuthenticationSASLContinueBuilder,
-    AuthenticationSASLFinalBuilder, AuthenticationSASLInitialResponse, AuthenticationSASLResponse,
-    ClientHandshake, EdbError, EdgeDBBackendBuilder, ErrorResponseBuilder, Message,
-    ParameterStatusBuilder, ReadyForCommandBuilder, ServerHandshakeBuilder, ServerKeyDataBuilder,
+    Annotation, AuthenticationOkBuilder, AuthenticationRequiredSASLMessageBuilder,
+    AuthenticationSASLContinueBuilder, AuthenticationSASLFinalBuilder,
+    AuthenticationSASLInitialResponse, AuthenticationSASLResponse, ClientHandshake, EdbError,
+    EdgeDBBackendBuilder, ErrorResponseBuilder, IntoEdgeDBBackendBuilder, KeyValue, Message,
+    ParameterStatusBuilder, ProtocolExtension, ReadyForCommandBuilder, ServerHandshakeBuilder,
+    ServerKeyDataBuilder,
 };
 
 use crate::handshake::{ServerAuth, ServerAuthDrive, ServerAuthError, ServerAuthResponse};
@@ -32,7 +34,10 @@ pub enum ConnectionDrive<'a> {
 }
 
 pub trait ConnectionStateSend {
-    fn send(&mut self, message: EdgeDBBackendBuilder) -> Result<(), std::io::Error>;
+    fn send<'a, M>(
+        &mut self,
+        message: impl IntoEdgeDBBackendBuilder<'a, M>,
+    ) -> Result<(), std::io::Error>;
     fn auth(
         &mut self,
         user: String,
@@ -49,8 +54,9 @@ pub trait ConnectionStateUpdate: ConnectionStateSend {
     fn server_error(&mut self, error: &EdbError) {}
 }
 
-#[derive(Debug)]
+#[derive(derive_more::Debug)]
 pub enum ConnectionEvent<'a> {
+    #[debug("Send(...)")]
     Send(EdgeDBBackendBuilder<'a>),
     Auth(String, String, String),
     Params,
@@ -61,10 +67,13 @@ pub enum ConnectionEvent<'a> {
 
 impl<F> ConnectionStateSend for F
 where
-    F: FnMut(ConnectionEvent) -> Result<(), std::io::Error>,
+    F: for<'a> FnMut(ConnectionEvent<'a>) -> Result<(), std::io::Error>,
 {
-    fn send(&mut self, message: EdgeDBBackendBuilder) -> Result<(), std::io::Error> {
-        self(ConnectionEvent::Send(message))
+    fn send<'a, M>(
+        &mut self,
+        message: impl IntoEdgeDBBackendBuilder<'a, M>,
+    ) -> Result<(), std::io::Error> {
+        self(ConnectionEvent::Send(message.into_builder()))
     }
 
     fn auth(
@@ -210,14 +219,14 @@ impl ServerStateImpl {
                         let minor_ver = handshake.minor_ver();
                         match (major_ver, minor_ver) {
                             (..=0, _) => {
-                                update.send(EdgeDBBackendBuilder::ServerHandshake(ServerHandshakeBuilder { major_ver: 1, minor_ver: 0, extensions: &[] }))?;
+                                update.send(&ServerHandshakeBuilder { major_ver: 1, minor_ver: 0, extensions: Array::<_, ProtocolExtension>::default() })?;
                             }
                             (1, 1..) => {
                                 // 1.(1+) never existed
                                 return Err(PROTOCOL_VERSION_ERROR);
                             }
                             (2, 1..) | (3.., _) => {
-                                update.send(EdgeDBBackendBuilder::ServerHandshake(ServerHandshakeBuilder { major_ver: 2, minor_ver: 0, extensions: &[] }))?;
+                                update.send(&ServerHandshakeBuilder { major_ver: 2, minor_ver: 0, extensions: Array::<_, ProtocolExtension>::default() })?;
                             }
                             _ => {}
                         }
@@ -252,14 +261,12 @@ impl ServerStateImpl {
                 let mut auth = ServerAuth::new(username.clone(), auth_type, credential_data);
                 match auth.drive(ServerAuthDrive::Initial) {
                     ServerAuthResponse::Initial(AuthType::ScramSha256, _) => {
-                        update.send(EdgeDBBackendBuilder::AuthenticationRequiredSASLMessage(
-                            AuthenticationRequiredSASLMessageBuilder {
-                                methods: &["SCRAM-SHA-256"],
-                            },
-                        ))?;
+                        update.send(&AuthenticationRequiredSASLMessageBuilder {
+                            methods: &["SCRAM-SHA-256"],
+                        })?;
                     }
                     ServerAuthResponse::Complete(..) => {
-                        update.send(EdgeDBBackendBuilder::AuthenticationOk(Default::default()))?;
+                        update.send(&AuthenticationOkBuilder {})?;
                         *self = Synchronizing;
                         update.params()?;
                         return Ok(());
@@ -274,9 +281,9 @@ impl ServerStateImpl {
                     (AuthenticationSASLInitialResponse as sasl) if auth.is_initial_message() => {
                         match auth.drive(ServerAuthDrive::Message(AuthType::ScramSha256, sasl.sasl_data().as_ref())) {
                             ServerAuthResponse::Continue(final_message) => {
-                                update.send(EdgeDBBackendBuilder::AuthenticationSASLContinue(AuthenticationSASLContinueBuilder {
-                                    sasl_data: &final_message,
-                                }))?;
+                                update.send(&AuthenticationSASLContinueBuilder {
+                                    sasl_data: final_message.as_slice(),
+                                })?;
                             }
                             ServerAuthResponse::Error(e) => return Err(e.into()),
                             _ => return Err(PROTOCOL_ERROR),
@@ -285,10 +292,10 @@ impl ServerStateImpl {
                     (AuthenticationSASLResponse as sasl) if !auth.is_initial_message() => {
                         match auth.drive(ServerAuthDrive::Message(AuthType::ScramSha256, sasl.sasl_data().as_ref())) {
                             ServerAuthResponse::Complete(data) => {
-                                update.send(EdgeDBBackendBuilder::AuthenticationSASLFinal(AuthenticationSASLFinalBuilder {
-                                    sasl_data: &data,
-                                }))?;
-                                update.send(EdgeDBBackendBuilder::AuthenticationOk(Default::default()))?;
+                                update.send(&AuthenticationSASLFinalBuilder {
+                                    sasl_data: data.as_slice(),
+                                })?;
+                                update.send(&AuthenticationOkBuilder::default())?;
                                 *self = Synchronizing;
                                 update.params()?;
                             }
@@ -302,23 +309,17 @@ impl ServerStateImpl {
                 });
             }
             (Synchronizing, ConnectionDrive::Parameter(name, value)) => {
-                update.send(EdgeDBBackendBuilder::ParameterStatus(
-                    ParameterStatusBuilder {
-                        name: name.as_bytes(),
-                        value: value.as_bytes(),
-                    },
-                ))?;
+                update.send(&ParameterStatusBuilder {
+                    name: name.as_bytes(),
+                    value: value.as_bytes(),
+                })?;
             }
             (Synchronizing, ConnectionDrive::Ready(key_data)) => {
-                update.send(EdgeDBBackendBuilder::ServerKeyData(ServerKeyDataBuilder {
-                    data: key_data,
-                }))?;
-                update.send(EdgeDBBackendBuilder::ReadyForCommand(
-                    ReadyForCommandBuilder {
-                        annotations: &[],
-                        transaction_state: TransactionState::NotInTransaction,
-                    },
-                ))?;
+                update.send(&ServerKeyDataBuilder { data: key_data })?;
+                update.send(&ReadyForCommandBuilder {
+                    annotations: Array::<_, Annotation>::default(),
+                    transaction_state: TransactionState::NotInTransaction,
+                })?;
                 *self = Ready;
             }
             (_, ConnectionDrive::Fail(error, _)) => {
@@ -361,12 +362,12 @@ fn send_error(
     message: &str,
 ) -> std::io::Result<()> {
     update.server_error(&code);
-    update.send(EdgeDBBackendBuilder::ErrorResponse(ErrorResponseBuilder {
-        severity: ErrorSeverity::Error as _,
-        error_code: code as i32,
+    update.send(&ErrorResponseBuilder {
+        severity: ErrorSeverity::Error as u8,
+        error_code: code as u32,
         message,
-        attributes: &[],
-    }))
+        attributes: Array::<_, KeyValue>::default(),
+    })
 }
 
 #[allow(unused)]

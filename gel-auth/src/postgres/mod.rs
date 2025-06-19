@@ -94,6 +94,7 @@ mod tests {
     use super::*;
     use crate::*;
     use gel_pg_protocol::errors::*;
+    use gel_pg_protocol::prelude::*;
     use gel_pg_protocol::protocol::*;
     use rstest::rstest;
     use std::collections::VecDeque;
@@ -125,12 +126,20 @@ mod tests {
     }
 
     impl client::ConnectionStateSend for ConnectionPipe {
-        fn send(&mut self, message: FrontendBuilder) -> Result<(), std::io::Error> {
+        fn send<'a, M>(
+            &mut self,
+            message: impl IntoFrontendBuilder<'a, M>,
+        ) -> Result<(), std::io::Error> {
+            let message = message.into_builder();
             eprintln!("Client -> Server {message:?}");
             self.smsg.push_back((false, message.to_vec()));
             Ok(())
         }
-        fn send_initial(&mut self, message: InitialBuilder) -> Result<(), std::io::Error> {
+        fn send_initial<'a, M>(
+            &mut self,
+            message: impl IntoInitialBuilder<'a, M>,
+        ) -> Result<(), std::io::Error> {
+            let message = message.into_builder();
             eprintln!("Client -> Server {message:?}");
             self.smsg.push_back((true, message.to_vec()));
             Ok(())
@@ -159,7 +168,11 @@ mod tests {
             self.sparams = true;
             Ok(())
         }
-        fn send(&mut self, message: BackendBuilder) -> Result<(), std::io::Error> {
+        fn send<'a, M>(
+            &mut self,
+            message: impl IntoBackendBuilder<'a, M>,
+        ) -> Result<(), std::io::Error> {
+            let message = message.into_builder();
             eprintln!("Server -> Client {message:?}");
             self.cmsg.push_back((false, message.to_vec()));
             Ok(())

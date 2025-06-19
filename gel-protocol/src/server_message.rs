@@ -26,19 +26,21 @@ pub enum ServerMessage {
 */
 
 use std::collections::HashMap;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 
 use bytes::{Buf, BufMut, Bytes};
-use snafu::OptionExt;
 use uuid::Uuid;
 
 use crate::common::Capabilities;
 pub use crate::common::{Cardinality, RawTypedesc, State};
 use crate::descriptors::Typedesc;
 use crate::encoding::{Annotations, Decode, Encode, Input, KeyValues, Output};
-use crate::errors::{self, DecodeError, EncodeError};
+use crate::errors::{self, DecodeError, EncodeError, MessageTooLong};
 use crate::features::ProtocolVersion;
-use crate::new_protocol;
+use crate::new_protocol::{
+    self, prelude::EncoderForExt, AnnotationBuilder, ProtocolExtensionBuilder,
+    ServerHandshakeBuilder,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -201,18 +203,8 @@ pub struct RawPacket {
     pub data: Bytes,
 }
 
-fn encode<T: Encode>(buf: &mut Output, code: u8, msg: &T) -> Result<(), EncodeError> {
-    buf.reserve(5);
-    buf.put_u8(code);
-    let base = buf.len();
-    buf.put_slice(&[0; 4]);
-
+fn encode<T: Encode>(buf: &mut Output, msg: &T) -> Result<(), EncodeError> {
     msg.encode(buf)?;
-
-    let size = u32::try_from(buf.len() - base)
-        .ok()
-        .context(errors::MessageTooLong)?;
-    buf[base..base + 4].copy_from_slice(&size.to_be_bytes()[..]);
     Ok(())
 }
 
@@ -232,6 +224,21 @@ impl CommandDataDescription1 {
     pub fn input(&self) -> Result<Typedesc, DecodeError> {
         self.input.decode()
     }
+}
+
+/// Bridges the old and new world.
+fn encode_output<T: 'static>(
+    buf: &mut Output,
+    builder: impl new_protocol::prelude::EncoderFor<T>,
+) -> Result<(), EncodeError> {
+    let len = builder.measure();
+    buf.reserve(len);
+    let len = builder
+        .encode_buffer_uninit(buf.uninit())
+        .map_err(|_| MessageTooLong.build())?
+        .len();
+    unsafe { buf.advance_mut(len) };
+    Ok(())
 }
 
 impl From<CommandDataDescription0> for CommandDataDescription1 {
@@ -269,23 +276,23 @@ impl ServerMessage {
     pub fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
         use ServerMessage::*;
         match self {
-            ServerHandshake(h) => encode(buf, 0x76, h),
-            ErrorResponse(h) => encode(buf, 0x45, h),
-            LogMessage(h) => encode(buf, 0x4c, h),
-            Authentication(h) => encode(buf, 0x52, h),
-            ReadyForCommand(h) => encode(buf, 0x5a, h),
-            ServerKeyData(h) => encode(buf, 0x4b, h),
-            ParameterStatus(h) => encode(buf, 0x53, h),
-            CommandComplete0(h) => encode(buf, 0x43, h),
-            CommandComplete1(h) => encode(buf, 0x43, h),
-            PrepareComplete(h) => encode(buf, 0x31, h),
-            CommandDataDescription0(h) => encode(buf, 0x54, h),
-            CommandDataDescription1(h) => encode(buf, 0x54, h),
-            StateDataDescription(h) => encode(buf, 0x73, h),
-            Data(h) => encode(buf, 0x44, h),
-            RestoreReady(h) => encode(buf, 0x2b, h),
-            DumpHeader(h) => encode(buf, 0x40, h),
-            DumpBlock(h) => encode(buf, 0x3d, h),
+            ServerHandshake(h) => encode(buf, h),
+            ErrorResponse(h) => encode(buf, h),
+            LogMessage(h) => encode(buf, h),
+            Authentication(h) => encode(buf, h),
+            ReadyForCommand(h) => encode(buf, h),
+            ServerKeyData(h) => encode(buf, h),
+            ParameterStatus(h) => encode(buf, h),
+            CommandComplete0(h) => encode(buf, h),
+            CommandComplete1(h) => encode(buf, h),
+            PrepareComplete(h) => encode(buf, h),
+            CommandDataDescription0(h) => encode(buf, h),
+            CommandDataDescription1(h) => encode(buf, h),
+            StateDataDescription(h) => encode(buf, h),
+            Data(h) => encode(buf, h),
+            RestoreReady(h) => encode(buf, h),
+            DumpHeader(h) => encode(buf, h),
+            DumpBlock(h) => encode(buf, h),
 
             UnknownMessage(_, _) => errors::UnknownMessageCantBeEncoded.fail()?,
         }
@@ -338,27 +345,23 @@ impl ServerMessage {
 
 impl Encode for ServerHandshake {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        buf.reserve(6);
-        buf.put_u16(self.major_ver);
-        buf.put_u16(self.minor_ver);
-        buf.put_u16(
-            u16::try_from(self.extensions.len())
-                .ok()
-                .context(errors::TooManyExtensions)?,
-        );
-        for (name, headers) in &self.extensions {
-            name.encode(buf)?;
-            buf.reserve(2);
-            buf.put_u16(
-                u16::try_from(headers.len())
-                    .ok()
-                    .context(errors::TooManyHeaders)?,
-            );
-            for (name, value) in headers {
-                String::encode(name, buf)?;
-                String::encode(value, buf)?;
-            }
-        }
+        let extensions = || {
+            self.extensions.iter().map(|(name, headers)| {
+                let annotations = move || {
+                    headers
+                        .iter()
+                        .map(|(name, value)| AnnotationBuilder { name, value })
+                };
+                ProtocolExtensionBuilder { name, annotations }
+            })
+        };
+        let builder = ServerHandshakeBuilder {
+            major_ver: self.major_ver,
+            minor_ver: self.minor_ver,
+            extensions,
+        };
+
+        encode_output(buf, builder)?;
         Ok(())
     }
 }
@@ -390,20 +393,21 @@ impl Decode for ServerHandshake {
 
 impl Encode for ErrorResponse {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        buf.reserve(11);
-        buf.put_u8(self.severity.to_u8());
-        buf.put_u32(self.code);
-        self.message.encode(buf)?;
-        buf.reserve(2);
-        buf.put_u16(
-            u16::try_from(self.attributes.len())
-                .ok()
-                .context(errors::TooManyHeaders)?,
-        );
-        for (name, value) in &self.attributes {
-            buf.put_u16(*name);
-            value.encode(buf)?;
-        }
+        let builder = new_protocol::ErrorResponseBuilder {
+            severity: self.severity.to_u8(),
+            error_code: self.code,
+            message: &self.message,
+            attributes: || {
+                self.attributes
+                    .iter()
+                    .map(|(name, value)| new_protocol::KeyValueBuilder {
+                        code: *name,
+                        value: value.as_ref(),
+                    })
+            },
+        };
+        encode_output(buf, builder)?;
+
         Ok(())
     }
 }
@@ -429,20 +433,18 @@ impl Decode for ErrorResponse {
 
 impl Encode for LogMessage {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        buf.reserve(11);
-        buf.put_u8(self.severity.to_u8());
-        buf.put_u32(self.code);
-        self.text.encode(buf)?;
-        buf.reserve(2);
-        buf.put_u16(
-            u16::try_from(self.annotations.len())
-                .ok()
-                .context(errors::TooManyHeaders)?,
-        );
-        for (name, value) in &self.annotations {
-            name.encode(buf)?;
-            value.encode(buf)?;
-        }
+        let builder = new_protocol::LogMessageBuilder {
+            severity: self.severity.to_u8(),
+            code: self.code as i32,
+            text: &self.text,
+            annotations: || {
+                self.annotations
+                    .iter()
+                    .map(|(name, value)| new_protocol::AnnotationBuilder { name, value })
+            },
+        };
+        encode_output(buf, builder)?;
+
         Ok(())
     }
 }
@@ -472,30 +474,25 @@ impl Decode for LogMessage {
 impl Encode for Authentication {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
         use Authentication as A;
-        buf.reserve(1);
         match self {
-            A::Ok => buf.put_u32(0),
+            A::Ok => encode_output(buf, new_protocol::AuthenticationOkBuilder {})?,
             A::Sasl { methods } => {
-                buf.put_u32(0x0A);
-                buf.reserve(4);
-                buf.put_u32(
-                    methods
-                        .len()
-                        .try_into()
-                        .ok()
-                        .context(errors::TooManyMethods)?,
-                );
-                for meth in methods {
-                    meth.encode(buf)?;
-                }
+                let builder = new_protocol::AuthenticationRequiredSASLMessageBuilder {
+                    methods: methods.as_slice(),
+                };
+                encode_output(buf, builder)?;
             }
             A::SaslContinue { data } => {
-                buf.put_u32(0x0B);
-                data.encode(buf)?;
+                let builder = new_protocol::AuthenticationSASLContinueBuilder {
+                    sasl_data: data.as_ref(),
+                };
+                encode_output(buf, builder)?;
             }
             A::SaslFinal { data } => {
-                buf.put_u32(0x0C);
-                data.encode(buf)?;
+                let builder = new_protocol::AuthenticationSASLFinalBuilder {
+                    sasl_data: data.as_ref(),
+                };
+                encode_output(buf, builder)?;
             }
         }
         Ok(())
@@ -537,18 +534,21 @@ impl Decode for Authentication {
 
 impl Encode for ReadyForCommand {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        buf.reserve(3);
-        buf.put_u16(
-            u16::try_from(self.annotations.len())
-                .ok()
-                .context(errors::TooManyHeaders)?,
-        );
-        for (name, value) in &self.annotations {
-            String::encode(name, buf)?;
-            String::encode(value, buf)?;
-        }
-        buf.reserve(1);
-        buf.put_u8(self.transaction_state as u8);
+        let builder = new_protocol::ReadyForCommandBuilder {
+            transaction_state: self.transaction_state,
+            annotations: || {
+                self.annotations
+                    .iter()
+                    .map(|(name, value)| new_protocol::AnnotationBuilder { name, value })
+            },
+        };
+        buf.reserve(builder.measure());
+        let len = builder
+            .encode_buffer_uninit(buf.uninit())
+            .map_err(|_| MessageTooLong.build())?
+            .len();
+        unsafe { buf.advance_mut(len) };
+
         Ok(())
     }
 }
@@ -618,7 +618,8 @@ impl MessageSeverity {
 
 impl Encode for ServerKeyData {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        buf.extend(&self.data[..]);
+        let builder = new_protocol::ServerKeyDataBuilder { data: self.data };
+        encode_output(buf, builder)?;
         Ok(())
     }
 }
@@ -635,8 +636,11 @@ impl Decode for ServerKeyData {
 
 impl Encode for ParameterStatus {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        self.name.encode(buf)?;
-        self.value.encode(buf)?;
+        let builder = new_protocol::ParameterStatusBuilder {
+            name: self.name.as_ref(),
+            value: self.value.as_ref(),
+        };
+        encode_output(buf, builder)?;
         Ok(())
     }
 }
@@ -655,18 +659,19 @@ impl Decode for ParameterStatus {
 
 impl Encode for CommandComplete0 {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        buf.reserve(6);
-        buf.put_u16(
-            u16::try_from(self.headers.len())
-                .ok()
-                .context(errors::TooManyHeaders)?,
-        );
-        for (&name, value) in &self.headers {
-            buf.reserve(2);
-            buf.put_u16(name);
-            value.encode(buf)?;
-        }
-        self.status_data.encode(buf)?;
+        let builder = new_protocol::CommandComplete0Builder {
+            headers: || {
+                self.headers
+                    .iter()
+                    .map(|(name, value)| new_protocol::KeyValueBuilder {
+                        code: *name,
+                        value: value.as_ref(),
+                    })
+            },
+            status_data: self.status_data.as_ref(),
+        };
+        encode_output(buf, builder)?;
+
         Ok(())
     }
 }
@@ -690,25 +695,27 @@ impl Decode for CommandComplete0 {
 
 impl Encode for CommandComplete1 {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        buf.reserve(26);
-        buf.put_u16(
-            u16::try_from(self.annotations.len())
-                .ok()
-                .context(errors::TooManyHeaders)?,
-        );
-        for (name, value) in &self.annotations {
-            name.encode(buf)?;
-            value.encode(buf)?;
-        }
-        buf.put_u64(self.capabilities.bits());
-        self.status.encode(buf)?;
-        if let Some(state) = &self.state {
-            state.typedesc_id.encode(buf)?;
-            state.data.encode(buf)?;
-        } else {
-            Uuid::from_u128(0).encode(buf)?;
-            Bytes::new().encode(buf)?;
-        }
+        let builder = new_protocol::CommandCompleteBuilder {
+            annotations: || {
+                self.annotations
+                    .iter()
+                    .map(|(name, value)| new_protocol::AnnotationBuilder { name, value })
+            },
+            capabilities: self.capabilities.bits(),
+            status: &self.status,
+            state_data: self
+                .state
+                .as_ref()
+                .map(|state| state.data.as_ref())
+                .unwrap_or_default(),
+            state_typedesc_id: self
+                .state
+                .as_ref()
+                .map(|state| state.typedesc_id)
+                .unwrap_or_default(),
+        };
+        encode_output(buf, builder)?;
+
         Ok(())
     }
 }
@@ -744,21 +751,20 @@ impl Decode for CommandComplete1 {
 
 impl Encode for PrepareComplete {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        buf.reserve(35);
-        buf.put_u16(
-            u16::try_from(self.headers.len())
-                .ok()
-                .context(errors::TooManyHeaders)?,
-        );
-        for (&name, value) in &self.headers {
-            buf.reserve(2);
-            buf.put_u16(name);
-            value.encode(buf)?;
-        }
-        buf.reserve(33);
-        buf.put_u8(self.cardinality as u8);
-        self.input_typedesc_id.encode(buf)?;
-        self.output_typedesc_id.encode(buf)?;
+        let builder = new_protocol::PrepareComplete0Builder {
+            headers: || {
+                self.headers
+                    .iter()
+                    .map(|(name, value)| new_protocol::KeyValueBuilder {
+                        code: *name,
+                        value: value.as_ref(),
+                    })
+            },
+            cardinality: self.cardinality as u8,
+            input_typedesc_id: self.input_typedesc_id,
+            output_typedesc_id: self.output_typedesc_id,
+        };
+        encode_output(buf, builder)?;
         Ok(())
     }
 }
@@ -785,23 +791,22 @@ impl Decode for PrepareComplete {
 impl Encode for CommandDataDescription0 {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
         debug_assert!(!buf.proto().is_1());
-        buf.reserve(43);
-        buf.put_u16(
-            u16::try_from(self.headers.len())
-                .ok()
-                .context(errors::TooManyHeaders)?,
-        );
-        for (&name, value) in &self.headers {
-            buf.reserve(2);
-            buf.put_u16(name);
-            value.encode(buf)?;
-        }
-        buf.reserve(41);
-        buf.put_u8(self.result_cardinality as u8);
-        self.input.id.encode(buf)?;
-        self.input.data.encode(buf)?;
-        self.output.id.encode(buf)?;
-        self.output.data.encode(buf)?;
+        let builder = new_protocol::CommandDataDescription0Builder {
+            headers: || {
+                self.headers
+                    .iter()
+                    .map(|(name, value)| new_protocol::KeyValueBuilder {
+                        code: *name,
+                        value: value.as_ref(),
+                    })
+            },
+            result_cardinality: self.result_cardinality as u8,
+            input_typedesc_id: self.input.id,
+            input_typedesc: self.input.data.as_ref(),
+            output_typedesc_id: self.output.id,
+            output_typedesc: self.output.data.as_ref(),
+        };
+        encode_output(buf, builder)?;
         Ok(())
     }
 }
@@ -836,24 +841,20 @@ impl Decode for CommandDataDescription0 {
 impl Encode for CommandDataDescription1 {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
         debug_assert!(buf.proto().is_1());
-        buf.reserve(51);
-        buf.put_u16(
-            u16::try_from(self.annotations.len())
-                .ok()
-                .context(errors::TooManyHeaders)?,
-        );
-        for (name, value) in &self.annotations {
-            buf.reserve(4);
-            name.encode(buf)?;
-            value.encode(buf)?;
-        }
-        buf.reserve(49);
-        buf.put_u64(self.capabilities.bits());
-        buf.put_u8(self.result_cardinality as u8);
-        self.input.id.encode(buf)?;
-        self.input.data.encode(buf)?;
-        self.output.id.encode(buf)?;
-        self.output.data.encode(buf)?;
+        let builder = new_protocol::CommandDataDescriptionBuilder {
+            annotations: || {
+                self.annotations
+                    .iter()
+                    .map(|(name, value)| new_protocol::AnnotationBuilder { name, value })
+            },
+            capabilities: self.capabilities.bits(),
+            result_cardinality: self.result_cardinality as u8,
+            input_typedesc_id: self.input.id,
+            input_typedesc: self.input.data.as_ref(),
+            output_typedesc_id: self.output.id,
+            output_typedesc: self.output.data.as_ref(),
+        };
+        encode_output(buf, builder)?;
         Ok(())
     }
 }
@@ -892,8 +893,11 @@ impl Decode for CommandDataDescription1 {
 impl Encode for StateDataDescription {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
         debug_assert!(buf.proto().is_1());
-        self.typedesc.id.encode(buf)?;
-        self.typedesc.data.encode(buf)?;
+        let builder = new_protocol::StateDataDescriptionBuilder {
+            typedesc_id: self.typedesc.id,
+            typedesc: self.typedesc.data.as_ref(),
+        };
+        encode_output(buf, builder)?;
         Ok(())
     }
 }
@@ -915,15 +919,16 @@ impl Decode for StateDataDescription {
 
 impl Encode for Data {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        buf.reserve(2);
-        buf.put_u16(
-            u16::try_from(self.data.len())
-                .ok()
-                .context(errors::TooManyHeaders)?,
-        );
-        for chunk in &self.data {
-            chunk.encode(buf)?;
-        }
+        let builder = new_protocol::DataBuilder {
+            data: || {
+                self.data
+                    .iter()
+                    .map(|chunk| new_protocol::DataElementBuilder {
+                        data: chunk.as_ref(),
+                    })
+            },
+        };
+        encode_output(buf, builder)?;
         Ok(())
     }
 }
@@ -944,19 +949,18 @@ impl Decode for Data {
 
 impl Encode for RestoreReady {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        buf.reserve(4);
-        buf.put_u16(
-            u16::try_from(self.headers.len())
-                .ok()
-                .context(errors::TooManyHeaders)?,
-        );
-        for (&name, value) in &self.headers {
-            buf.reserve(2);
-            buf.put_u16(name);
-            value.encode(buf)?;
-        }
-        buf.reserve(2);
-        buf.put_u16(self.jobs);
+        let builder = new_protocol::RestoreReadyBuilder {
+            headers: || {
+                self.headers
+                    .iter()
+                    .map(|(name, value)| new_protocol::KeyValueBuilder {
+                        code: *name,
+                        value: value.as_ref(),
+                    })
+            },
+            jobs: self.jobs,
+        };
+        encode_output(buf, builder)?;
         Ok(())
     }
 }

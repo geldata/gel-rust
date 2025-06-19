@@ -62,7 +62,7 @@ struct ErrorResponse<'a>: Message {
     /// Message severity.
     severity: u8,
     /// Message code.
-    error_code: i32,
+    error_code: u32,
     /// Error message.
     message: LString<'a>,
     /// Error attributes.
@@ -118,7 +118,7 @@ struct RestoreReady<'a>: Message {
     /// Message headers.
     headers: Array<'a, i16, KeyValue<'a>>,
     /// Number of parallel jobs for restore.
-    jobs: i16,
+    jobs: u16,
 }
 
 /// The `CommandComplete` struct represents a message indicating a command has completed.
@@ -257,6 +257,8 @@ struct Authentication<'a>: Message {
     mlen: len,
     /// The type of authentication message.
     auth_status: i32,
+    /// The authentication data.
+    data: Rest<'a>,
 }
 
 /// The `AuthenticationOk` struct represents a successful authentication message.
@@ -743,7 +745,7 @@ enum TransactionState {
 #[derive(
     Clone, Copy, PartialEq, Eq, derive_more::Debug, derive_more::Error, derive_more::Display,
 )]
-#[repr(i32)]
+#[repr(u32)]
 pub enum EdbError {
     InternalServerError = 0x_01_00_00_00,
     UnsupportedFeatureError = 0x_02_00_00_00,
@@ -830,19 +832,19 @@ pub enum EdbError {
     ServerBlockedError = 0x_08_00_00_04,
     BackendError = 0x_09_00_00_00,
     UnsupportedBackendFeatureError = 0x_09_00_01_00,
-    LogMessage = 0x_F0_00_00_00_u32 as i32,
-    WarningMessage = 0x_F0_01_00_00_u32 as i32,
-    ClientError = 0x_FF_00_00_00_u32 as i32,
-    ClientConnectionError = 0x_FF_01_00_00_u32 as i32,
-    ClientConnectionFailedError = 0x_FF_01_01_00_u32 as i32,
-    ClientConnectionFailedTemporarilyError = 0x_FF_01_01_01_u32 as i32,
-    ClientConnectionTimeoutError = 0x_FF_01_02_00_u32 as i32,
-    ClientConnectionClosedError = 0x_FF_01_03_00_u32 as i32,
-    InterfaceError = 0x_FF_02_00_00_u32 as i32,
-    QueryArgumentError = 0x_FF_02_01_00_u32 as i32,
-    MissingArgumentError = 0x_FF_02_01_01_u32 as i32,
-    UnknownArgumentError = 0x_FF_02_01_02_u32 as i32,
-    InvalidArgumentError = 0x_FF_02_01_03_u32 as i32,
-    NoDataError = 0x_FF_03_00_00_u32 as i32,
-    InternalClientError = 0x_FF_04_00_00_u32 as i32,
+    LogMessage = 0x_F0_00_00_00_u32,
+    WarningMessage = 0x_F0_01_00_00_u32,
+    ClientError = 0x_FF_00_00_00_u32,
+    ClientConnectionError = 0x_FF_01_00_00_u32,
+    ClientConnectionFailedError = 0x_FF_01_01_00_u32,
+    ClientConnectionFailedTemporarilyError = 0x_FF_01_01_01_u32,
+    ClientConnectionTimeoutError = 0x_FF_01_02_00_u32,
+    ClientConnectionClosedError = 0x_FF_01_03_00_u32,
+    InterfaceError = 0x_FF_02_00_00_u32,
+    QueryArgumentError = 0x_FF_02_01_00_u32,
+    MissingArgumentError = 0x_FF_02_01_01_u32,
+    UnknownArgumentError = 0x_FF_02_01_02_u32,
+    InvalidArgumentError = 0x_FF_02_01_03_u32,
+    NoDataError = 0x_FF_03_00_00_u32,
+    InternalClientError = 0x_FF_04_00_00_u32,
 }

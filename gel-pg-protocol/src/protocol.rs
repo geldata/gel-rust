@@ -1017,11 +1017,21 @@ mod tests {
             fields: &[
                 RowFieldBuilder {
                     name: "F1",
-                    ..Default::default()
+                    table_oid: 0,
+                    column_attr_number: 0,
+                    data_type_oid: 0,
+                    data_type_size: 0,
+                    type_modifier: 0,
+                    format_code: FormatCode::Text,
                 },
                 RowFieldBuilder {
                     name: "F2",
-                    ..Default::default()
+                    table_oid: 0,
+                    column_attr_number: 0,
+                    data_type_oid: 0,
+                    data_type_size: 0,
+                    type_modifier: 0,
+                    format_code: FormatCode::Text,
                 },
             ],
         };
@@ -1035,13 +1045,20 @@ mod tests {
                 RowFieldBuilder {
                     name: "F1",
                     column_attr_number: 1,
-                    ..Default::default()
+                    table_oid: 1,
+                    data_type_oid: 0,
+                    data_type_size: 0,
+                    type_modifier: 0,
+                    format_code: FormatCode::Text,
                 },
                 RowFieldBuilder {
                     name: "F2",
                     data_type_oid: 1234,
                     format_code: FormatCode::Binary,
-                    ..Default::default()
+                    table_oid: 2,
+                    column_attr_number: 2,
+                    data_type_size: 0,
+                    type_modifier: 0,
                 },
             ],
         };

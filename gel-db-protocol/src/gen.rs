@@ -172,6 +172,7 @@ macro_rules! __protocol {
         )*
     ) => {
         use $crate::protocol_builder;
+        #[allow(unused)]
         use $crate::prelude::*;
 
         $(
@@ -198,8 +199,12 @@ macro_rules! __protocol {
                 }
 
                 $crate::declare_type!(DataType, $ename, flags=[enum], {
-                    fn decode(buf: [u8; N]) -> Result<Self, ParseError> {
-                        let repr = $repr::from_be_bytes(buf);
+                });
+
+                impl<'a> $crate::prelude::DecoderFor<'a, $ename> for $ename {
+                    fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
+                        let repr = <$repr as $crate::prelude::DecoderFor<$repr>>::decode_for(buf)?;
+
                         match repr {
                             $(
                                 $emvalue => Ok($ename::$emname),
@@ -207,11 +212,19 @@ macro_rules! __protocol {
                             _ => Err(ParseError::InvalidData(stringify!($ename), repr as usize)),
                         }
                     }
-                    fn encode(value: Self) -> [u8; N] {
-                        $repr::to_be_bytes(value as _)
-                    }
-                });
+                }
 
+                impl $crate::prelude::EncoderFor<$ename> for $ename {
+                    fn encode_for(&self, buf: &mut $crate::BufWriter<'_>) {
+                        <$repr as $crate::prelude::EncoderFor<$repr>>::encode_for(&(*self as $repr), buf);
+                    }
+                }
+
+                impl $crate::prelude::EncoderFor<$ename> for &'_ $ename {
+                    fn encode_for(&self, buf: &mut $crate::BufWriter<'_>) {
+                        <$repr as $crate::prelude::EncoderFor<$repr>>::encode_for(&(**self as $repr), buf);
+                    }
+                }
             );
         )*
     };
@@ -235,6 +248,17 @@ macro_rules! r#if {
     };
     (__has__ [] {$($true:tt)*}) => {
     };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! make_static {
+    (type=$ty:ty) => { $crate::type_mapper::map_types!(match $ty {
+        _T<'a> => _T<'static>,
+        _T<'a, _T2> => _T<'static, recurse!(_T2)>,
+        _T<'a, _T2, _T3> => _T<'static, recurse!(_T2), recurse!(_T3)>,
+        _T => _T,
+    }) };
 }
 
 #[doc(hidden)]
@@ -302,12 +326,11 @@ macro_rules! protocol_builder {
                 /// Creates a new instance of this struct from a given buffer.
                 #[inline]
                 pub fn new(mut buf: &'a [u8]) -> Result<Self, ParseError> {
-                    let mut new = $name::<'a>::default();
-                    new.buf = buf;
-                    $(
-                        new.$field = <$type as DataType>::decode(&mut buf)?;
-                    )*
-                    Ok(new)
+                    let res = <$name<'a> as $crate::prelude::DecoderFor<$name<'a>>>::decode_for(&mut buf);
+                    if buf.len() > 0 {
+                        return Err(ParseError::TooLong(buf.len()));
+                    }
+                    res
                 }
 
                 $(
@@ -344,12 +367,6 @@ macro_rules! protocol_builder {
                 $(
                     $field,
                 )*
-            }
-
-            #[allow(unused)]
-            impl $name<'_> {
-                // pub const FIELD_COUNT: usize = [$(stringify!($field)),*].len();
-                // $($(pub const [<$field:upper _VALUE>]: <$type as $crate::prelude::DataType>::WithLifetime<'static> = super::access::FieldAccess::<$type>::constant($value as usize);)?)*
             }
 
             /// Implements a trait containing the fields of the struct, allowing
@@ -391,44 +408,101 @@ macro_rules! protocol_builder {
             impl $crate::prelude::StructAttributeFieldCount<{<$name<'_> as $crate::prelude::StructMeta>::FIELD_COUNT}> for $name<'_> {
             }
 
-            $crate::declare_type!(DataType, $name<'a>, builder: [<$name Builder>] <'a>, flags=[struct],
-            {
-                fn decode(buf: &mut &[u8]) -> Result<Self, ParseError> {
+            $crate::declare_type!(DataType, $name<'a>, builder: [<$name Builder>], flags=[struct], {});
+
+            impl<'a> $crate::prelude::DecoderFor<'a, $name<'a>> for $name<'a> {
+                fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
                     let mut new = $name::default();
+                    let start_buf = *buf;
                     $(
-                        new.$field = <$type as DataType>::decode(buf)?;
+                        new.$field = <$type as $crate::prelude::DecoderFor<$type>>::decode_for(buf)?;
                     )*
+                    new.buf = start_buf;
                     Ok(new)
                 }
-                fn encode(buf: &mut BufWriter, value: &Self) {
-                    // For structs that don't use it
-                    _ = value;
-                    $(
-                        $crate::r#if!(__is_empty__ [$($value)?] {
-                            $crate::r#if!(__is_empty__ [$($auto)?] {
-                                // value is no_value (present in builder)
-                                <$type as DataType>::encode(buf, &value.$field);
-                            } else {
-                                // value is auto (not present in builder)
-                                let auto_offset = buf.size();
-                                <$type as DataType>::encode(buf, &Default::default());
-                            });
-                        } else {
-                            // value is set, not present in builder
-                            <$type as DataType>::encode_usize(buf, $($value)? as usize);
-                        });
-                    )*
+            }
 
-                    $(
-                        $crate::r#if!(__has__ [$($auto)?] {
-                            let len = (buf.size() - auto_offset) as u32;
-                            buf.write_rewind(auto_offset, &len.to_be_bytes());
-                        });
-                    )*
-
+            impl<'a> $crate::prelude::EncoderFor<$name<'static>> for $name<'a> {
+                fn encode_for(&self, buf: &mut $crate::BufWriter<'_>) {
+                    buf.write(&self.buf);
                 }
-            });
+            }
         );
+    };
+
+    (__struct_builder__, $( #[$sdoc:meta] )? struct $orig_name:ident $name:ident<$lt:lifetime> $($use_default:ident)? ($(
+        (
+            docs($sfdoc:expr)
+            name($sfield:ident)
+            type($stype:ty)
+            generic($sgeneric:ident)
+            no_value($sno_value:ident)
+        )
+    )*)
+    fields($({
+        name($field:ident),
+        type($type:ty),
+        value($(value = ($value:expr))? $(no_value = $no_value:ident)? $(auto = $auto:ident)?),
+        docs($fdoc:expr)
+    },)*),
+     ) => {
+        #[derive(Debug, Default)]
+        pub struct $name<$($sgeneric = $crate::make_static!(type=$stype)),*> where $(
+            $sgeneric: $crate::prelude::EncoderFor<$crate::make_static!(type=$stype)>,
+        )* {
+        // Because of how macros may expand in the context of struct
+        // fields, we need to do a * repeat, then a ? repeat and
+        // somehow use $no_value in the remainder of the pattern.
+        $(
+            #[doc = $sfdoc]
+            pub $sfield: $sgeneric,
+        )*
+        }
+
+        impl <$($sgeneric),*> $crate::prelude::BuilderFor for $name<$($sgeneric),*> where $(
+            $sgeneric: $crate::prelude::EncoderFor<$crate::make_static!(type=$stype)>,
+        )* {
+            type Message = $orig_name<'static>;
+        }
+
+        impl <$($sgeneric),*> $crate::prelude::EncoderFor<$orig_name<'static>> for $name<$($sgeneric),*> where $(
+            $sgeneric: $crate::prelude::EncoderFor<$crate::make_static!(type=$stype)>,
+        )* {
+            fn encode_for(&self, buf: &mut $crate::BufWriter<'_>) {
+                #[allow(unused)]
+                let value = self;
+                $(
+                    $crate::r#if!(__is_empty__ [$($value)?] {
+                        $crate::r#if!(__is_empty__ [$($auto)?] {
+                            // value is no_value (present in builder)
+                            $crate::prelude::EncoderFor::<$crate::make_static!(type=$type)>::encode_for(&value.$field, buf);
+                        } else {
+                            // value is auto (not present in builder)
+                            let auto_offset = buf.size();
+                            $crate::prelude::EncoderFor::<$crate::make_static!(type=$type)>::encode_for(&<$type as Default>::default(), buf);
+                        });
+                    } else {
+                        // value is set, not present in builder
+                        <$type as DataType>::encode_usize(buf, $($value)? as usize);
+                    });
+                )*
+
+                $(
+                    $crate::r#if!(__has__ [$($auto)?] {
+                        let len = (buf.size() - auto_offset) as u32;
+                        buf.write_rewind(auto_offset, &len.to_be_bytes());
+                    });
+                )*
+            }
+        }
+
+        impl <$($sgeneric),*> $crate::prelude::EncoderFor<$orig_name<'static>> for &'_ $name<$($sgeneric),*> where $(
+            $sgeneric: $crate::prelude::EncoderFor<$crate::make_static!(type=$stype)>,
+        )* {
+            fn encode_for(&self, buf: &mut $crate::BufWriter<'_>) {
+                <$name<$($sgeneric),*> as $crate::prelude::EncoderFor<$orig_name<'static>>>::encode_for(self, buf);
+            }
+        }
     };
 
     (__builder__, struct $name:ident <$lt:lifetime> {
@@ -444,67 +518,36 @@ macro_rules! protocol_builder {
     }) => {
         $crate::paste!(
             $crate::r#if!(__is_empty__ [$($($no_value)?)*] {
-                $( #[$sdoc] )?
-                // No unfixed-value fields
-                #[derive(Default, Eq, PartialEq)]
-                pub struct [<$name Builder>]<'a> {
-                    __no_fields_use_default: std::marker::PhantomData<&'a ()>
-                }
-
-                impl <'a> std::fmt::Debug for [<$name Builder>]<'a> {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(f, "{}Builder", stringify!($name))
-                    }
-                }
+                $crate::protocol_builder!(__struct_builder__, $( #[$sdoc] )? struct $name [<$name Builder>]<$lt> __use_default_to_construct
+                    ()
+                    fields($({
+                        name($field),
+                        type($type),
+                        value($(value = ($value))? $(no_value = $no_value)? $(auto = $auto)?),
+                        docs($fdoc)
+                    },)*),
+                );
             } else {
-                $( #[$sdoc] )?
-                #[derive(Debug, Default, Eq, PartialEq)]
-                pub struct [<$name Builder>]<$lt> {
+                $crate::protocol_builder!(__struct_builder__, $( #[$sdoc] )? struct $name [<$name Builder>]<$lt>
                     // Because of how macros may expand in the context of struct
                     // fields, we need to do a * repeat, then a ? repeat and
                     // somehow use $no_value in the remainder of the pattern.
-                    $($(
-                        #[doc = $fdoc]
-                        pub $field: $crate::r#if!(__has__ [$no_value] {
-                            <$type as DataType>::BuilderForStruct<$lt>
-                        }),
-                    )?)*
-                }
+                    ($($(
+                        (
+                            docs($fdoc)
+                            name($field)
+                            type($type)
+                            generic([<$field:upper>])
+                            no_value($no_value)
+                        )
+                    )?)*) fields($({
+                        name($field),
+                        type($type),
+                        value($(value = ($value))? $(no_value = $no_value)? $(auto = $auto)?),
+                        docs($fdoc)
+                    },)*),
+                );
             });
-
-            impl [<$name Builder>]<'_> {
-                /// Convert this builder into a vector of bytes. This is generally
-                /// not the most efficient way to perform serialization.
-                #[allow(unused)]
-                pub fn to_vec(&self) -> Vec<u8> {
-                    let mut vec = Vec::with_capacity(256);
-                    let mut buf = $crate::BufWriter::new(&mut vec);
-                    <$name as DataType>::encode(&mut buf, self);
-                    match buf.finish() {
-                        Ok(size) => {
-                            vec.truncate(size);
-                            vec
-                        },
-                        Err(size) => {
-                            vec.resize(size, 0);
-                            let mut buf = $crate::BufWriter::new(&mut vec);
-                            <$name as DataType>::encode(&mut buf, self);
-                            // Will not fail this second time
-                            let size = buf.finish().unwrap();
-                            vec.truncate(size);
-                            vec
-                        }
-                    }
-                }
-
-                #[allow(unused)]
-                pub fn measure(&self) -> usize {
-                    let mut buf = Vec::new();
-                    let mut writer = $crate::BufWriter::new(&mut buf);
-                    <$name as DataType>::encode(&mut writer, self);
-                    writer.finish().unwrap_err()
-                }
-            }
         );
     };
 }
@@ -525,6 +568,8 @@ mod tests {
 
         static_assertions::assert_impl_any!(FixedOnly::<'static>: StructAttributeHasLengthField<false>);
         static_assertions::assert_not_impl_any!(FixedOnly::<'static>: StructAttributeHasLengthField<true>);
+
+        static_assertions::assert_impl_all!(FixedOnly<'static>: DecoderFor<'static, FixedOnly<'static>>, EncoderFor<FixedOnly<'static>>);
     }
 
     mod fixed_only_value {

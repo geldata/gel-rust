@@ -11,7 +11,7 @@ use gel_auth::*;
 use gel_pg_captive::*;
 use gel_pg_protocol::errors::PgServerError;
 use gel_pg_protocol::prelude::StructBuffer;
-use gel_pg_protocol::protocol::{FrontendBuilder, InitialBuilder, Message, SSLResponse};
+use gel_pg_protocol::protocol::{IntoFrontendBuilder, IntoInitialBuilder, Message, SSLResponse};
 use gel_stream::{Connector, RawStream, StreamUpgrade, Target, TlsParameters};
 use rstest::rstest;
 use tokio::io::AsyncWriteExt;
@@ -43,11 +43,19 @@ pub struct ConnectionDriver {
 }
 
 impl ConnectionStateSend for ConnectionDriver {
-    fn send_initial(&mut self, message: InitialBuilder) -> Result<(), std::io::Error> {
+    fn send_initial<'a, M>(
+        &mut self,
+        message: impl IntoInitialBuilder<'a, M>,
+    ) -> Result<(), std::io::Error> {
+        let message = message.into_builder();
         self.send_buffer.extend(message.to_vec());
         Ok(())
     }
-    fn send(&mut self, message: FrontendBuilder) -> Result<(), std::io::Error> {
+    fn send<'a, M>(
+        &mut self,
+        message: impl IntoFrontendBuilder<'a, M>,
+    ) -> Result<(), std::io::Error> {
+        let message = message.into_builder();
         self.send_buffer.extend(message.to_vec());
         Ok(())
     }
@@ -182,7 +190,7 @@ pub async fn connect_raw_ssl(
             }
         }
         if state.read_ssl_response() {
-            let ssl_response = SSLResponse::new(&buffer)?;
+            let ssl_response = SSLResponse::new(&buffer[..n]).unwrap();
             stream = update
                 .drive(
                     &mut state,

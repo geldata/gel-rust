@@ -88,7 +88,10 @@ pub async fn handle_stream_postgres_initial(
             Params => params_ready.store(true, Ordering::SeqCst),
             Send(bytes) => {
                 // TODO: Reduce copies and allocations here
-                send_buf.lock().unwrap().extend_from_slice(&bytes.to_vec());
+                send_buf
+                    .lock()
+                    .unwrap()
+                    .extend_from_slice(bytes.to_vec().as_ref());
             }
             SendSSL(..) => unreachable!(),
             ServerError(e) => {

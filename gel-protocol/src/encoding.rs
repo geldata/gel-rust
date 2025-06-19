@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut, RangeBounds};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
@@ -97,6 +98,9 @@ impl Output<'_> {
     }
     pub fn extend(&mut self, slice: &[u8]) {
         self.bytes.extend(slice)
+    }
+    pub fn uninit(&mut self) -> &mut [MaybeUninit<u8>] {
+        unsafe { self.bytes.chunk_mut().as_uninit_slice_mut() }
     }
 }
 
