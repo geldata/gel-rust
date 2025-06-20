@@ -4,7 +4,7 @@ macro_rules! declare_type {
     // Primitive types (no lifetime, fixed size)
     ($ty:ident) =>
     {
-        $crate::declare_type!($crate::prelude::DataType, $ty, {
+        $crate::declare_type!($crate::prelude::DataType, $ty, flags=[primitive], {
             fn to_usize(value: usize) -> $ty {
                 value as $ty
             }

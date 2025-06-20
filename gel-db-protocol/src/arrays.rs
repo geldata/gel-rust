@@ -315,6 +315,10 @@ mod tests {
         let mut buf = &data[..];
         let result = Array::<u32, u32>::decode_for(&mut buf);
         assert!(result.is_err());
+
+        let mut buf = [].as_slice();
+        let result = Array::<u32, u32>::decode_for(&mut buf);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -332,6 +336,19 @@ mod tests {
 
         let collected: Vec<u8> = array.into_iter().collect();
         assert_eq!(collected, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_zt_array_u32() {
+        // Unlikely, but helps test our primitive fast path
+        let data = vec![0xff, 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xfe, 0xfe, 0];
+
+        let mut buf = &data[..];
+        let array = ZTArray::<u32>::decode_for(&mut buf).unwrap();
+
+        assert_eq!(array.len(), 2);
+        assert!(!array.is_empty());
+        assert_eq!(buf.len(), 0);
     }
 
     #[test]
@@ -359,6 +376,12 @@ mod tests {
         let mut buf = &data[..];
         let result = ZTArray::<u8>::decode_for(&mut buf);
         assert!(result.is_err());
+
+        // Test with empty arrays
+        let mut buf = [].as_slice();
+        assert!(ZTArray::<u8>::decode_for(&mut buf).is_err());
+        assert!(ZTArray::<u32>::decode_for(&mut buf).is_err());
+        assert!(ZTArray::<ZTString>::decode_for(&mut buf).is_err());
     }
 
     #[test]

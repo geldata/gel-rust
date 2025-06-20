@@ -152,6 +152,16 @@ where
     fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
         let len = L::decode_usize(buf)?;
         let orig_buf = *buf;
+        // Primitive types can skip the decode_for call.
+        if T::META.is_primitive {
+            let constant_size = T::META.constant_size.unwrap();
+            let byte_len = constant_size.saturating_mul(len);
+            if buf.len() < byte_len {
+                return Err(ParseError::TooShort);
+            }
+            *buf = &buf[byte_len..];
+            return Ok(Array::new(&orig_buf[..byte_len], len as _));
+        }
         for _ in 0..len {
             T::decode_for(buf)?;
         }
@@ -189,6 +199,25 @@ where
     fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
         let mut orig_buf = *buf;
         let mut len = 0;
+
+        // Primitive types can skip the decode_for call and hunt for the 0 byte.
+        if T::META.is_primitive {
+            let constant_size = T::META.constant_size.unwrap();
+            loop {
+                if buf.is_empty() {
+                    return Err(ParseError::TooShort);
+                }
+                if buf[0] == 0 {
+                    break;
+                }
+                *buf = &buf[constant_size..];
+                len += 1;
+            }
+            *buf = &buf[1..];
+            orig_buf = &orig_buf[0..orig_buf.len() - buf.len() - 1];
+            return Ok(ZTArray::new(&orig_buf, len));
+        }
+
         loop {
             if buf.is_empty() {
                 return Err(crate::prelude::ParseError::TooShort);
@@ -233,6 +262,17 @@ where
 {
     fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
         let orig_buf = *buf;
+        // Primitive types can skip the decode_for call and compute the number of elements
+        // until the end of the buffer.
+        if T::META.is_primitive {
+            let constant_size = T::META.constant_size.unwrap();
+            let len = buf.len() / constant_size;
+            if buf.len() % constant_size != 0 {
+                return Err(ParseError::TooShort);
+            }
+            *buf = &[];
+            return Ok(RestArray::new(orig_buf, len as _));
+        }
         let mut len = 0;
         while !buf.is_empty() {
             T::decode_for(buf)?;
@@ -542,10 +582,12 @@ declare_type!(u8);
 declare_type!(u16);
 declare_type!(u32);
 declare_type!(u64);
+declare_type!(u128);
 declare_type!(i8);
 declare_type!(i16);
 declare_type!(i32);
 declare_type!(i64);
+declare_type!(i128);
 
 declare_type!(f32);
 declare_type!(f64);
