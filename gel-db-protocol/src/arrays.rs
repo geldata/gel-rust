@@ -286,4 +286,93 @@ mod tests {
         assert_eq!(rest_array.get(4), Some(5));
         assert_eq!(rest_array.get(5), None); // Out of bounds
     }
+
+    #[test]
+    fn test_array_u32() {
+        let data = vec![
+            0x00, 0x00, 0x00, 0x03, // Length prefix
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03,
+        ];
+
+        let mut buf = &data[..];
+        let array = Array::<u32, u32>::decode_for(&mut buf).unwrap();
+
+        assert_eq!(array.len(), 3);
+        assert!(!array.is_empty());
+        assert_eq!(buf.len(), 0);
+
+        let collected: Vec<u32> = array.into_iter().collect();
+        assert_eq!(collected, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_array_invalid_length() {
+        let data = vec![
+            0xFF, 0xFF, 0xFF, 0xFF, // Invalid length
+            0x00, 0x00, 0x00, 0x01,
+        ];
+
+        let mut buf = &data[..];
+        let result = Array::<u32, u32>::decode_for(&mut buf);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_zt_array() {
+        let data = vec![
+            0x01, 0x02, 0x03, 0x00, // Zero-terminated array
+        ];
+
+        let mut buf = &data[..];
+        let array = ZTArray::<u8>::decode_for(&mut buf).unwrap();
+
+        assert_eq!(array.len(), 3);
+        assert!(!array.is_empty());
+        assert_eq!(buf.len(), 0);
+
+        let collected: Vec<u8> = array.into_iter().collect();
+        assert_eq!(collected, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_zt_array_string() {
+        let data = vec![
+            b'h', b'e', b'l', b'l', b'o', b'\0', b'w', b'o', b'r', b'l', b'd', b'\0',
+            b'\0', // Zero-terminated array
+        ];
+
+        let mut buf = &data[..];
+        let array = ZTArray::<ZTString>::decode_for(&mut buf).unwrap();
+
+        assert_eq!(array.len(), 2);
+        assert!(!array.is_empty());
+        assert_eq!(buf.len(), 0);
+
+        let collected: Vec<_> = array.into_iter().collect();
+        assert_eq!(collected, vec!["hello", "world"]);
+    }
+
+    #[test]
+    fn test_zt_array_missing_terminator() {
+        let data = vec![0x01, 0x02, 0x03]; // No zero terminator
+
+        let mut buf = &data[..];
+        let result = ZTArray::<u8>::decode_for(&mut buf);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_zt_array_empty() {
+        let data = vec![0x00]; // Just terminator
+
+        let mut buf = &data[..];
+        let array = ZTArray::<u8>::decode_for(&mut buf).unwrap();
+
+        assert_eq!(array.len(), 0);
+        assert!(array.is_empty());
+        assert_eq!(buf.len(), 0);
+
+        let collected: Vec<u8> = array.into_iter().collect();
+        assert_eq!(collected, vec![]);
+    }
 }
