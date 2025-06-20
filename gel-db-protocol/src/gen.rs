@@ -257,6 +257,8 @@ macro_rules! make_static {
         _T<'a> => _T<'static>,
         _T<'a, _T2> => _T<'static, recurse!(_T2)>,
         _T<'a, _T2, _T3> => _T<'static, recurse!(_T2), recurse!(_T3)>,
+        _T<_T2> => _T<recurse!(_T2)>,
+        _T<_T2, _T3> => _T<recurse!(_T2), recurse!(_T3)>,
         _T => _T,
     }) };
 }

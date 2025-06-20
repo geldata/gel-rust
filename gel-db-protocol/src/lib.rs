@@ -11,9 +11,9 @@ mod writer;
 #[doc(hidden)]
 pub mod test_protocol;
 
-pub use arrays::{Array, ArrayIter, ZTArray, ZTArrayIter};
+pub use arrays::{Array, ArrayExt, ArrayIter, RestArray, ZTArray};
 pub use buffer::StructBuffer;
-pub use datatypes::{Encoded, LString, Length, Rest, Uuid, ZTString};
+pub use datatypes::{Encoded, LString, Length, Rest, RestString, Uuid, ZTString};
 pub use writer::BufWriter;
 
 #[doc(inline)]

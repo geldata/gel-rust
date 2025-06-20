@@ -62,6 +62,7 @@ pub struct StructFieldMeta {
     pub is_enum: bool,
     pub is_struct: bool,
     pub is_array: bool,
+    pub is_primitive: bool,
 }
 
 impl StructFieldMeta {
@@ -73,6 +74,7 @@ impl StructFieldMeta {
             is_enum: false,
             is_struct: false,
             is_array: false,
+            is_primitive: false,
         }
     }
 
@@ -100,6 +102,13 @@ impl StructFieldMeta {
     pub const fn set_array(self) -> Self {
         Self {
             is_array: true,
+            ..self
+        }
+    }
+
+    pub const fn set_primitive(self) -> Self {
+        Self {
+            is_primitive: true,
             ..self
         }
     }

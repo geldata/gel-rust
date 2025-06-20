@@ -1,8 +1,8 @@
 use std::mem::MaybeUninit;
 
 use crate::datatypes::*;
-use crate::declare_type;
 use crate::prelude::*;
+use crate::{declare_type, encoder_for_array};
 use uuid::Uuid;
 
 /// All data types must implement this trait. This allows for encoding and
@@ -152,89 +152,34 @@ where
     fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
         let len = L::decode_usize(buf)?;
         let orig_buf = *buf;
+        // Primitive types can skip the decode_for call.
+        if T::META.is_primitive {
+            let constant_size = T::META.constant_size.unwrap();
+            let byte_len = constant_size.saturating_mul(len);
+            if buf.len() < byte_len {
+                return Err(ParseError::TooShort);
+            }
+            *buf = &buf[byte_len..];
+            return Ok(Array::new(&orig_buf[..byte_len], len as _));
+        }
         for _ in 0..len {
             T::decode_for(buf)?;
         }
+        let orig_buf = &orig_buf[0..orig_buf.len() - buf.len()];
         Ok(Array::new(orig_buf, len as _))
     }
 }
 
-impl<L: DataType + 'static, T: DataType + 'static, IT> EncoderFor<Array<'static, L, T>>
-    for &'_ [IT]
-where
-    IT: EncoderFor<T>,
-    T: DecoderFor<'static, T>,
-{
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        let iter = self.into_iter();
-        L::encode_usize(buf, self.len());
-        for elem in iter {
-            IT::encode_for(&elem, buf);
+encoder_for_array!(
+    impl <T, L> for Array<'static, L, T> {
+        fn encode_for(&self, buf: &mut BufWriter<'_>, it: impl ExactSizeIterator) {
+            L::encode_usize(buf, it.len());
+            for elem in it {
+                elem.encode_for(buf);
+            }
         }
     }
-}
-
-impl<L: DataType + 'static, T: DataType + 'static, const N: usize, IT>
-    EncoderFor<Array<'static, L, T>> for [IT; N]
-where
-    IT: EncoderFor<T>,
-    T: DecoderFor<'static, T>,
-{
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        let iter = self.into_iter();
-        L::encode_usize(buf, self.len());
-        for elem in iter {
-            IT::encode_for(&elem, buf);
-        }
-    }
-}
-
-impl<L: DataType + 'static, T: DataType + 'static, const N: usize, IT>
-    EncoderFor<Array<'static, L, T>> for &'_ [IT; N]
-where
-    IT: EncoderFor<T>,
-    T: DecoderFor<'static, T>,
-{
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        let iter = self.into_iter();
-        L::encode_usize(buf, self.len());
-        for elem in iter {
-            IT::encode_for(&elem, buf);
-        }
-    }
-}
-
-impl<'a, L, T, U> EncoderFor<Array<'static, L, T>> for Array<'a, L, U>
-where
-    L: DataType + 'static,
-    U: EncoderFor<T> + DecoderFor<'a, U>,
-    T: DecoderFor<'static, T>,
-{
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        L::encode_usize(buf, self.len());
-        for elem in self.into_iter() {
-            U::encode_for(&elem, buf);
-        }
-    }
-}
-
-impl<L: DataType + 'static, T: DataType + 'static, F, I, II, IT> EncoderFor<Array<'static, L, T>>
-    for F
-where
-    F: Fn() -> I,
-    I: IntoIterator<Item = IT, IntoIter = II>,
-    IT: EncoderFor<T>,
-    II: ExactSizeIterator<Item = IT>,
-    T: DecoderFor<'static, T>,
-{
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        let iter = self().into_iter();
-        L::encode_usize(buf, II::len(&iter));
-        for elem in iter {
-            IT::encode_for(&elem, buf);
-        }
-    }
-}
+);
 
 impl<'a, T: DataType> DataType for ZTArray<'a, T>
 where
@@ -254,12 +199,31 @@ where
     fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
         let mut orig_buf = *buf;
         let mut len = 0;
+
+        // Primitive types can skip the decode_for call and hunt for the 0 byte.
+        if T::META.is_primitive {
+            let constant_size = T::META.constant_size.unwrap();
+            loop {
+                if buf.is_empty() {
+                    return Err(ParseError::TooShort);
+                }
+                if buf[0] == 0 {
+                    break;
+                }
+                *buf = &buf[constant_size..];
+                len += 1;
+            }
+            *buf = &buf[1..];
+            orig_buf = &orig_buf[0..orig_buf.len() - buf.len() - 1];
+            return Ok(ZTArray::new(&orig_buf, len));
+        }
+
         loop {
             if buf.is_empty() {
                 return Err(crate::prelude::ParseError::TooShort);
             }
             if buf[0] == 0 {
-                orig_buf = &orig_buf[0..orig_buf.len() - buf.len() + 1];
+                orig_buf = &orig_buf[0..orig_buf.len() - buf.len()];
                 *buf = &buf[1..];
                 break;
             }
@@ -270,79 +234,63 @@ where
     }
 }
 
-impl<T: DataType + 'static, IT> EncoderFor<ZTArray<'static, T>> for &'_ [IT]
-where
-    IT: EncoderFor<T>,
-    T: DecoderFor<'static, T>,
-{
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        let iter = self.into_iter();
-        for elem in iter {
-            IT::encode_for(&elem, buf);
+encoder_for_array!(
+    impl <T> for ZTArray<'static, T> {
+        fn encode_for(&self, buf: &mut BufWriter<'_>, it: impl Iterator) {
+            for elem in it {
+                elem.encode_for(buf);
+            }
+            buf.write(&[0]);
         }
-        buf.write(&[0]);
+    }
+);
+
+impl<'a, T: DataType> DataType for RestArray<'a, T>
+where
+    T: DecoderFor<'a, T>,
+{
+    const META: StructFieldMeta = declare_meta!(
+        type = RestArray,
+        constant_size = None,
+        flags = [array]
+    );
+}
+
+impl<'a, T: DataType> DecoderFor<'a, RestArray<'a, T>> for RestArray<'a, T>
+where
+    T: DecoderFor<'a, T>,
+{
+    fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
+        let orig_buf = *buf;
+        // Primitive types can skip the decode_for call and compute the number of elements
+        // until the end of the buffer.
+        if T::META.is_primitive {
+            let constant_size = T::META.constant_size.unwrap();
+            let len = buf.len() / constant_size;
+            if buf.len() % constant_size != 0 {
+                return Err(ParseError::TooShort);
+            }
+            *buf = &[];
+            return Ok(RestArray::new(orig_buf, len as _));
+        }
+        let mut len = 0;
+        while !buf.is_empty() {
+            T::decode_for(buf)?;
+            len += 1;
+        }
+        Ok(RestArray::new(orig_buf, len))
     }
 }
 
-impl<T: DataType + 'static, const N: usize, IT> EncoderFor<ZTArray<'static, T>> for [IT; N]
-where
-    IT: EncoderFor<T>,
-    T: DecoderFor<'static, T>,
-{
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        let iter = self.into_iter();
-        for elem in iter {
-            IT::encode_for(&elem, buf);
-        }
-        buf.write(&[0]);
-    }
-}
-
-impl<T: DataType + 'static, const N: usize, IT> EncoderFor<ZTArray<'static, T>> for &'_ [IT; N]
-where
-    IT: EncoderFor<T>,
-    T: DecoderFor<'static, T>,
-{
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        let iter = self.into_iter();
-        for elem in iter {
-            IT::encode_for(&elem, buf);
-        }
-        buf.write(&[0]);
-    }
-}
-
-impl<'a, T, U> EncoderFor<ZTArray<'static, T>> for ZTArray<'a, U>
-where
-    T: DataType + 'static,
-    T: DecoderFor<'static, T>,
-    U: DataType,
-    U: EncoderFor<T>,
-    U: DecoderFor<'a, U>,
-{
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        for elem in self.into_iter() {
-            U::encode_for(&elem, buf);
+encoder_for_array!(
+    impl <T> for RestArray<'static, T> {
+        fn encode_for(&self, buf: &mut BufWriter<'_>, it: impl Iterator) {
+            for elem in it {
+                elem.encode_for(buf);
+            }
         }
     }
-}
-
-impl<T: DataType + 'static, F, I, II, IT> EncoderFor<ZTArray<'static, T>> for F
-where
-    F: Fn() -> I,
-    I: IntoIterator<Item = IT, IntoIter = II>,
-    IT: EncoderFor<T>,
-    II: Iterator<Item = IT>,
-    T: DecoderFor<'static, T>,
-{
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        let iter = self().into_iter();
-        for elem in iter {
-            IT::encode_for(&elem, buf);
-        }
-        buf.write(&[0]);
-    }
-}
+);
 
 impl<const N: usize, T: DataType> DataType for [T; N]
 where
@@ -453,58 +401,32 @@ where
 }
 
 declare_type!(DataType, LString<'a>, builder: &'a str, {});
+declare_type!(DataType, ZTString<'a>, builder: &'a str, {});
+declare_type!(DataType, RestString<'a>, builder: &'a str, {});
 
-impl<'a> DecoderFor<'a, LString<'a>> for LString<'a> {
-    fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
-        let arr = Array::<u32, u8>::decode_for(buf)?;
-        Ok(LString::new(arr.into_slice()))
+impl<'a, A> DecoderFor<'a, ArrayString<'a, A>> for ArrayString<'a, A>
+where
+    A: ArrayExt<'a>,
+    A: DecoderFor<'a, A>,
+    A: DataType,
+    Self: DataType,
+{
+    fn decode_for(buf: &mut &'a [u8]) -> Result<ArrayString<'a, A>, ParseError> {
+        let arr = A::decode_for(buf)?;
+        Ok(ArrayString::new(arr.into_slice()))
     }
 }
 
-impl<T> EncoderFor<LString<'static>> for T
+impl<T, A> EncoderFor<ArrayString<'static, A>> for T
 where
     for<'any> &'any T: AsRef<str>,
+    A: AsRef<[u8]>,
+    A: 'static,
+    for<'any> &'any [u8]: EncoderFor<A>,
 {
     fn encode_for(&self, buf: &mut BufWriter<'_>) {
         let bytes = self.as_ref().as_bytes();
-        EncoderFor::<u32>::encode_for(&(bytes.len() as u32), buf);
-        buf.write(self.as_ref().as_bytes());
-    }
-}
-
-impl<'a> EncoderFor<LString<'static>> for LString<'a> {
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        let bytes = self.to_bytes();
-        EncoderFor::<u32>::encode_for(&(bytes.len() as u32), buf);
-        buf.write(bytes);
-    }
-}
-
-declare_type!(DataType, ZTString<'a>, builder: &'a str, {
-});
-
-impl<'a> DecoderFor<'a, ZTString<'a>> for ZTString<'a> {
-    fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
-        let arr = ZTArray::<u8>::decode_for(buf)?;
-        let slice = arr.into_slice();
-        Ok(ZTString::new(&slice[0..slice.len() - 1]))
-    }
-}
-
-impl<T> EncoderFor<ZTString<'static>> for T
-where
-    for<'any> &'any T: AsRef<str>,
-{
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        buf.write(self.as_ref().as_bytes());
-        buf.write(&[0]);
-    }
-}
-
-impl<'a> EncoderFor<ZTString<'static>> for ZTString<'a> {
-    fn encode_for(&self, buf: &mut BufWriter<'_>) {
-        buf.write(self.to_bytes());
-        buf.write(&[0]);
+        bytes.encode_for(buf);
     }
 }
 
@@ -616,14 +538,56 @@ impl EncoderFor<Uuid> for Uuid {
     }
 }
 
+impl<T> DataType for LengthPrefixed<T>
+where
+    T: DataType,
+{
+    const META: StructFieldMeta = T::META;
+}
+
+impl<'a, T> DecoderFor<'a, LengthPrefixed<T>> for LengthPrefixed<T>
+where
+    T: DecoderFor<'a, T>,
+{
+    fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
+        let len = u32::decode_for(buf)?;
+        if len > buf.len() as u32 {
+            return Err(ParseError::TooShort);
+        }
+        let mut inner_buf = &buf[..len as usize];
+        *buf = &buf[len as usize..];
+        // The inner object must consume the entire buffer.
+        let inner = T::decode_for(&mut inner_buf)?;
+        if inner_buf.len() != 0 {
+            return Err(ParseError::InvalidData("LengthPrefixed", inner_buf.len()));
+        }
+        Ok(LengthPrefixed(inner))
+    }
+}
+
+impl<T, U> EncoderFor<LengthPrefixed<T>> for LengthPrefixed<U>
+where
+    U: EncoderFor<T>,
+    T: 'static,
+{
+    fn encode_for(&self, buf: &mut BufWriter<'_>) {
+        let offset = buf.size();
+        U::encode_for(&self.0, buf);
+        let len = buf.size() - offset;
+        buf.write_rewind(offset, &len.to_be_bytes());
+    }
+}
+
 declare_type!(u8);
 declare_type!(u16);
 declare_type!(u32);
 declare_type!(u64);
+declare_type!(u128);
 declare_type!(i8);
 declare_type!(i16);
 declare_type!(i32);
 declare_type!(i64);
+declare_type!(i128);
 
 declare_type!(f32);
 declare_type!(f64);
