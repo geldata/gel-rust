@@ -1,5 +1,7 @@
-use std::{ops::Add, str::Utf8Error};
+use std::{marker::PhantomData, ops::Add, str::Utf8Error};
 pub use uuid::Uuid;
+
+use crate::{arrays::ArrayExt, Array, ZTArray};
 
 /// Represents the remainder of data in a message.
 #[derive(Copy, Debug, PartialEq, Eq, Default, Clone)]
@@ -17,6 +19,12 @@ impl Rest<'_> {}
 
 impl AsRef<[u8]> for Rest<'_> {
     fn as_ref(&self) -> &[u8] {
+        self.buf
+    }
+}
+
+impl<'a> ArrayExt<'a> for Rest<'a> {
+    fn into_slice(self) -> &'a [u8] {
         self.buf
     }
 }
@@ -47,24 +55,37 @@ impl PartialEq<&[u8]> for Rest<'_> {
 }
 
 /// A zero-terminated string.
+pub type ZTString<'a> = ArrayString<'a, ZTArray<'a, u8>>;
+
+/// A length-prefixed string.
+pub type LString<'a> = ArrayString<'a, Array<'a, u32, u8>>;
+
+/// A string which consumes the remainder of the buffer.
+pub type RestString<'a> = ArrayString<'a, Rest<'a>>;
+
+/// A string, which lives on top of a given array type.
 #[derive(Copy, Clone, Default)]
-pub struct ZTString<'a> {
+pub struct ArrayString<'a, A> {
     buf: &'a [u8],
+    _phantom: PhantomData<A>,
 }
 
-impl std::fmt::Debug for ZTString<'_> {
+impl<A> std::fmt::Debug for ArrayString<'_, A> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         String::from_utf8_lossy(self.buf).fmt(f)
     }
 }
 
-impl<'a> ZTString<'a> {
+impl<'a, A> ArrayString<'a, A> {
     pub fn new(buf: &'a [u8]) -> Self {
-        Self { buf }
+        Self {
+            buf,
+            _phantom: PhantomData,
+        }
     }
 }
 
-impl ZTString<'_> {
+impl<A> ArrayString<'_, A> {
     pub fn to_owned(&self) -> Result<String, std::str::Utf8Error> {
         std::str::from_utf8(self.buf).map(|s| s.to_owned())
     }
@@ -82,88 +103,26 @@ impl ZTString<'_> {
     }
 }
 
-impl PartialEq for ZTString<'_> {
+impl<A> PartialEq for ArrayString<'_, A> {
     fn eq(&self, other: &Self) -> bool {
         self.buf == other.buf
     }
 }
-impl Eq for ZTString<'_> {}
+impl<A> Eq for ArrayString<'_, A> {}
 
-impl PartialEq<str> for ZTString<'_> {
+impl<A> PartialEq<str> for ArrayString<'_, A> {
     fn eq(&self, other: &str) -> bool {
         self.buf == other.as_bytes()
     }
 }
 
-impl PartialEq<&str> for ZTString<'_> {
+impl<A> PartialEq<&str> for ArrayString<'_, A> {
     fn eq(&self, other: &&str) -> bool {
         self.buf == other.as_bytes()
     }
 }
 
-impl<'a> TryInto<&'a str> for ZTString<'a> {
-    type Error = Utf8Error;
-    fn try_into(self) -> Result<&'a str, Self::Error> {
-        std::str::from_utf8(self.buf)
-    }
-}
-
-/// A length-prefixed string.
-#[derive(Copy, Clone, Default)]
-pub struct LString<'a> {
-    buf: &'a [u8],
-}
-
-impl std::fmt::Debug for LString<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        String::from_utf8_lossy(self.buf).fmt(f)
-    }
-}
-
-impl<'a> LString<'a> {
-    pub fn new(buf: &'a [u8]) -> Self {
-        Self { buf }
-    }
-}
-
-impl LString<'_> {
-    pub fn to_owned(&self) -> Result<String, std::str::Utf8Error> {
-        std::str::from_utf8(self.buf).map(|s| s.to_owned())
-    }
-
-    pub fn to_str(&self) -> Result<&str, std::str::Utf8Error> {
-        std::str::from_utf8(self.buf)
-    }
-
-    pub fn to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
-        String::from_utf8_lossy(&self.buf)
-    }
-
-    pub fn to_bytes(&self) -> &[u8] {
-        self.buf
-    }
-}
-
-impl PartialEq for LString<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.buf == other.buf
-    }
-}
-impl Eq for LString<'_> {}
-
-impl PartialEq<str> for LString<'_> {
-    fn eq(&self, other: &str) -> bool {
-        self.buf == other.as_bytes()
-    }
-}
-
-impl PartialEq<&str> for LString<'_> {
-    fn eq(&self, other: &&str) -> bool {
-        self.buf == other.as_bytes()
-    }
-}
-
-impl<'a> TryInto<&'a str> for LString<'a> {
+impl<'a, A> TryInto<&'a str> for ArrayString<'a, A> {
     type Error = Utf8Error;
     fn try_into(self) -> Result<&'a str, Self::Error> {
         std::str::from_utf8(self.buf)
@@ -264,3 +223,19 @@ impl Add<usize> for Length {
         (self.0 as isize + other as isize) as usize
     }
 }
+
+/// A length-prefixed value.
+#[derive(
+    Copy,
+    Clone,
+    Default,
+    derive_more::Debug,
+    derive_more::Display,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    PartialEq,
+    Eq,
+)]
+#[display("{_0}")]
+#[debug("{_0:?}")]
+pub struct LengthPrefixed<T>(pub T);
