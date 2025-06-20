@@ -212,7 +212,7 @@ impl FileAccess for SystemFileAccess {
     }
 
     fn canonicalize(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
-        std::fs::canonicalize(path)
+        dunce::canonicalize(path)
     }
 
     fn list_dir(&self, path: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
