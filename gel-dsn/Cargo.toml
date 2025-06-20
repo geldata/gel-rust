@@ -37,6 +37,7 @@ sha1 = "0.10"
 dirs = "6.0.0"
 whoami = "1.5"
 log = { optional = true, version = "0.4" }
+dunce = "1.0.3"
 
 gel-stream = { path = "../gel-stream", version = "0" }
 gel-errors = { path = "../gel-errors", version = "0" }
