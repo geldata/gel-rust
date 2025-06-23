@@ -8,6 +8,7 @@ docs can currently be found on docs.rs:
 |-------|--------|-------------|
 | [gel-auth](https://docs.rs/gel-auth) | [Source](./gel-auth) | Authentication and authorization for the Gel database. |
 | [gel-derive](https://docs.rs/gel-derive) | [Source](./gel-derive) | Derive macros for Gel database client. |
+| [gel-db-protocol](https://docs.rs/gel-db-protocol) | [Source](./gel-db-protocol) | Low-level protocol implementation of the EdgeDB/Gel wire protocol. |
 | [gel-dsn](https://docs.rs/gel-dsn) | [Source](./gel-dsn) | Data-source name (DSN) parser for Gel and PostgreSQL databases. |
 | [gel-errors](https://docs.rs/gel-errors) | [Source](./gel-errors) | Error types for Gel database client. |
 | [gel-jwt](https://docs.rs/gel-jwt) | [Source](./gel-jwt) | JWT implementation for the Gel database. |
