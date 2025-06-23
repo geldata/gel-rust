@@ -12,7 +12,7 @@ tokio.workspace = true
 gel-stream = { path = "../gel-stream", version = "^0.4.4", features = ["server", "rustls", "pem", "__test_keys"] }
 gel-auth = { path = "../gel-auth", version = "0.1", features = ["postgres", "gel"] }
 gel-pg-protocol = { path = "../gel-pg-protocol", version = "0.1" }
-gel-protocol = { path = "../gel-protocol", version = "0.8.5", features = ["__new-protocol"] }
+gel-db-protocol = { path = "../gel-db-protocol", version = "0.2.0" }
 gel-jwt = { path = "../gel-jwt", version = "0.1", features = ["keygen"] }
 
 hyper = { version = "1.6.0", features = ["full"] }
@@ -34,11 +34,12 @@ hexdump = "0.1.2"
 tracing = "0"
 tracing-subscriber = "0"
 x509-parser = "0.17"
-derive-io = { version = "=0.3.2", features = ["tokio"] }
+derive-io = { version = "=0.5.0", features = ["tokio"] }
 unflatter = "0.1.1"
 consume_on_drop = "0.1.1"
 tokio-util = "0.7"
 static_assertions = "1.1"
+uuid = "1"
 
 [dev-dependencies]
 gel-stream = { path = "../gel-stream", version = "^0.4.4", features = ["client", "__test_keys"] }

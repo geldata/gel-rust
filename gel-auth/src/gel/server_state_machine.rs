@@ -1,11 +1,12 @@
-use gel_protocol::new_protocol::{prelude::*, TransactionState};
-use gel_protocol::new_protocol::{
+use gel_db_protocol::errors::EdbError;
+use gel_db_protocol::prelude::*;
+use gel_db_protocol::protocol::{
     Annotation, AuthenticationOkBuilder, AuthenticationRequiredSASLMessageBuilder,
     AuthenticationSASLContinueBuilder, AuthenticationSASLFinalBuilder,
-    AuthenticationSASLInitialResponse, AuthenticationSASLResponse, ClientHandshake, EdbError,
+    AuthenticationSASLInitialResponse, AuthenticationSASLResponse, ClientHandshake,
     EdgeDBBackendBuilder, ErrorResponseBuilder, IntoEdgeDBBackendBuilder, KeyValue, Message,
     ParameterStatusBuilder, ProtocolExtension, ReadyForCommandBuilder, ServerHandshakeBuilder,
-    ServerKeyDataBuilder,
+    ServerKeyDataBuilder, TransactionState,
 };
 
 use crate::handshake::{ServerAuth, ServerAuthDrive, ServerAuthError, ServerAuthResponse};

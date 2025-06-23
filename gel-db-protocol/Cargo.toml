@@ -1,10 +1,10 @@
 [package]
 name = "gel-db-protocol"
 license = "MIT/Apache-2.0"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2021"
-description = "Macros to make parsing and serializing of PostgreSQL-like protocols easier."
+description = "Low-level protocol implementation of the EdgeDB/Gel wire protocol."
 readme = "README.md"
 rust-version.workspace = true
 
@@ -12,12 +12,12 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+gel-protogen = { path = "../gel-protogen", version= "^0.1.2" }
 paste = "1"
-derive_more = { version = "2", features = ["debug", "display", "deref", "deref_mut", "error"] }
-uuid = "1"
-const-str = "0.6"
-type-mapper = "=0.1.2"
+derive_more = { version = "2", features = ["try_from"] }
 
 [dev-dependencies]
 pretty_assertions = "1.2.0"
-static_assertions = "1.1"
+rand = "0.9"
+
+[lib]

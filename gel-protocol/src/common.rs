@@ -117,17 +117,6 @@ impl Cardinality {
     }
 }
 
-impl std::convert::TryFrom<u8> for InputLanguage {
-    type Error = errors::DecodeError;
-    fn try_from(input_language: u8) -> Result<Self, errors::DecodeError> {
-        match input_language {
-            0x45 => Ok(InputLanguage::EdgeQL),
-            0x53 => Ok(InputLanguage::SQL),
-            _ => Err(errors::InvalidInputLanguage { input_language }.build()),
-        }
-    }
-}
-
 impl State {
     pub fn empty() -> State {
         State {

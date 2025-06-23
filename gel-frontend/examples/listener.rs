@@ -10,11 +10,11 @@ use gel_frontend::listener::BoundServer;
 use gel_frontend::service::{AuthTarget, BabelfishService, ConnectionIdentity, StreamLanguage};
 use gel_frontend::stream::ListenerStream;
 use gel_pg_protocol::prelude::*;
-use gel_protocol::model::Uuid;
 use hyper::Response;
 use tokio::io::ReadBuf;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::trace;
+use uuid::Uuid;
 
 #[derive(Clone, Debug, Default)]
 struct ExampleService {
@@ -52,7 +52,7 @@ impl BabelfishService for ExampleService {
         async move {
             match language {
                 StreamLanguage::EdgeDB => {
-                    use gel_protocol::new_protocol::{
+                    use gel_db_protocol::protocol::{
                         Annotation, CommandDataDescriptionBuilder, Execute, Message, Parse,
                         ReadyForCommandBuilder, Sync, TransactionState,
                     };

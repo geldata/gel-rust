@@ -1,4 +1,4 @@
-pub use gel_protocol::new_protocol::EdbError;
+pub use gel_db_protocol::errors::EdbError;
 
 mod server_state_machine;
 

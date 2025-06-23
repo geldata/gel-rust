@@ -386,7 +386,7 @@ impl Decode for ServerHandshake {
             minor_ver: message.minor_ver(),
             extensions,
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -426,7 +426,7 @@ impl Decode for ErrorResponse {
             message: message.message().to_string_lossy().to_string(),
             attributes,
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -466,7 +466,7 @@ impl Decode for LogMessage {
             text: message.text().to_string_lossy().to_string(),
             annotations,
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -567,7 +567,7 @@ impl Decode for ReadyForCommand {
             annotations,
             transaction_state: message.transaction_state(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -629,7 +629,7 @@ impl Decode for ServerKeyData {
         let decoded = ServerKeyData {
             data: message.data(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -652,7 +652,7 @@ impl Decode for ParameterStatus {
             name: message.name().into_slice().to_owned().into(),
             value: message.value().into_slice().to_owned().into(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -688,7 +688,7 @@ impl Decode for CommandComplete0 {
             headers,
             status_data: message.status_data().into_slice().to_owned().into(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -744,7 +744,7 @@ impl Decode for CommandComplete1 {
                 })
             },
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -783,7 +783,7 @@ impl Decode for PrepareComplete {
             input_typedesc_id: message.input_typedesc_id(),
             output_typedesc_id: message.output_typedesc_id(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -833,7 +833,7 @@ impl Decode for CommandDataDescription0 {
                 data: message.output_typedesc().into_slice().to_owned().into(),
             },
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -885,7 +885,7 @@ impl Decode for CommandDataDescription1 {
                 data: message.output_typedesc().into_slice().to_owned().into(),
             },
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -912,7 +912,7 @@ impl Decode for StateDataDescription {
                 data: message.typedesc().into_slice().to_owned().into(),
             },
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -942,7 +942,7 @@ impl Decode for Data {
         }
 
         let decoded = Data { data };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -977,7 +977,7 @@ impl Decode for RestoreReady {
             headers,
             jobs: message.jobs() as u16,
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }

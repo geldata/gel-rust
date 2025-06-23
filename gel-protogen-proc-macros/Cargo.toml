@@ -1,0 +1,22 @@
+[package]
+name = "gel-protogen-proc-macros"
+license = "MIT/Apache-2.0"
+version = "0.1.2"
+authors = ["MagicStack Inc. <hello@magic.io>"]
+edition = "2021"
+description = "Macros to make parsing and serializing of PostgreSQL-like protocols easier."
+readme = "README.md"
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"
+
+[dev-dependencies]
