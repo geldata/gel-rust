@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs";
+    nixpkgs.url = "github:nixos/nixpkgs/25.05";
     flake-parts.url = "github:hercules-ci/flake-parts";
 
     # provides rust toolchain
@@ -10,15 +10,14 @@
       inputs.rust-analyzer-src.follows = "";
     };
 
-    edgedb = {
-      url = "github:edgedb/packages-nix";
+    gel = {
+      url = "github:geldata/packages-nix";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-parts.follows = "flake-parts";
-      inputs.fenix.follows = "fenix";
     };
   };
 
-  outputs = inputs@{ flake-parts, fenix, edgedb, ... }:
+  outputs = inputs@{ flake-parts, fenix, gel, ... }:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = ["x86_64-linux" "x86_64-darwin" "aarch64-darwin"];
       perSystem = { config, system, pkgs, ... }:
@@ -31,8 +30,8 @@
             pkgs.pkg-config
 
             # needed for tests
-            edgedb.packages.${system}.edgedb-server-nightly
-            edgedb.packages.${system}.edgedb-cli
+            gel.packages.${system}.gel-server
+            gel.packages.${system}.gel-cli
           ]
           ++ pkgs.lib.optional pkgs.stdenv.isDarwin [
             pkgs.libiconv
@@ -46,18 +45,8 @@
             buildInputs = [
               (fenix_pkgs.fromToolchainFile {
                 file = ./rust-toolchain.toml;
-                sha256 = "sha256-3jVIIf5XPnUU1CRaTyAiO0XHVbJl12MSx3eucTXCjtE=";
+                sha256 = "sha256-Hn2uaQzRLidAWpfmRwSRdImifGUCAb9HeAqTYFXWeQk=";
               })
-            ] ++ common;
-          };
-
-          # minimum supported rust version of this crate
-          devShells.minimum = pkgs.mkShell {
-            buildInputs = [
-              (fenix_pkgs.toolchainOf {
-                channel = "1.85"; # keep in sync with ./Cargo.toml rust-version
-                sha256 = "sha256-SXRtAuO4IqNOQq+nLbrsDFbVk+3aVA8NNpSZsKlVH/8=";
-              }).defaultToolchain
             ] ++ common;
           };
 
