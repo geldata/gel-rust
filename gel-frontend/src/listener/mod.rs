@@ -681,18 +681,18 @@ mod tests {
                 // body.extend_from_slice(b"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
                 // body.extend_from_slice(b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00S\x00\x00\x00\x04");
 
-                let mut buf = StructBuffer::<gel_protocol::new_protocol::Message>::default();
+                let mut buf = StructBuffer::<gel_db_protocol::protocol::Message>::default();
                 buf.push(&body, |msg| {
                     let msg = msg.unwrap();
                     match msg.mtype() {
                         b'S' => {
                             let status =
-                                gel_protocol::new_protocol::Sync::new(msg.as_ref()).unwrap();
+                                gel_db_protocol::protocol::Sync::new(msg.as_ref()).unwrap();
                             eprintln!("{status:?}");
                         }
                         b'O' => {
                             let execute =
-                                gel_protocol::new_protocol::Execute::new(msg.as_ref()).unwrap();
+                                gel_db_protocol::protocol::Execute::new(msg.as_ref()).unwrap();
                             eprintln!("{execute:?}");
                         }
                         _ => {

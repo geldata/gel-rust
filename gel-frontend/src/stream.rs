@@ -2,6 +2,7 @@ use crate::{
     hyper::{HyperStream, HyperUpgradedStream},
     stream_type::{PREFACE_SIZE, StreamType, known_protocol},
 };
+use base64::write;
 use consume_on_drop::{Consume, ConsumeOnDrop};
 use gel_stream::{
     Preview, PreviewConfiguration, RawStream, RemoteAddress, ResolvedTarget, StreamUpgrade,

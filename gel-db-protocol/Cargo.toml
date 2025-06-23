@@ -1,0 +1,23 @@
+[package]
+name = "gel-db-protocol"
+license = "MIT/Apache-2.0"
+version = "0.2.0"
+authors = ["MagicStack Inc. <hello@magic.io>"]
+edition = "2021"
+description = "The implementation of the Gel/EdgeDB wire protocol."
+readme = "README.md"
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+gel-protogen = { path = "../gel-protogen", version= "^0.1.2" }
+paste = "1"
+derive_more = { version = "2", features = ["try_from"] }
+
+[dev-dependencies]
+pretty_assertions = "1.2.0"
+rand = "0.9"
+
+[lib]

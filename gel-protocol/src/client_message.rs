@@ -330,7 +330,7 @@ impl Decode for ClientHandshake {
             params,
             extensions,
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -350,7 +350,7 @@ impl Decode for SaslInitialResponse {
             method: message.method().to_string_lossy().to_string(),
             data: message.sasl_data().into_slice().to_owned().into(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -368,7 +368,7 @@ impl Decode for SaslResponse {
         let decoded = SaslResponse {
             data: message.sasl_data().into_slice().to_owned().into(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -403,7 +403,7 @@ impl Decode for ExecuteScript {
             headers,
             script_text: message.script_text().to_string_lossy().to_string(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -446,7 +446,7 @@ impl Decode for Prepare {
             statement_name: message.statement_name().into_slice().to_owned().into(),
             command_text: message.command_text().to_string_lossy().to_string(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -479,7 +479,7 @@ impl Decode for DescribeStatement {
             aspect: message.aspect(),
             statement_name: message.statement_name().into_slice().to_owned().into(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -517,7 +517,7 @@ impl Decode for Execute0 {
             statement_name: message.statement_name().into_slice().to_owned().into(),
             arguments: message.arguments().into_slice().to_owned().into(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -598,7 +598,7 @@ impl Decode for OptimisticExecute {
             output_typedesc_id: message.output_typedesc_id(),
             arguments: message.arguments().into_slice().to_owned().into(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -683,7 +683,7 @@ impl Decode for Execute1 {
                 arguments: message.arguments().into_slice().to_owned().into(),
                 input_language: message.input_language(),
             };
-            buf.advance(message.buf.len());
+            buf.advance(message.as_ref().len());
             Ok(decoded)
         } else {
             let message = new_protocol::Execute2::new(buf)?;
@@ -725,7 +725,7 @@ impl Decode for Execute1 {
                 arguments: message.arguments().into_slice().to_owned().into(),
                 input_language: InputLanguage::EdgeQL,
             };
-            buf.advance(message.buf.len());
+            buf.advance(message.as_ref().len());
             Ok(decoded)
         }
     }
@@ -757,7 +757,7 @@ impl Decode for Dump2 {
         }
 
         let decoded = Dump2 { headers };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -799,7 +799,7 @@ impl Decode for Dump3 {
             annotations: Some(Arc::new(annotations)),
             flags: decode_dump_flags(message.flags())?,
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -836,7 +836,7 @@ impl Decode for Restore {
             jobs: message.jobs(),
             data: message.data().as_ref().to_owned().into(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -854,7 +854,7 @@ impl Decode for RestoreBlock {
         let decoded = RestoreBlock {
             data: message.block_data().into_slice().to_owned().into(),
         };
-        buf.advance(message.buf.len());
+        buf.advance(message.as_ref().len());
         Ok(decoded)
     }
 }
@@ -964,7 +964,7 @@ impl Decode for Parse {
                 state,
                 input_language: message.input_language(),
             };
-            buf.advance(message.buf.len());
+            buf.advance(message.as_ref().len());
             Ok(decoded)
         } else {
             let message = new_protocol::Parse2::new(buf)?;
@@ -1003,7 +1003,7 @@ impl Decode for Parse {
                 state,
                 input_language: InputLanguage::EdgeQL, // Default for non-multilingual
             };
-            buf.advance(message.buf.len());
+            buf.advance(message.as_ref().len());
             Ok(decoded)
         }
     }

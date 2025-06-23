@@ -80,4 +80,4 @@ pub mod query_arg;
 pub use query_result::QueryResult;
 
 #[doc(hidden)]
-pub mod new_protocol;
+use gel_db_protocol::protocol as new_protocol;
