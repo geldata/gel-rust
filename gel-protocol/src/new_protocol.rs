@@ -1,6 +1,6 @@
-use gel_db_protocol::prelude::*;
+use gel_protogen::prelude::*;
 
-pub use gel_db_protocol::prelude;
+pub use gel_protogen::prelude;
 
 message_group!(
     EdgeDBBackend: Message = [

@@ -7,7 +7,6 @@ docs can currently be found on docs.rs:
 | Crate | Source | Description |
 |-------|--------|-------------|
 | [gel-auth](https://docs.rs/gel-auth) | [Source](./gel-auth) | Authentication and authorization for the Gel database. |
-| [gel-db-protocol](https://docs.rs/gel-db-protocol) | [Source](./gel-db-protocol) | Macros to make parsing and serializing of PostgreSQL-like protocols easier. |
 | [gel-derive](https://docs.rs/gel-derive) | [Source](./gel-derive) | Derive macros for Gel database client. |
 | [gel-dsn](https://docs.rs/gel-dsn) | [Source](./gel-dsn) | Data-source name (DSN) parser for Gel and PostgreSQL databases. |
 | [gel-errors](https://docs.rs/gel-errors) | [Source](./gel-errors) | Error types for Gel database client. |
@@ -15,6 +14,7 @@ docs can currently be found on docs.rs:
 | [gel-pg-captive](https://docs.rs/gel-pg-captive) | [Source](./gel-pg-captive) | Run a captive PostgreSQL server for testing purposes. |
 | [gel-pg-protocol](https://docs.rs/gel-pg-protocol) | [Source](./gel-pg-protocol) | The Gel implementation of the PostgreSQL wire protocol. |
 | [gel-protocol](https://docs.rs/gel-protocol) | [Source](./gel-protocol) | Low-level protocol implementation for Gel database client. |
+| [gel-protogen](https://docs.rs/gel-protogen) | [Source](./gel-protogen) | Macros to make parsing and serializing of PostgreSQL-like protocols easier. |
 | [gel-stream](https://docs.rs/gel-stream) | [Source](./gel-stream) | A library for streaming data between clients and servers. |
 | [gel-tokio](https://docs.rs/gel-tokio) | [Source](./gel-tokio) | Gel database client implementation for tokio. |
 

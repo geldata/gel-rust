@@ -1,4 +1,4 @@
-use gel_db_protocol::prelude::*;
+use gel_protogen::prelude::*;
 
 message_group!(
     /// The `Backend` message group contains messages sent from the backend to the frontend.
@@ -749,7 +749,7 @@ enum FormatCode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gel_db_protocol::prelude::{match_message, Encoded, StructBuffer, StructMeta};
+    use gel_protogen::prelude::{match_message, Encoded, StructBuffer, StructMeta};
     use rand::Rng;
 
     /// We want to ensure that no malformed messages will cause unexpected

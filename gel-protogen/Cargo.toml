@@ -1,5 +1,5 @@
 [package]
-name = "gel-db-protocol"
+name = "gel-protogen"
 license = "MIT/Apache-2.0"
 version = "0.1.2"
 authors = ["MagicStack Inc. <hello@magic.io>"]

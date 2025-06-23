@@ -14,7 +14,7 @@ rust-version.workspace = true
 
 [dependencies]
 gel-errors = {path = "../gel-errors", version = "^0.5.4" }
-gel-db-protocol = {path = "../gel-db-protocol", version = "^0.1.2" }
+gel-protogen = {path = "../gel-protogen", version = "^0.1.2" }
 
 bytes = "1.5.0"
 snafu = {version="0.8.0", features=["backtrace"]}
