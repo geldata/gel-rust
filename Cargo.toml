@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "gel-auth",
     "gel-db-protocol",
+    "gel-captive",
     "gel-derive",
     "gel-dsn",
     "gel-errors",
@@ -15,7 +16,7 @@ members = [
     "gel-tokio",
     "examples/globals",
     "examples/query-error",
-    "tests"
+    "tests",
 ]
 
 [profile.release]
@@ -29,5 +30,6 @@ pyo3 = { version = "0.23", features = ["extension-module", "serde", "macros"] }
 
 [workspace.package]
 rust-version = "1.85" # keep in sync with flake.nix
+edition = "2024"
 
 [workspace.lints.clippy]
