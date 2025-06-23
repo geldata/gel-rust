@@ -5,14 +5,12 @@ use bytes::{Bytes, BytesMut};
 use gel_protocol::common::InputLanguage;
 use uuid::Uuid;
 
-use gel_protocol::client_message::OptimisticExecute;
+use gel_protocol::client_message::Execute1;
 use gel_protocol::client_message::Restore;
 use gel_protocol::client_message::SaslInitialResponse;
 use gel_protocol::client_message::SaslResponse;
-use gel_protocol::client_message::{Cardinality, IoFormat, Parse, Prepare};
+use gel_protocol::client_message::{Cardinality, IoFormat, Parse};
 use gel_protocol::client_message::{ClientHandshake, ClientMessage};
-use gel_protocol::client_message::{DescribeAspect, DescribeStatement};
-use gel_protocol::client_message::{Execute0, Execute1, ExecuteScript};
 use gel_protocol::common::{Capabilities, CompilationFlags, State};
 use gel_protocol::encoding::{Input, Output};
 use gel_protocol::features::ProtocolVersion;
@@ -52,35 +50,6 @@ fn client_handshake() -> Result<(), Box<dyn Error>> {
             extensions: HashMap::new(),
         }),
         b"\x56\x00\x00\x00\x0C\x00\x01\x00\x02\x00\x00\x00\x00"
-    );
-    Ok(())
-}
-
-#[test]
-fn execute_script() -> Result<(), Box<dyn Error>> {
-    encoding_eq!(
-        ClientMessage::ExecuteScript(ExecuteScript {
-            headers: HashMap::new(),
-            script_text: String::from("START TRANSACTION"),
-        }),
-        b"Q\0\0\0\x1b\0\0\0\0\0\x11START TRANSACTION"
-    );
-    Ok(())
-}
-
-#[test]
-fn prepare() -> Result<(), Box<dyn Error>> {
-    encoding_eq_ver!(
-        0,
-        13,
-        ClientMessage::Prepare(Prepare {
-            headers: HashMap::new(),
-            io_format: IoFormat::Binary,
-            expected_cardinality: Cardinality::AtMostOne,
-            statement_name: Bytes::from_static(b"example"),
-            command_text: String::from("SELECT 1;"),
-        }),
-        b"P\0\0\0 \0\0bo\0\0\0\x07example\0\0\0\tSELECT 1;"
     );
     Ok(())
 }
@@ -131,34 +100,6 @@ fn parse3() -> Result<(), Box<dyn Error>> {
         }),
         b"P\0\0\0B\0\0\0\0\0\0\0\0\0\x01\0\0\0\0\0\0\0\x02\0\0\0\0\0\0\0MEbo\
           \0\0\0\tSELECT 1;\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-    );
-    Ok(())
-}
-
-#[test]
-fn describe_statement() -> Result<(), Box<dyn Error>> {
-    encoding_eq!(
-        ClientMessage::DescribeStatement(DescribeStatement {
-            headers: HashMap::new(),
-            aspect: DescribeAspect::DataDescription,
-            statement_name: Bytes::from_static(b"example"),
-        }),
-        b"D\0\0\0\x12\0\0T\0\0\0\x07example"
-    );
-    Ok(())
-}
-
-#[test]
-fn execute0() -> Result<(), Box<dyn Error>> {
-    encoding_eq_ver!(
-        0,
-        13,
-        ClientMessage::Execute0(Execute0 {
-            headers: HashMap::new(),
-            statement_name: Bytes::from_static(b"example"),
-            arguments: Bytes::new(),
-        }),
-        b"E\0\0\0\x15\0\0\0\0\0\x07example\0\0\0\0"
     );
     Ok(())
 }
@@ -224,35 +165,8 @@ fn execute3() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn optimistic_execute() -> Result<(), Box<dyn Error>> {
-    encoding_eq_ver!(
-        0,
-        13,
-        ClientMessage::OptimisticExecute(OptimisticExecute {
-            headers: HashMap::new(),
-            io_format: IoFormat::Binary,
-            expected_cardinality: Cardinality::AtMostOne,
-            command_text: String::from("COMMIT"),
-            input_typedesc_id: Uuid::from_u128(0xFF),
-            output_typedesc_id: Uuid::from_u128(0x0),
-            arguments: Bytes::new(),
-        }),
-        b"O\0\0\x006\0\0bo\0\0\0\x06COMMIT\
-               \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xff\
-               \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-    );
-    Ok(())
-}
-
-#[test]
 fn sync() -> Result<(), Box<dyn Error>> {
     encoding_eq!(ClientMessage::Sync, b"S\0\0\0\x04");
-    Ok(())
-}
-
-#[test]
-fn flush() -> Result<(), Box<dyn Error>> {
-    encoding_eq!(ClientMessage::Flush, b"H\0\0\0\x04");
     Ok(())
 }
 

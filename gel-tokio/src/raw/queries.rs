@@ -1,14 +1,11 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use bytes::{Bytes, BytesMut};
 use tokio::time::Instant;
 
 use gel_errors::fields::QueryText;
-use gel_protocol::client_message::OptimisticExecute;
-use gel_protocol::client_message::{ClientMessage, Parse, Prepare};
-use gel_protocol::client_message::{DescribeAspect, DescribeStatement};
-use gel_protocol::client_message::{Execute0, Execute1};
+use gel_protocol::client_message::{ClientMessage, Parse};
+use gel_protocol::client_message::Execute1;
 use gel_protocol::common::CompilationOptions;
 use gel_protocol::common::{Capabilities, Cardinality, InputLanguage, IoFormat};
 use gel_protocol::descriptors::Typedesc;
@@ -16,8 +13,7 @@ use gel_protocol::encoding::Annotations;
 use gel_protocol::features::ProtocolVersion;
 use gel_protocol::model::Uuid;
 use gel_protocol::query_arg::{Encoder, QueryArgs};
-use gel_protocol::server_message::{CommandDataDescription1, PrepareComplete};
-use gel_protocol::server_message::{Data, ServerMessage};
+use gel_protocol::server_message::{CommandDataDescription1, Data, ServerMessage};
 use gel_protocol::QueryResult;
 
 use crate::errors::NoResultExpected;
@@ -79,17 +75,9 @@ impl Connection {
         state: &dyn State,
         annotations: &Arc<Annotations>,
     ) -> Result<CommandDataDescription1, Error> {
-        if self.proto.is_1() {
-            self._parse1(flags, query, state, annotations)
-                .await
-                .map_err(|e| e.set::<QueryText>(query))
-        } else {
-            let pre = self
-                ._prepare0(flags, query)
-                .await
-                .map_err(|e| e.set::<QueryText>(query))?;
-            self._describe0(pre).await
-        }
+        self._parse1(flags, query, state, annotations)
+            .await
+            .map_err(|e| e.set::<QueryText>(query))
     }
     async fn _parse1(
         &mut self,
@@ -135,77 +123,7 @@ impl Connection {
             }
         }
     }
-    async fn _prepare0(
-        &mut self,
-        flags: &CompilationOptions,
-        query: &str,
-    ) -> Result<PrepareComplete, Error> {
-        let guard = self.begin_request()?;
-        self.send_messages(&[
-            ClientMessage::Prepare(Prepare::new(flags, query)),
-            ClientMessage::Sync,
-        ])
-        .await?;
 
-        match self.message().await? {
-            ServerMessage::PrepareComplete(data) => {
-                self.expect_ready(guard).await?;
-                Ok(data)
-            }
-            ServerMessage::ErrorResponse(err) => {
-                self.expect_ready_or_eos(guard)
-                    .await
-                    .map_err(|e| log::warn!("Error waiting for Ready after error: {e:#}"))
-                    .ok();
-                Err(err.into())
-            }
-            msg => Err(ProtocolOutOfOrderError::with_message(format!(
-                "Unsolicited message {msg:?}"
-            ))),
-        }
-    }
-    async fn _describe0(
-        &mut self,
-        prepare: PrepareComplete,
-    ) -> Result<CommandDataDescription1, Error> {
-        let guard = self.begin_request()?;
-        self.send_messages(&[
-            ClientMessage::DescribeStatement(DescribeStatement {
-                headers: HashMap::new(),
-                aspect: DescribeAspect::DataDescription,
-                statement_name: Bytes::from(""),
-            }),
-            ClientMessage::Sync,
-        ])
-        .await?;
-
-        let desc = match self.message().await? {
-            ServerMessage::CommandDataDescription0(data_desc) => {
-                self.expect_ready(guard).await?;
-                data_desc
-            }
-            ServerMessage::ErrorResponse(err) => {
-                self.expect_ready_or_eos(guard)
-                    .await
-                    .map_err(|e| log::warn!("Error waiting for Ready after error: {e:#}"))
-                    .ok();
-                return Err(err.into());
-            }
-            msg => {
-                return Err(ProtocolOutOfOrderError::with_message(format!(
-                    "Unsolicited message {msg:?}"
-                )));
-            }
-        };
-        // normalize CommandDataDescription0 into Parse (proto 1.x) output
-        Ok(CommandDataDescription1 {
-            annotations: HashMap::new(),
-            capabilities: prepare.get_capabilities().unwrap_or(Capabilities::ALL),
-            result_cardinality: prepare.cardinality,
-            input: desc.input,
-            output: desc.output,
-        })
-    }
     async fn _execute(
         &mut self,
         opts: &CompilationOptions,
@@ -215,15 +133,9 @@ impl Connection {
         desc: &CommandDataDescription1,
         arguments: &Bytes,
     ) -> Result<Response<Vec<Data>>, Error> {
-        if self.proto.is_1() {
-            self._execute1(opts, query, state, annotations, desc, arguments)
-                .await
-                .map_err(|e| e.set::<QueryText>(query))
-        } else {
-            self._execute0(arguments)
-                .await
-                .map_err(|e| e.set::<QueryText>(query))
-        }
+        self._execute1(opts, query, state, annotations, desc, arguments)
+            .await
+            .map_err(|e| e.set::<QueryText>(query))
     }
 
     async fn _execute1(
@@ -301,44 +213,6 @@ impl Connection {
         }
     }
 
-    async fn _execute0(&mut self, arguments: &Bytes) -> Result<Response<Vec<Data>>, Error> {
-        let guard = self.begin_request()?;
-        self.send_messages(&[
-            ClientMessage::Execute0(Execute0 {
-                headers: HashMap::new(),
-                statement_name: Bytes::from(""),
-                arguments: arguments.clone(),
-            }),
-            ClientMessage::Sync,
-        ])
-        .await?;
-
-        let mut data = Vec::new();
-        loop {
-            let msg = self.message().await?;
-            match msg {
-                ServerMessage::Data(datum) => {
-                    data.push(datum);
-                }
-                ServerMessage::CommandComplete0(complete) => {
-                    self.expect_ready(guard).await?;
-                    return Ok(Response::new_bytes(complete.status_data, data));
-                }
-                ServerMessage::ErrorResponse(err) => {
-                    self.expect_ready_or_eos(guard)
-                        .await
-                        .map_err(|e| log::warn!("Error waiting for Ready after error: {e:#}"))
-                        .ok();
-                    return Err(err.into());
-                }
-                _ => {
-                    return Err(ProtocolOutOfOrderError::with_message(format!(
-                        "Unsolicited message {msg:?}"
-                    )));
-                }
-            }
-        }
-    }
     pub async fn execute_stream<R, A>(
         &mut self,
         opts: &CompilationOptions,
@@ -362,37 +236,24 @@ impl Connection {
         ))?;
 
         let guard = self.begin_request()?;
-        if self.proto.is_1() {
-            self.send_messages(&[
-                ClientMessage::Execute1(Execute1 {
-                    annotations: self.proto.is_3().then(|| annotations.clone()),
-                    allowed_capabilities: opts.allow_capabilities,
-                    compilation_flags: opts.flags(),
-                    implicit_limit: opts.implicit_limit,
-                    input_language: opts.input_language,
-                    output_format: opts.io_format,
-                    expected_cardinality: opts.expected_cardinality,
-                    command_text: query.into(),
-                    state: state.encode(&self.state_desc)?,
-                    input_typedesc_id: desc.input.id,
-                    output_typedesc_id: desc.output.id,
-                    arguments: arg_buf.freeze(),
-                }),
-                ClientMessage::Sync,
-            ])
-            .await?;
-        } else {
-            // TODO(tailhook) maybe use OptimisticExecute instead?
-            self.send_messages(&[
-                ClientMessage::Execute0(Execute0 {
-                    headers: HashMap::new(),
-                    statement_name: Bytes::from(""),
-                    arguments: arg_buf.freeze(),
-                }),
-                ClientMessage::Sync,
-            ])
-            .await?;
-        }
+        self.send_messages(&[
+            ClientMessage::Execute1(Execute1 {
+                annotations: self.proto.is_3().then(|| annotations.clone()),
+                allowed_capabilities: opts.allow_capabilities,
+                compilation_flags: opts.flags(),
+                implicit_limit: opts.implicit_limit,
+                input_language: opts.input_language,
+                output_format: opts.io_format,
+                expected_cardinality: opts.expected_cardinality,
+                command_text: query.into(),
+                state: state.encode(&self.state_desc)?,
+                input_typedesc_id: desc.input.id,
+                output_typedesc_id: desc.output.id,
+                arguments: arg_buf.freeze(),
+            }),
+            ClientMessage::Sync,
+        ])
+        .await?;
 
         let out_desc = desc.output().map_err(ProtocolEncodingError::with_source)?;
         ResponseStream::new(self, &out_desc, guard).await
@@ -421,38 +282,24 @@ impl Connection {
         ))?;
 
         let guard = self.begin_request()?;
-        if self.proto.is_1() {
-            self.send_messages(&[
-                ClientMessage::Execute1(Execute1 {
-                    annotations: self.proto.is_3().then(|| annotations.clone()),
-                    allowed_capabilities: opts.allow_capabilities,
-                    compilation_flags: opts.flags(),
-                    implicit_limit: opts.implicit_limit,
-                    input_language: opts.input_language,
-                    output_format: opts.io_format,
-                    expected_cardinality: opts.expected_cardinality,
-                    command_text: query.into(),
-                    state: state.encode(&self.state_desc)?,
-                    input_typedesc_id: *input.id(),
-                    output_typedesc_id: *input.id(),
-                    arguments: arg_buf.freeze(),
-                }),
-                ClientMessage::Sync,
-            ])
-            .await?;
-        } else {
-            self.send_messages(&[
-                ClientMessage::OptimisticExecute(OptimisticExecute::new(
-                    opts,
-                    query,
-                    arg_buf.freeze(),
-                    *input.id(),
-                    *output.id(),
-                )),
-                ClientMessage::Sync,
-            ])
-            .await?;
-        }
+        self.send_messages(&[
+            ClientMessage::Execute1(Execute1 {
+                annotations: self.proto.is_3().then(|| annotations.clone()),
+                allowed_capabilities: opts.allow_capabilities,
+                compilation_flags: opts.flags(),
+                implicit_limit: opts.implicit_limit,
+                input_language: opts.input_language,
+                output_format: opts.io_format,
+                expected_cardinality: opts.expected_cardinality,
+                command_text: query.into(),
+                state: state.encode(&self.state_desc)?,
+                input_typedesc_id: *input.id(),
+                output_typedesc_id: *input.id(),
+                arguments: arg_buf.freeze(),
+            }),
+            ClientMessage::Sync,
+        ])
+        .await?;
 
         ResponseStream::new(self, output, guard).await
     }
@@ -463,11 +310,7 @@ impl Connection {
         state: &dyn State,
         annotations: &Arc<Annotations>,
     ) -> Result<(), Error> {
-        if self.proto.is_1() {
-            self._statement1(flags, query, state, annotations).await
-        } else {
-            self._statement0(flags, query).await
-        }
+        self._statement1(flags, query, state, annotations).await
     }
 
     async fn _statement1(
@@ -523,44 +366,7 @@ impl Connection {
             }
         }
     }
-    async fn _statement0(&mut self, flags: &CompilationOptions, query: &str) -> Result<(), Error> {
-        let guard = self.begin_request()?;
-        self.send_messages(&[
-            ClientMessage::OptimisticExecute(OptimisticExecute::new(
-                flags,
-                query,
-                Bytes::new(),
-                Uuid::from_u128(0x0),
-                Uuid::from_u128(0x0),
-            )),
-            ClientMessage::Sync,
-        ])
-        .await?;
-
-        loop {
-            let msg = self.message().await?;
-            match msg {
-                ServerMessage::Data(_) => {}
-                ServerMessage::CommandComplete0(_) => {
-                    self.expect_ready(guard).await?;
-                    return Ok(());
-                }
-                ServerMessage::ErrorResponse(err) => {
-                    self.expect_ready_or_eos(guard)
-                        .await
-                        .map_err(|e| log::warn!("Error waiting for Ready after error: {e:#}"))
-                        .ok();
-                    return Err(err.into());
-                }
-                _ => {
-                    return Err(ProtocolOutOfOrderError::with_message(format!(
-                        "Unsolicited message {msg:?}"
-                    )));
-                }
-            }
-        }
-    }
-
+    
     #[allow(clippy::too_many_arguments)]
     pub async fn query<R, A>(
         &mut self,

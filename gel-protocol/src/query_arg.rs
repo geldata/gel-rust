@@ -196,7 +196,11 @@ impl QueryArg for Value {
                     "named tuple object cannot be query argument",
                 ))
             }
-            Array(v) => v.encode_slot(enc)?,
+            Array(_) => {
+                return Err(ClientEncodingError::with_message(
+                    "array cannot be query argument",
+                ))
+            }
             Enum(v) => v.encode_slot(enc)?,
             Range(v) => v.encode_slot(enc)?,
             Vector(v) => crate::model::VectorRef(v).encode_slot(enc)?,

@@ -110,11 +110,6 @@ impl Connection {
                 ServerMessage::StateDataDescription(d) => {
                     self.state_desc = d.typedesc;
                 }
-                ServerMessage::CommandComplete0(complete) => {
-                    log::info!("Complete in {:?}", start_headers.elapsed());
-                    self.end_request(guard);
-                    return Ok(Response::new_bytes(complete.status_data, ()));
-                }
                 ServerMessage::CommandComplete1(complete) => {
                     log::info!("Complete in {:?}", start_headers.elapsed());
                     self.end_request(guard);
@@ -214,19 +209,8 @@ impl DumpStream<'_> {
         match &self.state {
             DumpState::Header(_) | DumpState::Blocks => match self.conn.message().await {
                 Ok(ServerMessage::DumpBlock(packet)) => Some(packet),
-                Ok(ServerMessage::CommandComplete0(complete))
-                    if self.guard.is_some() && !self.conn.proto.is_1() =>
-                {
-                    let guard = self.guard.take().unwrap();
-                    if let Err(e) = self.conn.expect_ready(guard).await {
-                        self.state = DumpState::Error(e)
-                    } else {
-                        self.state = DumpState::Complete(Response::new_bytes(complete.status_data, ()));
-                    }
-                    None
-                }
                 Ok(ServerMessage::CommandComplete1(complete))
-                    if self.guard.is_some() && self.conn.proto.is_1() =>
+                    if self.guard.is_some() =>
                 {
                     let guard = self.guard.take().unwrap();
                     if let Err(e) = self.conn.expect_ready(guard).await {

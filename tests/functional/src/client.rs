@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use futures_util::stream::{self, StreamExt};
 use gel_errors::NoDataError;
+use gel_protocol::codec::{ObjectShape, ShapeElement};
+use gel_protocol::common::Cardinality;
 use gel_protocol::model::{Json, Uuid};
 use gel_protocol::named_args;
 use gel_protocol::value::{EnumValue, Value};
@@ -179,6 +181,85 @@ async fn json() -> anyhow::Result<()> {
     let res = res.into_iter().next().unwrap();
     assert_eq!(res.phone, "0123456789");
     assert_eq!(res.otp, 98271);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn array_of_tuples() -> anyhow::Result<()> {
+    let client = Client::new(&SERVER.config);
+    client.ensure_connected().await?;
+
+    let res = client
+        .query_required_single::<Value, _>(
+            "select <array<tuple<int32, int32>>>[(1, 2), (3, 4)]",
+            &(),
+        )
+        .await
+        .unwrap();
+    let Value::Array(res) = res else { panic!() };
+    assert_eq!(
+        res,
+        vec![
+            Value::Tuple(vec![Value::Int32(1), Value::Int32(2)]),
+            Value::Tuple(vec![Value::Int32(3), Value::Int32(4)])
+        ]
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn array_of_tuple_param() -> anyhow::Result<()> {
+    let client = Client::new(&SERVER.config);
+    client.ensure_connected().await?;
+    let arr = Value::Object {
+        shape: ObjectShape::new(vec![ShapeElement {
+            name: "0".to_string(),
+            flag_implicit: false,
+            flag_link_property: false,
+            flag_link: false,
+            cardinality: Some(Cardinality::One),
+        }]),
+        fields: vec![Some(Value::Array(vec![Value::Tuple(vec![
+            Value::Int32(1),
+            Value::Int32(2),
+        ])]))],
+    };
+    let res = client
+        .query_required_single::<Value, _>("select <array<tuple<int32, int32>>>$0", &arr)
+        .await
+        .unwrap();
+    let Value::Array(res) = res else { panic!() };
+    assert_eq!(
+        res,
+        vec![Value::Tuple(vec![Value::Int32(1), Value::Int32(2)])]
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn array_of_tuple_empty() -> anyhow::Result<()> {
+    let client = Client::new(&SERVER.config);
+    client.ensure_connected().await?;
+    let arr = Value::Object {
+        shape: ObjectShape::new(vec![ShapeElement {
+            name: "0".to_string(),
+            flag_implicit: false,
+            flag_link_property: false,
+            flag_link: false,
+            cardinality: Some(Cardinality::One),
+        }]),
+        fields: vec![Some(Value::Array(vec![]))],
+    };
+
+    let res = client
+        .query_required_single::<Value, _>("select <array<tuple<int32, int32>>>$0", &arr)
+        .await
+        .unwrap();
+    let Value::Array(res) = res else { panic!() };
+    assert_eq!(res, vec![]);
 
     Ok(())
 }

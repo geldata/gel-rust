@@ -4,7 +4,7 @@ use std::mem;
 use bytes::Bytes;
 use gel_errors::ProtocolEncodingError;
 use gel_errors::{Error, ErrorKind};
-use gel_errors::{ParameterTypeMismatchError, ProtocolOutOfOrderError};
+use gel_errors::ProtocolOutOfOrderError;
 use gel_protocol::annotations::Warning;
 use gel_protocol::common::State;
 use gel_protocol::descriptors::Typedesc;
@@ -61,7 +61,7 @@ where
                     buffer = Reading(datum.data.into());
                     break;
                 }
-                ServerMessage::CommandComplete1(complete) if connection.proto.is_1() => {
+                ServerMessage::CommandComplete1(complete) => {
                     let guard = guard.take().unwrap();
                     connection.expect_ready(guard).await?;
                     buffer = Complete {
@@ -70,24 +70,8 @@ where
                     };
                     break;
                 }
-                ServerMessage::CommandComplete0(complete) if !connection.proto.is_1() => {
-                    let guard = guard.take().unwrap();
-                    connection.expect_ready(guard).await?;
-                    buffer = Complete {
-                        status: String::from_utf8_lossy(complete.status_data.as_ref()).to_string(),
-                        new_state: None,
-                    };
-                    break;
-                }
-                ServerMessage::CommandDataDescription1(desc) if connection.proto.is_1() => {
+                ServerMessage::CommandDataDescription1(desc) => {
                     description = Some(desc);
-                }
-                ServerMessage::CommandDataDescription0(desc) if !connection.proto.is_1() => {
-                    let guard = guard.take().unwrap();
-                    connection.expect_ready(guard).await?;
-                    let err = ParameterTypeMismatchError::build()
-                        .set::<Description>(CommandDataDescription1::from(desc));
-                    return Err(err);
                 }
                 ServerMessage::ErrorResponse(err) => {
                     let guard = guard.take().unwrap();
@@ -161,21 +145,11 @@ where
                 }
                 Ok(ServerMessage::Data(_)) if self.state.is_some() => {}
                 Ok(ServerMessage::CommandComplete1(complete))
-                    if self.guard.is_some() && self.connection.proto.is_1() =>
+                    if self.guard.is_some()  =>
                 {
                     self.buffer = Complete {
                         status: complete.status,
                         new_state: complete.state,
-                    };
-                    self.expect_ready().await;
-                    return;
-                }
-                Ok(ServerMessage::CommandComplete0(complete))
-                    if self.guard.is_some() && !self.connection.proto.is_1() =>
-                {
-                    self.buffer = Complete {
-                        status: String::from_utf8_lossy(complete.status_data.as_ref()).to_string(),
-                        new_state: None,
                     };
                     self.expect_ready().await;
                     return;
@@ -232,22 +206,12 @@ where
                     buffer.extend(datum.data);
                 }
                 Ok(ServerMessage::CommandComplete1(complete))
-                    if self.guard.is_some() && self.connection.proto.is_1() =>
+                    if self.guard.is_some()  =>
                 {
                     self.expect_ready().await;
                     self.buffer = Complete {
                         status: complete.status,
                         new_state: complete.state,
-                    };
-                    return None;
-                }
-                Ok(ServerMessage::CommandComplete0(complete))
-                    if self.guard.is_some() && !self.connection.proto.is_1() =>
-                {
-                    self.expect_ready().await;
-                    self.buffer = Complete {
-                        status: String::from_utf8_lossy(complete.status_data.as_ref()).to_string(),
-                        new_state: None,
                     };
                     return None;
                 }
