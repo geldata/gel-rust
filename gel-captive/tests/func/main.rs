@@ -1,6 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 #[test]
+#[cfg(not(target_family = "windows"))]
 fn test_01() {
     let builder = gel_captive::ServerBuilder::new();
     let process = builder.start();
