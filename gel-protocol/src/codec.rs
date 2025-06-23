@@ -1384,10 +1384,13 @@ impl Codec for Array {
             _ => Err(errors::invalid_value(type_name::<Self>(), val))?,
         };
         if items.is_empty() {
-            buf.reserve(12);
-            buf.put_u32(0); // ndims
+            // Encoding with the short form causes errors in server < 7
+            buf.reserve(20);
+            buf.put_u32(1); // ndims
             buf.put_u32(0); // reserved0
             buf.put_u32(0); // reserved1
+            buf.put_u32(0);
+            buf.put_u32(1);
             return Ok(());
         }
         buf.reserve(20);

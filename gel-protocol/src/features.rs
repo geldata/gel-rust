@@ -20,9 +20,6 @@ impl ProtocolVersion {
     pub fn version_tuple(&self) -> (u16, u16) {
         (self.major_ver, self.minor_ver)
     }
-    pub fn is_1(&self) -> bool {
-        self.major_ver >= 1
-    }
     pub fn is_2(&self) -> bool {
         self.major_ver >= 2
     }
@@ -39,8 +36,8 @@ impl ProtocolVersion {
         // Some of pre 1.0 protocols required implicit id.
         // Later it was opt out. In 1.0 it's opt-in.
         // We never opt-in or opt-out so whether it's present only on pre 1.0
-        // portocols.
-        !self.is_1()
+        // protocols.
+        false
     }
     pub fn is_multilingual(&self) -> bool {
         self.is_at_least(3, 0)

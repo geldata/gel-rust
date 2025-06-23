@@ -9,14 +9,14 @@ use gel_protocol::common::{Capabilities, RawTypedesc};
 use gel_protocol::encoding::{Input, Output};
 use gel_protocol::features::ProtocolVersion;
 use gel_protocol::server_message::Authentication;
+use gel_protocol::server_message::Cardinality;
+use gel_protocol::server_message::CommandComplete1;
 use gel_protocol::server_message::CommandDataDescription1;
+use gel_protocol::server_message::Data;
 use gel_protocol::server_message::RestoreReady;
 use gel_protocol::server_message::ServerHandshake;
 use gel_protocol::server_message::ServerMessage;
 use gel_protocol::server_message::StateDataDescription;
-use gel_protocol::server_message::{Cardinality, PrepareComplete};
-use gel_protocol::server_message::{CommandComplete0, CommandComplete1};
-use gel_protocol::server_message::{CommandDataDescription0, Data};
 use gel_protocol::server_message::{ErrorResponse, ErrorSeverity};
 use gel_protocol::server_message::{LogMessage, MessageSeverity};
 use gel_protocol::server_message::{ParameterStatus, ServerKeyData};
@@ -127,20 +127,6 @@ fn parameter_status() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn command_complete0() -> Result<(), Box<dyn Error>> {
-    encoding_eq_ver!(
-        0,
-        13,
-        ServerMessage::CommandComplete0(CommandComplete0 {
-            headers: HashMap::new(),
-            status_data: Bytes::from_static(b"okay"),
-        }),
-        b"C\0\0\0\x0e\0\0\0\0\0\x04okay"
-    );
-    Ok(())
-}
-
-#[test]
 fn command_complete1() -> Result<(), Box<dyn Error>> {
     encoding_eq_ver!(
         1,
@@ -154,82 +140,6 @@ fn command_complete1() -> Result<(), Box<dyn Error>> {
         b"C\0\0\0*\0\0\0\0\0\0\0\0\0\x01\0\0\0\x04okay\
           \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\
           \0\0\0\0"
-    );
-    Ok(())
-}
-
-#[test]
-fn prepare_complete() -> Result<(), Box<dyn Error>> {
-    encoding_eq!(
-        ServerMessage::PrepareComplete(PrepareComplete {
-            headers: HashMap::new(),
-            cardinality: Cardinality::AtMostOne,
-            input_typedesc_id: Uuid::from_u128(0xFF),
-            output_typedesc_id: Uuid::from_u128(0x105),
-        }),
-        b"1\0\0\0'\0\0o\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xff\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\x05"
-    );
-    encoding_eq!(
-        ServerMessage::PrepareComplete(PrepareComplete {
-            headers: HashMap::new(),
-            cardinality: Cardinality::NoResult,
-            input_typedesc_id: Uuid::from_u128(0xFF),
-            output_typedesc_id: Uuid::from_u128(0x0),
-        }),
-        b"1\0\0\0'\0\0n\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xff\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-    );
-    Ok(())
-}
-
-#[test]
-fn command_data_description0() -> Result<(), Box<dyn Error>> {
-    encoding_eq_ver!(
-        0,
-        13,
-        ServerMessage::CommandDataDescription0(CommandDataDescription0 {
-            headers: HashMap::new(),
-            result_cardinality: Cardinality::AtMostOne,
-            input: RawTypedesc {
-                proto: ProtocolVersion::new(0, 13),
-                id: Uuid::from_u128(0xFF),
-                data: Bytes::from_static(b"\x04\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xff\0\0"),
-            },
-            output: RawTypedesc {
-                proto: ProtocolVersion::new(0, 13),
-                id: Uuid::from_u128(0x105),
-                data: Bytes::from_static(b"\x02\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\x05"),
-            },
-        }),
-        bconcat!(b"T\0\0\0S\0\0o"
-                     b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xff"
-                     b"\0\0\0\x13"
-                     b"\x04\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xff\0"
-                     b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\x05"
-                     b"\0\0\0\x11"
-                     b"\x02\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\x05")
-    );
-    encoding_eq_ver!(
-        0,
-        13,
-        ServerMessage::CommandDataDescription0(CommandDataDescription0 {
-            headers: HashMap::new(),
-            result_cardinality: Cardinality::NoResult,
-            input: RawTypedesc {
-                proto: ProtocolVersion::new(0, 13),
-                id: Uuid::from_u128(0xFF),
-                data: Bytes::from_static(b"\x04\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xff\0\0"),
-            },
-            output: RawTypedesc {
-                proto: ProtocolVersion::new(0, 13),
-                id: Uuid::from_u128(0),
-                data: Bytes::from_static(b""),
-            },
-        }),
-        bconcat!(b"T\0\0\0B\0\0n"
-                     b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xff"
-                     b"\0\0\0\x13"
-                     b"\x04\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xff\0"
-                     b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0")
     );
     Ok(())
 }

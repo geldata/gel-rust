@@ -46,10 +46,8 @@ use crate::new_protocol::{
 #[non_exhaustive]
 pub enum ServerMessage {
     Authentication(Authentication),
-    CommandComplete0(CommandComplete0),
     CommandComplete1(CommandComplete1),
-    CommandDataDescription0(CommandDataDescription0), // protocol < 1.0
-    CommandDataDescription1(CommandDataDescription1), // protocol >= 1.0
+    CommandDataDescription1(CommandDataDescription1),
     StateDataDescription(StateDataDescription),
     Data(Data),
     // Don't decode Dump packets here as we only need to process them as
@@ -64,7 +62,6 @@ pub enum ServerMessage {
     ServerHandshake(ServerHandshake),
     ServerKeyData(ServerKeyData),
     UnknownMessage(u8, Bytes),
-    PrepareComplete(PrepareComplete),
 }
 
 pub use crate::new_protocol::TransactionState;
@@ -136,12 +133,6 @@ pub struct ParameterStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommandComplete0 {
-    pub headers: KeyValues,
-    pub status_data: Bytes,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandComplete1 {
     pub annotations: Annotations,
     pub capabilities: Capabilities,
@@ -150,27 +141,11 @@ pub struct CommandComplete1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PrepareComplete {
-    pub headers: KeyValues,
-    pub cardinality: Cardinality,
-    pub input_typedesc_id: Uuid,
-    pub output_typedesc_id: Uuid,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseComplete {
     pub headers: KeyValues,
     pub cardinality: Cardinality,
     pub input_typedesc_id: Uuid,
     pub output_typedesc_id: Uuid,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommandDataDescription0 {
-    pub headers: KeyValues,
-    pub result_cardinality: Cardinality,
-    pub input: RawTypedesc,
-    pub output: RawTypedesc,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -208,15 +183,6 @@ fn encode<T: Encode>(buf: &mut Output, msg: &T) -> Result<(), EncodeError> {
     Ok(())
 }
 
-impl CommandDataDescription0 {
-    pub fn output(&self) -> Result<Typedesc, DecodeError> {
-        self.output.decode()
-    }
-    pub fn input(&self) -> Result<Typedesc, DecodeError> {
-        self.input.decode()
-    }
-}
-
 impl CommandDataDescription1 {
     pub fn output(&self) -> Result<Typedesc, DecodeError> {
         self.output.decode()
@@ -239,18 +205,6 @@ fn encode_output<T: 'static>(
         .len();
     unsafe { buf.advance_mut(len) };
     Ok(())
-}
-
-impl From<CommandDataDescription0> for CommandDataDescription1 {
-    fn from(value: CommandDataDescription0) -> Self {
-        Self {
-            annotations: HashMap::new(),
-            capabilities: decode_capabilities0(&value.headers).unwrap_or(Capabilities::ALL),
-            result_cardinality: value.result_cardinality,
-            input: value.input,
-            output: value.output,
-        }
-    }
 }
 
 impl StateDataDescription {
@@ -283,10 +237,7 @@ impl ServerMessage {
             ReadyForCommand(h) => encode(buf, h),
             ServerKeyData(h) => encode(buf, h),
             ParameterStatus(h) => encode(buf, h),
-            CommandComplete0(h) => encode(buf, h),
             CommandComplete1(h) => encode(buf, h),
-            PrepareComplete(h) => encode(buf, h),
-            CommandDataDescription0(h) => encode(buf, h),
             CommandDataDescription1(h) => encode(buf, h),
             StateDataDescription(h) => encode(buf, h),
             Data(h) => encode(buf, h),
@@ -317,25 +268,12 @@ impl ServerMessage {
             0x5a => ReadyForCommand::decode(buf).map(M::ReadyForCommand)?,
             0x4b => ServerKeyData::decode(buf).map(M::ServerKeyData)?,
             0x53 => ParameterStatus::decode(buf).map(M::ParameterStatus)?,
-            0x43 => {
-                if buf.proto().is_1() {
-                    CommandComplete1::decode(buf).map(M::CommandComplete1)?
-                } else {
-                    CommandComplete0::decode(buf).map(M::CommandComplete0)?
-                }
-            }
-            0x31 => PrepareComplete::decode(buf).map(M::PrepareComplete)?,
+            0x43 => CommandComplete1::decode(buf).map(M::CommandComplete1)?,
             0x44 => Data::decode(buf).map(M::Data)?,
             0x2b => RestoreReady::decode(buf).map(M::RestoreReady)?,
             0x40 => RawPacket::decode(buf).map(M::DumpHeader)?,
             0x3d => RawPacket::decode(buf).map(M::DumpBlock)?,
-            0x54 => {
-                if buf.proto().is_1() {
-                    CommandDataDescription1::decode(buf).map(M::CommandDataDescription1)?
-                } else {
-                    CommandDataDescription0::decode(buf).map(M::CommandDataDescription0)?
-                }
-            }
+            0x54 => CommandDataDescription1::decode(buf).map(M::CommandDataDescription1)?,
             0x73 => StateDataDescription::decode(buf).map(M::StateDataDescription)?,
             code => M::UnknownMessage(code, buf.copy_to_bytes(buf.remaining())),
         };
@@ -657,42 +595,6 @@ impl Decode for ParameterStatus {
     }
 }
 
-impl Encode for CommandComplete0 {
-    fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        let builder = new_protocol::CommandComplete0Builder {
-            headers: || {
-                self.headers
-                    .iter()
-                    .map(|(name, value)| new_protocol::KeyValueBuilder {
-                        code: *name,
-                        value: value.as_ref(),
-                    })
-            },
-            status_data: self.status_data.as_ref(),
-        };
-        encode_output(buf, builder)?;
-
-        Ok(())
-    }
-}
-
-impl Decode for CommandComplete0 {
-    fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        let message = new_protocol::CommandComplete0::new(buf)?;
-        let mut headers = HashMap::new();
-        for header in message.headers() {
-            headers.insert(header.code(), header.value().into_slice().to_owned().into());
-        }
-
-        let decoded = CommandComplete0 {
-            headers,
-            status_data: message.status_data().into_slice().to_owned().into(),
-        };
-        buf.advance(message.as_ref().len());
-        Ok(decoded)
-    }
-}
-
 impl Encode for CommandComplete1 {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
         let builder = new_protocol::CommandCompleteBuilder {
@@ -749,98 +651,8 @@ impl Decode for CommandComplete1 {
     }
 }
 
-impl Encode for PrepareComplete {
-    fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        let builder = new_protocol::PrepareComplete0Builder {
-            headers: || {
-                self.headers
-                    .iter()
-                    .map(|(name, value)| new_protocol::KeyValueBuilder {
-                        code: *name,
-                        value: value.as_ref(),
-                    })
-            },
-            cardinality: self.cardinality as u8,
-            input_typedesc_id: self.input_typedesc_id,
-            output_typedesc_id: self.output_typedesc_id,
-        };
-        encode_output(buf, builder)?;
-        Ok(())
-    }
-}
-
-impl Decode for PrepareComplete {
-    fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        let message = new_protocol::PrepareComplete0::new(buf)?;
-        let mut headers = HashMap::new();
-        for header in message.headers() {
-            headers.insert(header.code(), header.value().into_slice().to_owned().into());
-        }
-
-        let decoded = PrepareComplete {
-            headers,
-            cardinality: TryFrom::try_from(message.cardinality())?,
-            input_typedesc_id: message.input_typedesc_id(),
-            output_typedesc_id: message.output_typedesc_id(),
-        };
-        buf.advance(message.as_ref().len());
-        Ok(decoded)
-    }
-}
-
-impl Encode for CommandDataDescription0 {
-    fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        debug_assert!(!buf.proto().is_1());
-        let builder = new_protocol::CommandDataDescription0Builder {
-            headers: || {
-                self.headers
-                    .iter()
-                    .map(|(name, value)| new_protocol::KeyValueBuilder {
-                        code: *name,
-                        value: value.as_ref(),
-                    })
-            },
-            result_cardinality: self.result_cardinality as u8,
-            input_typedesc_id: self.input.id,
-            input_typedesc: self.input.data.as_ref(),
-            output_typedesc_id: self.output.id,
-            output_typedesc: self.output.data.as_ref(),
-        };
-        encode_output(buf, builder)?;
-        Ok(())
-    }
-}
-
-impl Decode for CommandDataDescription0 {
-    fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
-        let message = new_protocol::CommandDataDescription0::new(buf)?;
-        let mut headers = HashMap::new();
-        for header in message.headers() {
-            headers.insert(header.code(), header.value().into_slice().to_owned().into());
-        }
-
-        let decoded = CommandDataDescription0 {
-            headers,
-            result_cardinality: TryFrom::try_from(message.result_cardinality())?,
-            input: RawTypedesc {
-                proto: buf.proto().clone(),
-                id: message.input_typedesc_id(),
-                data: message.input_typedesc().into_slice().to_owned().into(),
-            },
-            output: RawTypedesc {
-                proto: buf.proto().clone(),
-                id: message.output_typedesc_id(),
-                data: message.output_typedesc().into_slice().to_owned().into(),
-            },
-        };
-        buf.advance(message.as_ref().len());
-        Ok(decoded)
-    }
-}
-
 impl Encode for CommandDataDescription1 {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        debug_assert!(buf.proto().is_1());
         let builder = new_protocol::CommandDataDescriptionBuilder {
             annotations: || {
                 self.annotations
@@ -892,7 +704,6 @@ impl Decode for CommandDataDescription1 {
 
 impl Encode for StateDataDescription {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        debug_assert!(buf.proto().is_1());
         let builder = new_protocol::StateDataDescriptionBuilder {
             typedesc_id: self.typedesc.id,
             typedesc: self.typedesc.data.as_ref(),
@@ -995,22 +806,4 @@ impl Decode for RawPacket {
             data: buf.copy_to_bytes(buf.remaining()),
         })
     }
-}
-
-impl PrepareComplete {
-    pub fn get_capabilities(&self) -> Option<Capabilities> {
-        decode_capabilities0(&self.headers)
-    }
-}
-
-fn decode_capabilities0(headers: &KeyValues) -> Option<Capabilities> {
-    headers.get(&0x1001).and_then(|bytes| {
-        if bytes.len() == 8 {
-            let mut array = [0u8; 8];
-            array.copy_from_slice(bytes);
-            Some(Capabilities::from_bits_retain(u64::from_be_bytes(array)))
-        } else {
-            None
-        }
-    })
 }

@@ -1001,9 +1001,10 @@ fn array() -> Result<(), Box<dyn Error>> {
             b"\0\0\0\x08\0\0\0\0\0\0\0\x03"),
         Value::Array(vec![Value::Int64(1), Value::Int64(2), Value::Int64(3),])
     );
+    // Encoded using the long-form of zero-sized arrays to work around server bug < 7.
     encoding_eq!(
         &codec,
-        bconcat!(b"\0\0\0\0\0\0\0\0\0\0\0\x00"),
+        bconcat!(b"\0\0\0\x01\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01"),
         Value::Array(vec![])
     );
     Ok(())
