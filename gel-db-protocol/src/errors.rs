@@ -1,4 +1,3 @@
-
 #[derive(
     Clone, Copy, PartialEq, Eq, derive_more::Debug, derive_more::Error, derive_more::Display,
 )]

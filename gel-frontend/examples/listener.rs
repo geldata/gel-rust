@@ -10,11 +10,11 @@ use gel_frontend::listener::BoundServer;
 use gel_frontend::service::{AuthTarget, BabelfishService, ConnectionIdentity, StreamLanguage};
 use gel_frontend::stream::ListenerStream;
 use gel_pg_protocol::prelude::*;
-use uuid::Uuid;
 use hyper::Response;
 use tokio::io::ReadBuf;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::trace;
+use uuid::Uuid;
 
 #[derive(Clone, Debug, Default)]
 struct ExampleService {

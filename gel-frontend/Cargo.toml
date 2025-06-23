@@ -34,7 +34,7 @@ hexdump = "0.1.2"
 tracing = "0"
 tracing-subscriber = "0"
 x509-parser = "0.17"
-derive-io = { version = "=0.3.3", features = ["tokio"] }
+derive-io = { version = "=0.5.0", features = ["tokio"] }
 unflatter = "0.1.1"
 consume_on_drop = "0.1.1"
 tokio-util = "0.7"

@@ -1,5 +1,5 @@
 [package]
-name = "gel-protogen"
+name = "gel-protogen-proc-macros"
 license = "MIT/Apache-2.0"
 version = "0.1.2"
 authors = ["MagicStack Inc. <hello@magic.io>"]
@@ -11,14 +11,12 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+proc-macro = true
+
 [dependencies]
-paste = "1"
-derive_more = { version = "2", features = ["debug", "display", "deref", "deref_mut", "error"] }
-uuid = "1"
-const-str = "0.6"
-type-mapper = "=0.1.2"
-gel-protogen-proc-macros = { path = "../gel-protogen-proc-macros", version = "0.1.2" }
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"
 
 [dev-dependencies]
-pretty_assertions = "1.2.0"
-static_assertions = "1.1"

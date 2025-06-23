@@ -1,5 +1,5 @@
-use gel_db_protocol::prelude::*;
 use gel_db_protocol::errors::EdbError;
+use gel_db_protocol::prelude::*;
 use gel_db_protocol::protocol::{
     Annotation, AuthenticationOkBuilder, AuthenticationRequiredSASLMessageBuilder,
     AuthenticationSASLContinueBuilder, AuthenticationSASLFinalBuilder,
