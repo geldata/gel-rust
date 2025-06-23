@@ -16,6 +16,7 @@ docs can currently be found on docs.rs:
 | [gel-pg-protocol](https://docs.rs/gel-pg-protocol) | [Source](./gel-pg-protocol) | The Gel implementation of the PostgreSQL wire protocol. |
 | [gel-protocol](https://docs.rs/gel-protocol) | [Source](./gel-protocol) | Low-level protocol implementation for Gel database client. |
 | [gel-protogen](https://docs.rs/gel-protogen) | [Source](./gel-protogen) | Macros to make parsing and serializing of PostgreSQL-like protocols easier. |
+| [gel-protogen-proc-macros](https://docs.rs/gel-protogen-proc-macros) | [Source](./gel-protogen-proc-macros) | Macros to make parsing and serializing of PostgreSQL-like protocols easier. |
 | [gel-stream](https://docs.rs/gel-stream) | [Source](./gel-stream) | A library for streaming data between clients and servers. |
 | [gel-tokio](https://docs.rs/gel-tokio) | [Source](./gel-tokio) | Gel database client implementation for tokio. |
 
