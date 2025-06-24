@@ -9,7 +9,7 @@ edition = "2024"
 tokio.workspace = true
 
 # We should offer openssl/rustls as separate features
-gel-stream = { path = "../gel-stream", version = "^0.4.4", features = ["server", "rustls", "pem", "__test_keys"] }
+gel-stream = { path = "../gel-stream", version = "^0.4.5", features = ["server", "rustls", "pem", "__test_keys"] }
 gel-auth = { path = "../gel-auth", version = "0.1", features = ["postgres", "gel"] }
 gel-pg-protocol = { path = "../gel-pg-protocol", version = "0.1" }
 gel-db-protocol = { path = "../gel-db-protocol", version = "0.2.0" }
@@ -42,7 +42,7 @@ static_assertions = "1.1"
 uuid = "1"
 
 [dev-dependencies]
-gel-stream = { path = "../gel-stream", version = "^0.4.4", features = ["client", "__test_keys"] }
+gel-stream = { path = "../gel-stream", version = "^0.4.5", features = ["client", "__test_keys"] }
 tokio = { workspace = true, features = ["full"] }
 
 rstest = "0.25"

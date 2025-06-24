@@ -17,8 +17,8 @@ gel-protocol = { path = "../gel-protocol", version = "^0.8.5", features = [
 ] }
 gel-errors = { path = "../gel-errors", version = "^0.5.4" }
 gel-derive = { path = "../gel-derive", version = "^0.7.3", optional = true }
-gel-stream = { path = "../gel-stream", version = "^0.4.4", features = ["client", "tokio", "rustls", "hickory", "keepalive"] }
-gel-dsn = { path = "../gel-dsn", version = "^0.2.15", features = ["gel", "log", "auto-log-trace", "auto-log-warning"] }
+gel-stream = { path = "../gel-stream", version = "^0.4.5", features = ["client", "tokio", "rustls", "hickory", "keepalive"] }
+gel-dsn = { path = "../gel-dsn", version = "^0.2.16", features = ["gel", "log", "auto-log-trace", "auto-log-warning"] }
 gel-auth = { path = "../gel-auth", version = "^0.1.6" }
 tokio = { workspace = true, features = ["net", "time", "sync", "macros"] }
 bytes = "1.5.0"
