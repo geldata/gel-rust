@@ -28,6 +28,12 @@ repository, however some feature combinations will not be tested. See
 [justfile](./justfile) for all commands to run the complete feature matrix test
 suite.
 
+Publishing
+==========
+
+To publish a crate, run `./tools/publish.sh <crate>`. The script will
+automatically determine version bumps and publish the crate.
+
 License
 =======
 
