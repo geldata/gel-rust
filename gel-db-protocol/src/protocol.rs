@@ -32,7 +32,6 @@ message_group!(
         Parse,
         Execute,
         Sync,
-        Flush,
         Terminate,
         Dump,
         Restore,
@@ -331,14 +330,6 @@ struct Dump3<'a>: Message {
 struct Sync<'a>: Message {
     /// Identifies the message as sync.
     mtype: u8 = 'S',
-    /// Length of message contents in bytes, including self.
-    mlen: len,
-}
-
-/// The `Flush` struct represents a flush message from the client.
-struct Flush<'a>: Message {
-    /// Identifies the message as flush.
-    mtype: u8 = 'H',
     /// Length of message contents in bytes, including self.
     mlen: len,
 }
