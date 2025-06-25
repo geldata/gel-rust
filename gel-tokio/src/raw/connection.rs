@@ -371,6 +371,11 @@ async fn connect4(cfg: &Config, mut stream: gel_stream::RawStream, cert_check: O
         params.insert(String::from("secret_key"), secret_key.to_string());
     }
     let (major_ver, minor_ver) = proto.version_tuple();
+    if major_ver < 1 {
+        return Err(ProtocolError::with_message(format!(
+            "EdgeDB protocol version {major_ver}.{minor_ver} is not supported"
+        )));
+    }
     send_messages(
         &mut stream,
         &mut out_buf,
