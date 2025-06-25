@@ -115,10 +115,10 @@ pub trait EncoderForExt {
 
 impl<T> EncoderForExt for T where T: ?Sized {}
 
-#[derive(derive_more::Error, derive_more::Display, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(derive_more::Error, derive_more::Display, Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
-    #[display("Buffer is too short")]
-    TooShort,
+    #[display("Buffer is too short for {_0}")]
+    TooShort(#[error(not(source))] &'static str),
     #[display("Buffer is too long ({_0} extra bytes)")]
     TooLong(#[error(not(source))] usize),
     #[display("Invalid data for {_0}: {_1}")]
@@ -126,10 +126,17 @@ pub enum ParseError {
         #[error(not(source))] &'static str,
         #[error(not(source))] usize,
     ),
-    #[display("Invalid data for field {_0}: {_1}")]
+    #[display("Invalid array data for {_0}[{_1}]: {_2}")]
+    InvalidArrayData(
+        #[error(not(source))] &'static str,
+        #[error(not(source))] usize,
+        Box<ParseError>,
+    ),
+    #[display("Invalid data for {_0}::{_1}: {_2}")]
     InvalidFieldData(
         #[error(not(source))] &'static str,
         #[error(not(source))] &'static str,
+        Box<ParseError>,
     ),
 }
 
@@ -157,13 +164,14 @@ where
             let constant_size = T::META.constant_size.unwrap();
             let byte_len = constant_size.saturating_mul(len);
             if buf.len() < byte_len {
-                return Err(ParseError::TooShort);
+                return Err(ParseError::TooShort("Array"));
             }
             *buf = &buf[byte_len..];
             return Ok(Array::new(&orig_buf[..byte_len], len as _));
         }
         for _ in 0..len {
-            T::decode_for(buf)?;
+            T::decode_for(buf)
+                .map_err(|e| ParseError::InvalidArrayData("Array", len, Box::new(e)))?;
         }
         let orig_buf = &orig_buf[0..orig_buf.len() - buf.len()];
         Ok(Array::new(orig_buf, len as _))
@@ -205,7 +213,7 @@ where
             let constant_size = T::META.constant_size.unwrap();
             loop {
                 if buf.is_empty() {
-                    return Err(ParseError::TooShort);
+                    return Err(ParseError::TooShort("ZTArray"));
                 }
                 if buf[0] == 0 {
                     break;
@@ -215,19 +223,20 @@ where
             }
             *buf = &buf[1..];
             orig_buf = &orig_buf[0..orig_buf.len() - buf.len() - 1];
-            return Ok(ZTArray::new(&orig_buf, len));
+            return Ok(ZTArray::new(orig_buf, len));
         }
 
         loop {
             if buf.is_empty() {
-                return Err(crate::prelude::ParseError::TooShort);
+                return Err(ParseError::TooShort("ZTArray"));
             }
             if buf[0] == 0 {
                 orig_buf = &orig_buf[0..orig_buf.len() - buf.len()];
                 *buf = &buf[1..];
                 break;
             }
-            T::decode_for(buf)?;
+            T::decode_for(buf)
+                .map_err(|e| ParseError::InvalidArrayData("ZTArray", len, Box::new(e)))?;
             len += 1;
         }
         Ok(ZTArray::new(orig_buf, len))
@@ -268,14 +277,15 @@ where
             let constant_size = T::META.constant_size.unwrap();
             let len = buf.len() / constant_size;
             if buf.len() % constant_size != 0 {
-                return Err(ParseError::TooShort);
+                return Err(ParseError::TooShort("RestArray"));
             }
             *buf = &[];
             return Ok(RestArray::new(orig_buf, len as _));
         }
         let mut len = 0;
         while !buf.is_empty() {
-            T::decode_for(buf)?;
+            T::decode_for(buf)
+                .map_err(|e| ParseError::InvalidArrayData("RestArray", len, Box::new(e)))?;
             len += 1;
         }
         Ok(RestArray::new(orig_buf, len))
@@ -442,13 +452,13 @@ impl<'a> DecoderFor<'a, Encoded<'a>> for Encoded<'a> {
             } else if len < 0 {
                 Err(ParseError::InvalidData("Encoded", len as usize))
             } else if array.len() < len as _ {
-                Err(ParseError::TooShort)
+                Err(ParseError::TooShort("Encoded"))
             } else {
                 *buf = &array[len as usize..];
                 Ok(Encoded::Value(&array[..len as usize]))
             }
         } else {
-            Err(ParseError::TooShort)
+            Err(ParseError::TooShort("Encoded"))
         }
     }
 }
@@ -552,13 +562,13 @@ where
     fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
         let len = u32::decode_for(buf)?;
         if len > buf.len() as u32 {
-            return Err(ParseError::TooShort);
+            return Err(ParseError::TooShort("LengthPrefixed"));
         }
         let mut inner_buf = &buf[..len as usize];
         *buf = &buf[len as usize..];
         // The inner object must consume the entire buffer.
         let inner = T::decode_for(&mut inner_buf)?;
-        if inner_buf.len() != 0 {
+        if !inner_buf.is_empty() {
             return Err(ParseError::InvalidData("LengthPrefixed", inner_buf.len()));
         }
         Ok(LengthPrefixed(inner))
@@ -575,6 +585,58 @@ where
         U::encode_for(&self.0, buf);
         let len = buf.size() - offset;
         buf.write_rewind(offset, &len.to_be_bytes());
+    }
+}
+
+declare_type!(DataType, bool, {});
+
+impl<'a> DecoderFor<'a, bool> for bool {
+    fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
+        u8::decode_for(buf).map(|b| b != 0)
+    }
+}
+
+impl EncoderFor<bool> for bool {
+    fn encode_for(&self, buf: &mut BufWriter<'_>) {
+        buf.write(&(*self as u8).to_be_bytes());
+    }
+}
+
+impl<T, const LOW: isize, const HIGH: isize> DataType for Ranged<T, LOW, HIGH>
+where
+    T: DataType,
+{
+    const META: StructFieldMeta = T::META.clear_primitive();
+}
+
+impl<'a, T, const LOW: isize, const HIGH: isize> DecoderFor<'a, Ranged<T, LOW, HIGH>>
+    for Ranged<T, LOW, HIGH>
+where
+    T: DecoderFor<'a, T>,
+    T: TryInto<isize>,
+    T: Clone,
+{
+    fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
+        let value = T::decode_for(buf)?;
+        let value_isize: isize = value
+            .clone()
+            .try_into()
+            .map_err(|_| ParseError::InvalidData("Ranged", 0))?;
+        if value_isize < LOW || value_isize > HIGH {
+            return Err(ParseError::InvalidData("Ranged", value_isize as usize));
+        }
+        Ok(Ranged(value))
+    }
+}
+
+impl<T, const LOW: isize, const HIGH: isize> EncoderFor<Ranged<T, LOW, HIGH>>
+    for Ranged<T, LOW, HIGH>
+where
+    T: EncoderFor<T>,
+    T: 'static,
+{
+    fn encode_for(&self, buf: &mut BufWriter<'_>) {
+        self.0.encode_for(buf);
     }
 }
 

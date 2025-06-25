@@ -14,7 +14,7 @@ workspace = true
 [dependencies]
 gel-protogen = { path = "../gel-protogen", version= "^0.1.2" }
 paste = "1"
-derive_more = { version = "2", features = ["try_from"] }
+derive_more = { version = "2", features = ["try_from", "from", "debug", "deref", "constructor"] }
 
 [dev-dependencies]
 pretty_assertions = "1.2.0"

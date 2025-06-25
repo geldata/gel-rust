@@ -112,6 +112,13 @@ impl StructFieldMeta {
             ..self
         }
     }
+
+    pub const fn clear_primitive(self) -> Self {
+        Self {
+            is_primitive: false,
+            ..self
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

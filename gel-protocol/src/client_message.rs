@@ -29,7 +29,7 @@ use uuid::Uuid;
 
 pub use crate::common::CompilationOptions;
 pub use crate::common::DumpFlags;
-pub use crate::common::{Capabilities, Cardinality, CompilationFlags};
+pub use crate::common::{Capabilities, CompilationFlags};
 pub use crate::common::{RawTypedesc, State};
 use crate::encoding::{encode, Decode, Encode, Input, Output};
 use crate::encoding::{Annotations, KeyValues};
@@ -125,7 +125,7 @@ pub struct RestoreBlock {
     pub data: Bytes,
 }
 
-pub use crate::new_protocol::{InputLanguage, IoFormat};
+pub use crate::new_protocol::{Cardinality, InputLanguage, IoFormat};
 
 struct Empty;
 impl ClientMessage {
@@ -274,7 +274,7 @@ impl Decode for SaslInitialResponse {
         let message = new_protocol::AuthenticationSASLInitialResponse::new(buf)?;
         let decoded = SaslInitialResponse {
             method: message.method().to_string_lossy().to_string(),
-            data: message.sasl_data().into_slice().to_owned().into(),
+            data: message.sasl_data().into_bytes().to_owned().into(),
         };
         buf.advance(message.as_ref().len());
         Ok(decoded)
@@ -292,7 +292,7 @@ impl Decode for SaslResponse {
     fn decode(buf: &mut Input) -> Result<SaslResponse, DecodeError> {
         let message = new_protocol::AuthenticationSASLResponse::new(buf)?;
         let decoded = SaslResponse {
-            data: message.sasl_data().into_slice().to_owned().into(),
+            data: message.sasl_data().into_bytes().to_owned().into(),
         };
         buf.advance(message.as_ref().len());
         Ok(decoded)
@@ -357,7 +357,7 @@ impl Decode for Execute1 {
             // Convert state
             let state = State {
                 typedesc_id: message.state_typedesc_id(),
-                data: message.state_data().into_slice().to_owned().into(),
+                data: message.state_data().into_bytes().to_owned().into(),
             };
 
             let decoded = Execute1 {
@@ -376,7 +376,7 @@ impl Decode for Execute1 {
                 state,
                 input_typedesc_id: message.input_typedesc_id(),
                 output_typedesc_id: message.output_typedesc_id(),
-                arguments: message.arguments().into_slice().to_owned().into(),
+                arguments: message.arguments().into_bytes().to_owned().into(),
                 input_language: message.input_language(),
             };
             buf.advance(message.as_ref().len());
@@ -401,7 +401,7 @@ impl Decode for Execute1 {
             // Convert state
             let state = State {
                 typedesc_id: message.state_typedesc_id(),
-                data: message.state_data().into_slice().to_owned().into(),
+                data: message.state_data().into_bytes().to_owned().into(),
             };
 
             let decoded = Execute1 {
@@ -418,7 +418,7 @@ impl Decode for Execute1 {
                 state,
                 input_typedesc_id: message.input_typedesc_id(),
                 output_typedesc_id: message.output_typedesc_id(),
-                arguments: message.arguments().into_slice().to_owned().into(),
+                arguments: message.arguments().into_bytes().to_owned().into(),
                 input_language: InputLanguage::EdgeQL,
             };
             buf.advance(message.as_ref().len());
@@ -449,7 +449,7 @@ impl Decode for Dump2 {
         let message = new_protocol::Dump2::new(buf)?;
         let mut headers = HashMap::new();
         for header in message.headers() {
-            headers.insert(header.code(), header.value().into_slice().to_owned().into());
+            headers.insert(header.code(), header.value().into_bytes().to_owned().into());
         }
 
         let decoded = Dump2 { headers };
@@ -524,7 +524,7 @@ impl Decode for Restore {
         let message = new_protocol::Restore::new(buf)?;
         let mut headers = HashMap::new();
         for header in message.headers() {
-            headers.insert(header.code(), header.value().into_slice().to_owned().into());
+            headers.insert(header.code(), header.value().into_bytes().to_owned().into());
         }
 
         let decoded = Restore {
@@ -548,7 +548,7 @@ impl Decode for RestoreBlock {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
         let message = new_protocol::RestoreBlock::new(buf)?;
         let decoded = RestoreBlock {
-            data: message.block_data().into_slice().to_owned().into(),
+            data: message.block_data().into_bytes().to_owned().into(),
         };
         buf.advance(message.as_ref().len());
         Ok(decoded)
@@ -616,7 +616,7 @@ impl Decode for Parse {
             // Convert state
             let state = State {
                 typedesc_id: message.state_typedesc_id(),
-                data: message.state_data().into_slice().to_owned().into(),
+                data: message.state_data().into_bytes().to_owned().into(),
             };
 
             let decoded = Parse {
@@ -655,7 +655,7 @@ impl Decode for Parse {
             // Convert state
             let state = State {
                 typedesc_id: message.state_typedesc_id(),
-                data: message.state_data().into_slice().to_owned().into(),
+                data: message.state_data().into_bytes().to_owned().into(),
             };
 
             let decoded = Parse {

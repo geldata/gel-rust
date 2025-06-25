@@ -85,20 +85,20 @@ impl<'a, A> ArrayString<'a, A> {
     }
 }
 
-impl<A> ArrayString<'_, A> {
+impl<'a, A> ArrayString<'a, A> {
     pub fn to_owned(&self) -> Result<String, std::str::Utf8Error> {
         std::str::from_utf8(self.buf).map(|s| s.to_owned())
     }
 
-    pub fn to_str(&self) -> Result<&str, std::str::Utf8Error> {
+    pub fn to_str(&self) -> Result<&'a str, std::str::Utf8Error> {
         std::str::from_utf8(self.buf)
     }
 
-    pub fn to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
+    pub fn to_string_lossy(&self) -> std::borrow::Cow<'a, str> {
         String::from_utf8_lossy(self.buf)
     }
 
-    pub fn to_bytes(&self) -> &[u8] {
+    pub fn to_bytes(&self) -> &'a [u8] {
         self.buf
     }
 }
@@ -158,18 +158,18 @@ impl<'a> From<&'a [u8]> for Encoded<'a> {
     }
 }
 
-impl<'a> Into<Option<&'a [u8]>> for Encoded<'a> {
-    fn into(self) -> Option<&'a [u8]> {
-        match self {
+impl<'a> From<Encoded<'a>> for Option<&'a [u8]> {
+    fn from(val: Encoded<'a>) -> Self {
+        match val {
             Encoded::Null => None,
             Encoded::Value(value) => Some(value),
         }
     }
 }
 
-impl<'a, 'b> Into<Option<&'a [u8]>> for &'b Encoded<'a> {
-    fn into(self) -> Option<&'a [u8]> {
-        match self {
+impl<'a> From<&Encoded<'a>> for Option<&'a [u8]> {
+    fn from(val: &Encoded<'a>) -> Self {
+        match val {
             Encoded::Null => None,
             Encoded::Value(value) => Some(value),
         }
@@ -239,3 +239,26 @@ impl Add<usize> for Length {
 #[display("{_0}")]
 #[debug("{_0:?}")]
 pub struct LengthPrefixed<T>(pub T);
+
+/// A value which is constrained to a range.
+///
+/// Note that `LOW` and `HIGH` are both inclusive.
+#[derive(
+    Copy,
+    Clone,
+    Default,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    derive_more::Deref,
+    derive_more::DerefMut,
+)]
+pub struct Ranged<T, const LOW: isize, const HIGH: isize>(pub T);
+
+impl<T, const LOW: isize, const HIGH: isize> Ranged<T, LOW, HIGH> {
+    pub fn new(value: T) -> Self {
+        Self(value)
+    }
+}

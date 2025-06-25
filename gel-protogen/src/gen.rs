@@ -167,9 +167,6 @@ macro_rules! __protocol {
         $( $( #[ doc = $sdoc:literal ] )*
             struct $name:ident <$lt:lifetime> $(: $super:ident)? { $($struct:tt)+ }
         )+
-        $(  #[repr($repr:ty)] $( #[ doc = $edoc:literal ] )*
-            enum $ename:ident { $($(#[$default:meta])? $emname:ident = $emvalue:literal),+ $(,)? }
-        )*
     ) => {
         use $crate::protocol_builder;
         #[allow(unused)]
@@ -182,51 +179,6 @@ macro_rules! __protocol {
                 $crate::struct_elaborate!(protocol_builder(__builder__) => $( #[ doc = $sdoc ] )* struct $name <$lt> $(: $super)? { $($struct)+ } );
             );
         )+
-
-        $(
-            $crate::paste!(
-                $(#[doc = $edoc])*
-                #[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
-                #[repr($repr)]
-                pub enum $ename {
-                    $($(#[$default])? $emname = $emvalue),+
-                }
-
-                impl $crate::prelude::EnumMeta for $ename {
-                    const VALUES: &'static [(&'static str, usize)] = &[
-                        $((stringify!($emname), $emvalue as _)),+
-                    ];
-                }
-
-                $crate::declare_type!(DataType, $ename, flags=[enum], {
-                });
-
-                impl<'a> $crate::prelude::DecoderFor<'a, $ename> for $ename {
-                    fn decode_for(buf: &mut &'a [u8]) -> Result<Self, ParseError> {
-                        let repr = <$repr as $crate::prelude::DecoderFor<$repr>>::decode_for(buf)?;
-
-                        match repr {
-                            $(
-                                $emvalue => Ok($ename::$emname),
-                            )+
-                            _ => Err(ParseError::InvalidData(stringify!($ename), repr as usize)),
-                        }
-                    }
-                }
-
-                impl $crate::prelude::EncoderFor<$ename> for $ename {
-                    fn encode_for(&self, buf: &mut $crate::BufWriter<'_>) {
-                        <$repr as $crate::prelude::EncoderFor<$repr>>::encode_for(&(*self as $repr), buf);
-                    }
-                }
-
-                impl $crate::prelude::EncoderFor<$ename> for &'_ $ename {
-                    fn encode_for(&self, buf: &mut $crate::BufWriter<'_>) {
-                        <$repr as $crate::prelude::EncoderFor<$repr>>::encode_for(&(**self as $repr), buf);
-                    }
-                }
-            );
-        )*
     };
 }
 
@@ -417,7 +369,7 @@ macro_rules! protocol_builder {
                     let mut new = $name::default();
                     let start_buf = *buf;
                     $(
-                        new.$field = <$type as $crate::prelude::DecoderFor<$type>>::decode_for(buf)?;
+                        new.$field = <$type as $crate::prelude::DecoderFor<$type>>::decode_for(buf).map_err(|e| ParseError::InvalidFieldData(stringify!($name), stringify!($field), Box::new(e)))?;
                     )*
                     new.buf = start_buf;
                     Ok(new)
@@ -635,18 +587,21 @@ mod tests {
     }
 
     mod has_enum {
+        use crate::prelude::*;
+
         crate::protocol!(
             struct HasEnum<'a> {
                 e: MyEnum,
             }
-
-            #[repr(u8)]
-            enum MyEnum {
-                #[default]
-                A = 1,
-                B = 2,
-            }
         );
+
+        #[derive(Copy, Clone, Protocol, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        #[repr(u8)]
+        pub enum MyEnum {
+            #[default]
+            A = 1,
+            B = 2,
+        }
     }
 
     macro_rules! assert_stringify {

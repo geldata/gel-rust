@@ -141,14 +141,6 @@ pub struct CommandComplete1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseComplete {
-    pub headers: KeyValues,
-    pub cardinality: Cardinality,
-    pub input_typedesc_id: Uuid,
-    pub output_typedesc_id: Uuid,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandDataDescription1 {
     pub annotations: Annotations,
     pub capabilities: Capabilities,
@@ -355,12 +347,12 @@ impl Decode for ErrorResponse {
         let message = new_protocol::ErrorResponse::new(buf)?;
         let mut attributes = HashMap::new();
         for attr in message.attributes() {
-            attributes.insert(attr.code(), attr.value().into_slice().to_vec().into());
+            attributes.insert(attr.code(), attr.value().into_bytes().to_vec().into());
         }
 
         let decoded = ErrorResponse {
             severity: ErrorSeverity::from_u8(message.severity()),
-            code: message.error_code() as u32,
+            code: message.error_code(),
             message: message.message().to_string_lossy().to_string(),
             attributes,
         };
@@ -453,13 +445,13 @@ impl Decode for Authentication {
             0x0B => {
                 let auth = new_protocol::AuthenticationSASLContinue::new(buf)?;
                 Ok(Authentication::SaslContinue {
-                    data: auth.sasl_data().into_slice().to_owned().into(),
+                    data: auth.sasl_data().into_bytes().to_owned().into(),
                 })
             }
             0x0C => {
                 let auth = new_protocol::AuthenticationSASLFinal::new(buf)?;
                 Ok(Authentication::SaslFinal {
-                    data: auth.sasl_data().into_slice().to_owned().into(),
+                    data: auth.sasl_data().into_bytes().to_owned().into(),
                 })
             }
             _ => errors::AuthStatusInvalid {
@@ -587,8 +579,8 @@ impl Decode for ParameterStatus {
         let message = new_protocol::ParameterStatus::new(buf)?;
         let decoded = ParameterStatus {
             proto: buf.proto().clone(),
-            name: message.name().into_slice().to_owned().into(),
-            value: message.value().into_slice().to_owned().into(),
+            name: message.name().into_bytes().to_owned().into(),
+            value: message.value().into_bytes().to_owned().into(),
         };
         buf.advance(message.as_ref().len());
         Ok(decoded)
@@ -642,7 +634,7 @@ impl Decode for CommandComplete1 {
             } else {
                 Some(State {
                     typedesc_id: message.state_typedesc_id(),
-                    data: message.state_data().into_slice().to_owned().into(),
+                    data: message.state_data().into_bytes().to_owned().into(),
                 })
             },
         };
@@ -689,12 +681,12 @@ impl Decode for CommandDataDescription1 {
             input: RawTypedesc {
                 proto: buf.proto().clone(),
                 id: message.input_typedesc_id(),
-                data: message.input_typedesc().into_slice().to_owned().into(),
+                data: message.input_typedesc().into_bytes().to_owned().into(),
             },
             output: RawTypedesc {
                 proto: buf.proto().clone(),
                 id: message.output_typedesc_id(),
-                data: message.output_typedesc().into_slice().to_owned().into(),
+                data: message.output_typedesc().into_bytes().to_owned().into(),
             },
         };
         buf.advance(message.as_ref().len());
@@ -720,7 +712,7 @@ impl Decode for StateDataDescription {
             typedesc: RawTypedesc {
                 proto: buf.proto().clone(),
                 id: message.typedesc_id(),
-                data: message.typedesc().into_slice().to_owned().into(),
+                data: message.typedesc().into_bytes().to_owned().into(),
             },
         };
         buf.advance(message.as_ref().len());
@@ -749,7 +741,7 @@ impl Decode for Data {
         let message = new_protocol::Data::new(buf)?;
         let mut data = Vec::new();
         for element in message.data() {
-            data.push(element.data().into_slice().to_owned().into());
+            data.push(element.data().into_bytes().to_owned().into());
         }
 
         let decoded = Data { data };
@@ -781,12 +773,12 @@ impl Decode for RestoreReady {
         let message = new_protocol::RestoreReady::new(buf)?;
         let mut headers = HashMap::new();
         for header in message.headers() {
-            headers.insert(header.code(), header.value().into_slice().to_vec().into());
+            headers.insert(header.code(), header.value().into_bytes().to_vec().into());
         }
 
         let decoded = RestoreReady {
             headers,
-            jobs: message.jobs() as u16,
+            jobs: message.jobs(),
         };
         buf.advance(message.as_ref().len());
         Ok(decoded)

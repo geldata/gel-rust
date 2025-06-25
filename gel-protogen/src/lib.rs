@@ -27,7 +27,14 @@ pub use paste::paste;
 #[doc(hidden)]
 pub use type_mapper;
 
+/// Ensures we can use the `gel-protogen-proc-macros` crate in this crate.
+#[doc(hidden)]
+extern crate self as gel_protogen;
+
 pub mod prelude {
+    pub use super::declare_meta;
+    pub use super::declare_type;
+
     pub use super::encoding::BuilderFor;
     pub use super::encoding::DataType;
     pub use super::encoding::DataTypeFixedSize;
@@ -35,10 +42,10 @@ pub mod prelude {
     pub use super::encoding::EncoderFor;
     pub use super::encoding::EncoderForExt;
     pub use super::encoding::ParseError;
+
     pub use super::writer::BufWriter;
 
     pub use super::structs::EnumMeta;
-
     pub use super::structs::StructAttributeFieldCount;
     pub use super::structs::StructAttributeFixedSize;
     pub use super::structs::StructAttributeHasLengthField;
@@ -49,8 +56,6 @@ pub mod prelude {
     pub use super::structs::StructLength;
     pub use super::structs::StructMeta;
 
-    pub use super::declare_meta;
-
     pub use super::arrays::*;
     pub use super::buffer::StructBuffer;
     pub use super::datatypes::*;
@@ -58,4 +63,7 @@ pub mod prelude {
     pub use super::match_message;
     pub use super::message_group;
     pub use super::protocol;
+
+    pub use gel_protogen_proc_macros::Protocol;
+    pub use uuid::Uuid;
 }

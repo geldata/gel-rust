@@ -29,7 +29,7 @@ macro_rules! declare_type {
                     *buf = next;
                     res
                 } else {
-                    Err($crate::prelude::ParseError::TooShort)
+                    Err($crate::prelude::ParseError::TooShort(stringify!($ty)))
                 }
             }
         }
