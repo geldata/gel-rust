@@ -37,6 +37,11 @@ async fn main() -> anyhow::Result<()> {
 
 More [examples on github](https://github.com/edgedb/edgedb-rust/tree/master/gel-tokio/examples)
 
+Version Support
+===============
+
+Gel protocol version 0 support was removed in 0.11.x.
+
 
 License
 =======
