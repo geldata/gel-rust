@@ -33,10 +33,6 @@ fn decode_1_0(bytes: &[u8]) -> Result<Vec<Descriptor>, DecodeError> {
     decode(ProtocolVersion::new(1, 0), bytes)
 }
 
-fn decode_0_10(bytes: &[u8]) -> Result<Vec<Descriptor>, DecodeError> {
-    decode(ProtocolVersion::new(0, 10), bytes)
-}
-
 #[test]
 fn empty_tuple() -> Result<(), Box<dyn Error>> {
     // `SELECT ()`
@@ -164,67 +160,6 @@ fn duration() -> Result<(), Box<dyn Error>> {
                 .parse::<Uuid>()?
                 .into(),
         })]
-    );
-    Ok(())
-}
-
-#[test]
-fn object_0_10() -> Result<(), Box<dyn Error>> {
-    assert_eq!(
-        decode_0_10(bconcat!(
-         b"\x02\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\0\x02"
-         b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\x01\x01n"
-         b"\xbb\xbe\xda\0P\x14\xfe\x84\xbc\x82\x15@\xb1"
-         b"R\xcd\0\x03\x01\0\0\0\x07__tid__\0\0\x01"
-         b"\0\0\0\x02id\0\0\0\0\0\0\x05title\0\x01"))?,
-        vec![
-            Descriptor::BaseScalar(BaseScalarTypeDescriptor {
-                id: "00000000-0000-0000-0000-000000000100"
-                    .parse::<Uuid>()?
-                    .into(),
-            }),
-            Descriptor::BaseScalar(BaseScalarTypeDescriptor {
-                id: "00000000-0000-0000-0000-000000000101"
-                    .parse::<Uuid>()?
-                    .into(),
-            }),
-            Descriptor::ObjectShape(ObjectShapeDescriptor {
-                id: "6ebbbeda-0050-14fe-84bc-821540b152cd"
-                    .parse::<Uuid>()?
-                    .into(),
-                ephemeral_free_shape: false,
-                type_pos: None,
-                elements: vec![
-                    ShapeElement {
-                        flag_implicit: true,
-                        flag_link_property: false,
-                        flag_link: false,
-                        cardinality: None,
-                        name: String::from("__tid__"),
-                        type_pos: TypePos(0),
-                        source_type_pos: None,
-                    },
-                    ShapeElement {
-                        flag_implicit: true,
-                        flag_link_property: false,
-                        flag_link: false,
-                        cardinality: None,
-                        name: String::from("id"),
-                        type_pos: TypePos(0),
-                        source_type_pos: None,
-                    },
-                    ShapeElement {
-                        flag_implicit: false,
-                        flag_link_property: false,
-                        flag_link: false,
-                        cardinality: None,
-                        name: String::from("title"),
-                        type_pos: TypePos(1),
-                        source_type_pos: None,
-                    }
-                ]
-            })
-        ]
     );
     Ok(())
 }

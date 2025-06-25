@@ -32,7 +32,6 @@ message_group!(
         Parse,
         Execute,
         Sync,
-        Flush,
         Terminate,
         Dump,
         Restore,
@@ -83,18 +82,6 @@ struct LogMessage<'a>: Message {
     text: LString<'a>,
     /// Message annotations.
     annotations: Array<'a, i16, Annotation<'a>>,
-}
-
-/// The `ReadyForCommand` struct represents a message indicating the server is ready for a new command.
-struct ReadyForCommand0<'a>: Message {
-    /// Identifies the message as ready for command.
-    mtype: u8 = 'Z',
-    /// Length of message contents in bytes, including self.
-    mlen: len,
-    /// Message headers.
-    headers: Array<'a, i16, KeyValue<'a>>,
-    /// Transaction state.
-    transaction_state: TransactionState,
 }
 
 /// The `ReadyForCommand` struct represents a message indicating the server is ready for a new command.
@@ -347,14 +334,6 @@ struct Sync<'a>: Message {
     mlen: len,
 }
 
-/// The `Flush` struct represents a flush message from the client.
-struct Flush<'a>: Message {
-    /// Identifies the message as flush.
-    mtype: u8 = 'H',
-    /// Length of message contents in bytes, including self.
-    mlen: len,
-}
-
 /// The `Restore` struct represents a restore message from the client.
 struct Restore<'a>: Message {
     /// Identifies the message as restore.
@@ -439,18 +418,6 @@ struct Parse<'a>: Message {
     state_typedesc_id: Uuid,
     /// Encoded state data.
     state_data: Array<'a, u32, u8>,
-}
-
-/// The `ParseComplete` struct represents the response to a `Parse` request from the client.
-struct ParseComplete<'a>: Message {
-    /// The headers
-    headers: Array<'a, i16, KeyValue<'a>>,
-    /// Cardinality
-    cardinality: u8,
-    /// Input descriptor ID.
-    input_typedesc_id: Uuid,
-    /// Output descriptor ID.
-    output_typedesc_id: Uuid,
 }
 
 /// The `Execute` struct represents an execute message from the client.
@@ -591,74 +558,6 @@ struct ConnectionParam<'a> {
     value: LString<'a>,
 }
 
-/// Legacy response of [`Prepare0`].
-struct PrepareComplete0<'a>: Message {
-    mtype: u8 = '1',
-    mlen: len,
-    headers: Array<'a, i16, KeyValue<'a>>,
-    cardinality: u8,
-    input_typedesc_id: Uuid,
-    output_typedesc_id: Uuid,
-}
-
-/// Legacy request.
-struct ExecuteScript0<'a>: Message {
-    mtype: u8 = 'Q',
-    mlen: len,
-    headers: Array<'a, i16, KeyValue<'a>>,
-    script_text: LString<'a>,
-}
-
-/// Legacy equivalent of [`Parse`].
-struct Prepare0<'a>: Message {
-    mtype: u8 = 'P',
-    mlen: len,
-    headers: Array<'a, i16, KeyValue<'a>>,
-    io_format: IoFormat,
-    expected_cardinality: u8,
-    statement_name: Array<'a, u32, u8>,
-    command_text: LString<'a>,
-}
-
-/// Legacy equivalent of [`Parse`].
-struct DescribeStatement0<'a>: Message {
-    mtype: u8 = 'D',
-    mlen: len,
-    headers: Array<'a, i16, KeyValue<'a>>,
-    aspect: DescribeAspect,
-    statement_name: Array<'a, u32, u8>,
-}
-
-/// Legacy version of [`CommandComplete`].
-struct CommandComplete0<'a>: Message {
-    mtype: u8 = 'C',
-    mlen: len,
-    headers: Array<'a, i16, KeyValue<'a>>,
-    status_data: Array<'a, u32, u8>,
-}
-
-/// Legacy version of [`CommandDataDescription`].
-struct CommandDataDescription0<'a>: Message {
-    mtype: u8 = 'T',
-    mlen: len,
-    headers: Array<'a, i16, KeyValue<'a>>,
-    result_cardinality: u8,
-    input_typedesc_id: Uuid,
-    input_typedesc: Array<'a, u32, u8>,
-    output_typedesc_id: Uuid,
-    output_typedesc: Array<'a, u32, u8>,
-}
-
-/// Legacy version of [`Execute`].
-struct Execute0<'a>: Message {
-    mtype: u8 = 'E',
-    mlen: len,
-    headers: Array<'a, i16, KeyValue<'a>>,
-    statement_name: Array<'a, u32, u8>,
-    arguments: Array<'a, u32, u8>,
-}
-
-
 /// Legacy version of [`Execute`] without `input_language`.
 struct Execute2<'a>: Message {
     /// Identifies the message as execute.
@@ -688,19 +587,6 @@ struct Execute2<'a>: Message {
     /// Output data descriptor ID.
     output_typedesc_id: Uuid,
     /// Encoded argument data.
-    arguments: Array<'a, u32, u8>,
-}
-
-/// Legacy version of [`Execute`].
-struct OptimisticExecute0<'a>: Message {
-    mtype: u8 = 'O',
-    mlen: len,
-    headers: Array<'a, i16, KeyValue<'a>>,
-    io_format: IoFormat,
-    expected_cardinality: u8,
-    command_text: LString<'a>,
-    input_typedesc_id: Uuid,
-    output_typedesc_id: Uuid,
     arguments: Array<'a, u32, u8>,
 }
 

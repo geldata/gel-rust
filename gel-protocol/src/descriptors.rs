@@ -698,13 +698,8 @@ impl Decode for ObjectShapeDescriptor {
 impl Decode for ShapeElement {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
         ensure!(buf.remaining() >= 7, errors::Underflow);
-        let (flags, cardinality) = if buf.proto().is_at_least(0, 11) {
-            let flags = buf.get_u32();
-            let cardinality = TryFrom::try_from(buf.get_u8())?;
-            (flags, Some(cardinality))
-        } else {
-            (buf.get_u8() as u32, None)
-        };
+        let flags = buf.get_u32();
+        let cardinality = Some(Cardinality::try_from(buf.get_u8())?);
         let name = String::decode(buf)?;
         let type_pos = TypePos::decode(buf)?;
         let source_type_pos = if buf.proto().is_2() {
