@@ -86,18 +86,6 @@ struct LogMessage<'a>: Message {
 }
 
 /// The `ReadyForCommand` struct represents a message indicating the server is ready for a new command.
-struct ReadyForCommand0<'a>: Message {
-    /// Identifies the message as ready for command.
-    mtype: u8 = 'Z',
-    /// Length of message contents in bytes, including self.
-    mlen: len,
-    /// Message headers.
-    headers: Array<'a, i16, KeyValue<'a>>,
-    /// Transaction state.
-    transaction_state: TransactionState,
-}
-
-/// The `ReadyForCommand` struct represents a message indicating the server is ready for a new command.
 struct ReadyForCommand<'a>: Message {
     /// Identifies the message as ready for command.
     mtype: u8 = 'Z',
