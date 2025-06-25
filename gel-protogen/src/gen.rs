@@ -205,12 +205,25 @@ macro_rules! r#if {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! make_static {
-    (type=$ty:ty) => { $crate::type_mapper::map_types!(match $ty {
+    ($ty:ty) => { $crate::type_mapper::map_types!(match $ty {
         _T<'a> => _T<'static>,
         _T<'a, _T2> => _T<'static, recurse!(_T2)>,
         _T<'a, _T2, _T3> => _T<'static, recurse!(_T2), recurse!(_T3)>,
         _T<_T2> => _T<recurse!(_T2)>,
         _T<_T2, _T3> => _T<recurse!(_T2), recurse!(_T3)>,
+        _T => _T,
+    }) };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! strip_lifetime {
+    ($ty:ty) => { $crate::type_mapper::map_types!(match $ty {
+        _T<'a> => _T::<>,
+        _T<'a, _T2> => _T::<recurse!(_T2)>,
+        _T<'a, _T2, _T3> => _T::<recurse!(_T2), recurse!(_T3)>,
+        _T<_T2> => _T::<recurse!(_T2)>,
+        _T<_T2, _T3> => _T::<recurse!(_T2), recurse!(_T3)>,
         _T => _T,
     }) };
 }
@@ -401,8 +414,8 @@ macro_rules! protocol_builder {
     },)*),
      ) => {
         #[derive(Debug, Default)]
-        pub struct $name<$($sgeneric = $crate::make_static!(type=$stype)),*> where $(
-            $sgeneric: $crate::prelude::EncoderFor<$crate::make_static!(type=$stype)>,
+        pub struct $name<$($sgeneric = $crate::make_static!($stype)),*> where $(
+            $sgeneric: $crate::prelude::EncoderFor<$crate::make_static!($stype)>,
         )* {
         // Because of how macros may expand in the context of struct
         // fields, we need to do a * repeat, then a ? repeat and
@@ -414,13 +427,13 @@ macro_rules! protocol_builder {
         }
 
         impl <$($sgeneric),*> $crate::prelude::BuilderFor for $name<$($sgeneric),*> where $(
-            $sgeneric: $crate::prelude::EncoderFor<$crate::make_static!(type=$stype)>,
+            $sgeneric: $crate::prelude::EncoderFor<$crate::make_static!($stype)>,
         )* {
             type Message = $orig_name<'static>;
         }
 
         impl <$($sgeneric),*> $crate::prelude::EncoderFor<$orig_name<'static>> for $name<$($sgeneric),*> where $(
-            $sgeneric: $crate::prelude::EncoderFor<$crate::make_static!(type=$stype)>,
+            $sgeneric: $crate::prelude::EncoderFor<$crate::make_static!($stype)>,
         )* {
             fn encode_for(&self, buf: &mut $crate::BufWriter<'_>) {
                 #[allow(unused)]
@@ -429,11 +442,11 @@ macro_rules! protocol_builder {
                     $crate::r#if!(__is_empty__ [$($value)?] {
                         $crate::r#if!(__is_empty__ [$($auto)?] {
                             // value is no_value (present in builder)
-                            $crate::prelude::EncoderFor::<$crate::make_static!(type=$type)>::encode_for(&value.$field, buf);
+                            $crate::prelude::EncoderFor::<$crate::make_static!($type)>::encode_for(&value.$field, buf);
                         } else {
                             // value is auto (not present in builder)
                             let auto_offset = buf.size();
-                            $crate::prelude::EncoderFor::<$crate::make_static!(type=$type)>::encode_for(&<$type as Default>::default(), buf);
+                            $crate::prelude::EncoderFor::<$crate::make_static!($type)>::encode_for(&<$type as Default>::default(), buf);
                         });
                     } else {
                         // value is set, not present in builder
@@ -451,7 +464,7 @@ macro_rules! protocol_builder {
         }
 
         impl <$($sgeneric),*> $crate::prelude::EncoderFor<$orig_name<'static>> for &'_ $name<$($sgeneric),*> where $(
-            $sgeneric: $crate::prelude::EncoderFor<$crate::make_static!(type=$stype)>,
+            $sgeneric: $crate::prelude::EncoderFor<$crate::make_static!($stype)>,
         )* {
             fn encode_for(&self, buf: &mut $crate::BufWriter<'_>) {
                 <$name<$($sgeneric),*> as $crate::prelude::EncoderFor<$orig_name<'static>>>::encode_for(self, buf);

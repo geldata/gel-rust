@@ -34,6 +34,8 @@ extern crate self as gel_protogen;
 pub mod prelude {
     pub use super::declare_meta;
     pub use super::declare_type;
+    pub use super::make_static;
+    pub use super::strip_lifetime;
 
     pub use super::encoding::BuilderFor;
     pub use super::encoding::DataType;
@@ -66,4 +68,37 @@ pub mod prelude {
 
     pub use gel_protogen_proc_macros::Protocol;
     pub use uuid::Uuid;
+}
+
+/// Compilation tests for proc macros.
+#[cfg(test)]
+mod tests {
+    use super::prelude::Protocol;
+
+    super::protocol!(
+        struct MA<'a> {
+            a: u8,
+        }
+
+        struct MB<'a> {
+            b: u8,
+        }
+
+        struct MC<'a> {
+            c: u8,
+        }
+    );
+
+    #[derive(Copy, Clone, Protocol)]
+    #[repr(u8)]
+    enum TestEnum {
+        A = 1,
+    }
+
+    #[derive(Copy, Clone, Protocol)]
+    enum TestEnumChoice<'a> {
+        A(MA<'a>),
+        B(MB<'a>),
+        C(MC<'a>),
+    }
 }

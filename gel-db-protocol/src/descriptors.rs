@@ -1,27 +1,6 @@
 use crate::protocol::Cardinality;
 use gel_protogen::prelude::*;
 
-message_group!(
-    Descriptor: BaseDescriptor = [
-        SetDescriptor,
-        ObjectShapeDescriptor,
-        BaseScalarTypeDescriptor,
-        ScalarTypeDescriptor,
-        TupleTypeDescriptor,
-        NamedTupleTypeDescriptor,
-        ArrayTypeDescriptor,
-        EnumerationTypeDescriptor,
-        InputShapeDescriptor,
-        RangeTypeDescriptor,
-        ObjectTypeDescriptor,
-        CompoundTypeDescriptor,
-        MultiRangeTypeDescriptor,
-        SQLRecordDescriptor,
-        TypeNameAnnotation,
-        TypeAnnotationDescriptor, // last, catch-all
-    ]
-);
-
 protocol!(
     /// BaseDescriptor - represents the shape of all descriptors
     struct BaseDescriptor<'a> {
@@ -285,13 +264,30 @@ protocol!(
     }
 );
 
-/// Generates the boilerplate for each descriptor type.
+/// Generates the boilerplate for each descriptor type. There's a lot of repetition.
 macro_rules! impl_descriptor {
-    ($(
-        $name:ident,
+    ($($type:ident),* $(,)?) => {
+        gel_protogen::paste!( impl_descriptor!(__inner__ $(
+            ($type,
+            [< $type Descriptor >],
+            [< Parsed $type Descriptor >])
+        )* ); );
+    };
+
+    (__inner__ $(
+        ($name:ident,
         $descriptor:ident,
-        $parsed_descriptor:ident
-    ),* $(,)?) => {
+        $parsed_descriptor:ident)
+    )*) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Protocol)]
+        pub enum Descriptor<'a> {
+            $(
+                $descriptor($descriptor<'a>),
+            )*
+            TypeAnnotationDescriptor(TypeAnnotationDescriptor<'a>),
+            TypeNameAnnotation(TypeNameAnnotation<'a>),
+        }
+
         impl<'a> Descriptor<'a> {
             /// Returns the [`Uuid`] of the descriptor.
             pub fn id(&self) -> Uuid {
@@ -327,47 +323,19 @@ macro_rules! impl_descriptor {
 
 impl_descriptor!(
     Set,
-    SetDescriptor,
-    ParsedSetDescriptor,
     ObjectShape,
-    ObjectShapeDescriptor,
-    ParsedObjectShapeDescriptor,
     BaseScalarType,
-    BaseScalarTypeDescriptor,
-    ParsedBaseScalarTypeDescriptor,
     ScalarType,
-    ScalarTypeDescriptor,
-    ParsedScalarTypeDescriptor,
     TupleType,
-    TupleTypeDescriptor,
-    ParsedTupleTypeDescriptor,
     NamedTupleType,
-    NamedTupleTypeDescriptor,
-    ParsedNamedTupleTypeDescriptor,
     ArrayType,
-    ArrayTypeDescriptor,
-    ParsedArrayTypeDescriptor,
     EnumerationType,
-    EnumerationTypeDescriptor,
-    ParsedEnumerationTypeDescriptor,
     InputShape,
-    InputShapeDescriptor,
-    ParsedInputShapeDescriptor,
     RangeType,
-    RangeTypeDescriptor,
-    ParsedRangeTypeDescriptor,
     ObjectType,
-    ObjectTypeDescriptor,
-    ParsedObjectTypeDescriptor,
     CompoundType,
-    CompoundTypeDescriptor,
-    ParsedCompoundTypeDescriptor,
     MultiRangeType,
-    MultiRangeTypeDescriptor,
-    ParsedMultiRangeTypeDescriptor,
     SQLRecord,
-    SQLRecordDescriptor,
-    ParsedSQLRecordDescriptor,
 );
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Protocol)]

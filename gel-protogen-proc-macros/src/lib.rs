@@ -1,6 +1,7 @@
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, Data, DeriveInput};
 
+mod enum_choice;
 mod enum_repr;
 
 /// Derive macro for Protocol types
@@ -19,9 +20,14 @@ mod enum_repr;
 ///
 /// # Requirements
 ///
-/// For enum types:
+/// For repr enum types:
 /// - The enum must have a `#[repr(type)]` attribute.
 /// - The enum must have explicit discriminant values.
+/// - The enum must be `Copy`
+///
+/// For enum choice types:
+/// - The enum must not have repr attributes.
+/// - Each variant must be a struct with a `#[derive(Protocol)]` attribute.
 /// - The enum must be `Copy`
 ///
 /// # Example
@@ -34,6 +40,13 @@ mod enum_repr;
 /// enum MyEnum {
 ///     A = 1,
 ///     B = 2,
+/// }
+///
+/// #[derive(Protocol)]
+/// enum MyEnum<'a> {
+///     A(A<'a>),
+///     B(B<'a>),
+///     C(C<'a>),
 /// }
 /// ```
 #[proc_macro_derive(Protocol)]
@@ -59,18 +72,21 @@ fn derive_protocol_impl(input: DeriveInput) -> syn::Result<proc_macro2::TokenStr
     };
 
     let enum_name = &input.ident;
-    let enum_name_str = enum_name.to_string();
 
     // Find the repr attribute to get the underlying type
-    let repr_type = enum_repr::find_repr_type(&input.attrs)?;
-
-    // Extract variants with their values
-    let variants = enum_repr::extract_variants(&data.variants)?;
-
-    // Generate the expanded code using the extracted functionality
-    let expanded = enum_repr::generate_enum_impl(enum_name, &enum_name_str, &repr_type, &variants);
-
-    Ok(expanded)
+    match enum_repr::find_repr_type(&input.attrs)? {
+        Some(repr_type) => {
+            let variants = enum_repr::extract_variants(&data.variants)?;
+            let expanded = enum_repr::generate_enum_impl(enum_name, &repr_type, &variants);
+            Ok(expanded)
+        }
+        None => {
+            // This is an enum choice type - extract variants and generate choice implementation
+            let variants = enum_choice::extract_variants(&data.variants)?;
+            let expanded = enum_choice::generate_enum_choice_from_variants(enum_name, &variants)?;
+            Ok(expanded)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -80,7 +96,7 @@ mod tests {
     use quote::quote;
 
     #[test]
-    fn test_protocol_derive() {
+    fn test_enum_repr() {
         let input: TokenStream = quote! {
             #[repr(u8)]
             enum TestEnum {
@@ -93,5 +109,22 @@ mod tests {
         let input = syn::parse2(input).unwrap();
         let result = derive_protocol_impl(input);
         assert!(result.is_ok());
+        eprintln!("{}", result.unwrap());
+    }
+
+    #[test]
+    fn test_enum_choice() {
+        let input: TokenStream = quote! {
+            enum TestEnum<'a> {
+                A(A<'a>),
+                B(B<'a>),
+                C(C<'a>),
+            }
+        };
+
+        let input = syn::parse2(input).unwrap();
+        let result = derive_protocol_impl(input);
+        assert!(result.is_ok());
+        eprintln!("{}", result.unwrap());
     }
 }

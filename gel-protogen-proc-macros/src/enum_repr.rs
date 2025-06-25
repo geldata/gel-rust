@@ -1,30 +1,27 @@
 use proc_macro2::Literal;
 use quote::quote;
-use syn::{
-    punctuated::Punctuated, Expr, ExprLit, Fields, Ident, Lit, Token, Variant,
-};
+use syn::{punctuated::Punctuated, Expr, ExprLit, Fields, Ident, Lit, Token, Variant};
 
 /// Extract the repr type from enum attributes
-pub fn find_repr_type(attrs: &[syn::Attribute]) -> syn::Result<syn::Type> {
+pub fn find_repr_type(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Type>> {
     for attr in attrs {
         if attr.path().is_ident("repr") {
             let tokens = attr.meta.require_list()?.parse_args_with(
                 syn::punctuated::Punctuated::<syn::Type, Token![,]>::parse_terminated,
             )?;
             if let Some(repr_type) = tokens.into_iter().next() {
-                return Ok(repr_type);
+                return Ok(Some(repr_type));
             }
         }
     }
 
-    Err(syn::Error::new_spanned(
-        &attrs[0],
-        "Protocol enum must have a #[repr(type)] attribute",
-    ))
+    Ok(None)
 }
 
 /// Extract variants with their discriminant values from an enum
-pub fn extract_variants(variants: &Punctuated<Variant, Token![,]>) -> syn::Result<Vec<(Ident, u64)>> {
+pub fn extract_variants(
+    variants: &Punctuated<Variant, Token![,]>,
+) -> syn::Result<Vec<(Ident, u64)>> {
     let mut result = Vec::new();
 
     for variant in variants {
@@ -77,7 +74,6 @@ pub fn extract_literal_value(expr: &Expr) -> syn::Result<u64> {
 /// Generate the basic enum implementation code
 pub fn generate_enum_impl(
     enum_name: &Ident,
-    enum_name_str: &str,
     repr_type: &syn::Type,
     variants: &[(Ident, u64)],
 ) -> proc_macro2::TokenStream {
@@ -111,7 +107,7 @@ pub fn generate_enum_impl(
                     #(
                         #variant_values => Ok(#enum_name::#variant_names),
                     )*
-                    _ => Err(ParseError::InvalidData(#enum_name_str, repr as usize)),
+                    _ => Err(::gel_protogen::prelude::ParseError::InvalidData(stringify!(#enum_name), repr as usize)),
                 }
             }
         }
@@ -135,7 +131,7 @@ pub fn generate_enum_impl(
                     #(
                         #variant_values => #enum_name::#variant_names,
                     )*
-                    _ => return Err(::gel_protogen::prelude::ParseError::InvalidData(#enum_name_str, value as usize)),
+                    _ => return Err(::gel_protogen::prelude::ParseError::InvalidData(stringify!(#enum_name), value as usize)),
                 })
             }
         }
@@ -157,7 +153,7 @@ mod tests {
     use super::*;
     use proc_macro2::TokenStream;
     use syn::{Data, DeriveInput};
-    
+
     #[test]
     fn test_extract_variants() {
         let input: TokenStream = quote! {
@@ -173,7 +169,7 @@ mod tests {
         if let Data::Enum(data_enum) = input.data {
             let result = extract_variants(&data_enum.variants);
             assert!(result.is_ok());
-            
+
             let variants = result.unwrap();
             assert_eq!(variants.len(), 3);
             assert_eq!(variants[0].0.to_string(), "A");
@@ -197,8 +193,8 @@ mod tests {
         let input: DeriveInput = syn::parse2(input).unwrap();
         let result = find_repr_type(&input.attrs);
         assert!(result.is_ok());
-        
+
         let repr_type = result.unwrap();
         assert_eq!(quote!(#repr_type).to_string(), "u8");
     }
-} 
+}

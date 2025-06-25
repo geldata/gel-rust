@@ -5,28 +5,12 @@ macro_rules! __message_group {
         $crate::paste!(
 
         $(#[$doc])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        #[allow(unused)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, $crate::prelude::Protocol)]
         pub enum $group<'a> {
             $(
                 #[doc = concat!("Matched [`", stringify!($message), "`]")]
-                $message($message<'a>)
+                $message($message::<'a>)
             ),*
-        }
-
-        impl<'a> $crate::prelude::DataType for $group<'a> {
-            const META: $crate::prelude::StructFieldMeta = $crate::prelude::StructFieldMeta::new(stringify!($group), None);
-        }
-
-        impl<'a> $crate::prelude::DecoderFor<'a, $group<'a>> for $group<'a> {
-            fn decode_for(buf: &mut &'a [u8]) -> Result<Self, $crate::prelude::ParseError> {
-                $(
-                    if $message::is_buffer(buf) {
-                        return Ok(Self::$message($message::decode_for(buf)?));
-                    }
-                )*
-                Err($crate::prelude::ParseError::InvalidData(stringify!($group), 0))
-            }
         }
 
         pub enum [<$group Builder>]<'a> {
@@ -103,23 +87,8 @@ macro_rules! __message_group {
                     opt
                 }
             )*
-            // fn unknown(&mut self, message: self::struct_defs::Message::Message) {
-            //     // No implementation by default
-            // }
         }
 
-        // #[allow(unused)]
-        // impl $group {
-        //     pub fn identify(buf: &[u8]) -> Option<Self> {
-        //         $(
-        //             if $message::is_buffer(buf) {
-        //                 return Some(Self::$message);
-        //             }
-        //         )*
-        //         None
-        //     }
-
-        // }
         );
     };
 }
