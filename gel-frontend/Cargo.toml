@@ -10,8 +10,8 @@ tokio.workspace = true
 
 # We should offer openssl/rustls as separate features
 gel-stream = { path = "../gel-stream", version = "^0.4.5", features = ["server", "rustls", "pem", "__test_keys"] }
-gel-auth = { path = "../gel-auth", version = "0.1", features = ["postgres", "gel"] }
-gel-pg-protocol = { path = "../gel-pg-protocol", version = "0.1" }
+gel-auth = { path = "../gel-auth", version = "^0.1.7", features = ["postgres", "gel"] }
+gel-pg-protocol = { path = "../gel-pg-protocol", version = "^0.1.2" }
 gel-db-protocol = { path = "../gel-db-protocol", version = "0.2.0" }
 gel-jwt = { path = "../gel-jwt", version = "0.1", features = ["keygen"] }
 
