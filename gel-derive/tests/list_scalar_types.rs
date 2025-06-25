@@ -8,13 +8,6 @@ struct ScalarType {
     kind: String,
 }
 
-fn old_decoder() -> Decoder {
-    let mut dec = Decoder::default();
-    dec.has_implicit_id = true;
-    dec.has_implicit_tid = true;
-    dec
-}
-
 #[test]
 fn decode_new() {
     let data = b"\0\0\0\x03\0\0\0\x19\0\0\0\x0fcal::local_date\
@@ -40,7 +33,7 @@ fn decode_old() {
         \x01\x0c\0\0\0\x19\0\0\0\x0fcal::local_date\
         \0\0\0\x19\0\0\0\x0estd::anyscalar\0\0\0\x19\0\0\0\x06normal";
     let order = (vec![0, 1, 2], ((), (), ()));
-    let res = ScalarType::decode(&old_decoder(), &order, data);
+    let res = ScalarType::decode(&Decoder::default(), &order, data);
     assert_eq!(
         res.unwrap(),
         ScalarType {

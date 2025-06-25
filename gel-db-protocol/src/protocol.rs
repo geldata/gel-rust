@@ -33,7 +33,7 @@ message_group!(
         Execute,
         Sync,
         Terminate,
-        Dump,
+        Dump3,
         Restore,
         RestoreBlock,
         RestoreEof
@@ -292,16 +292,6 @@ struct AuthenticationSASLFinal<'a>: Message {
     auth_status: i32 = 0x0C,
     /// SASL data.
     sasl_data: Array<'a, u32, u8>,
-}
-
-/// The `Dump` struct represents a dump message from the client.
-struct Dump<'a>: Message {
-    /// Identifies the message as dump.
-    mtype: u8 = '>',
-    /// Length of message contents in bytes, including self.
-    mlen: len,
-    /// Message annotations.
-    annotations: Array<'a, i16, Annotation<'a>>,
 }
 
 /// The `Dump2` struct represents a dump message from the client.

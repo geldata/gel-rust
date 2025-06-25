@@ -12,11 +12,7 @@ use gel_errors::{Error, ErrorKind, ProtocolEncodingError};
 
 #[non_exhaustive]
 #[derive(Default)]
-pub struct Decoder {
-    pub has_implicit_id: bool,
-    pub has_implicit_tid: bool,
-    pub has_implicit_tname: bool,
-}
+pub struct Decoder {}
 
 pub trait Queryable: Sized {
     /// Data returned by [Queryable::check_descriptor], that can be used during decoding.
@@ -61,20 +57,12 @@ pub enum DescriptorMismatch {
 }
 
 pub struct DescriptorContext<'a> {
-    pub has_implicit_id: bool,
-    pub has_implicit_tid: bool,
-    pub has_implicit_tname: bool,
     descriptors: &'a [Descriptor],
 }
 
 impl DescriptorContext<'_> {
     pub(crate) fn new(descriptors: &[Descriptor]) -> DescriptorContext {
-        DescriptorContext {
-            descriptors,
-            has_implicit_id: false,
-            has_implicit_tid: false,
-            has_implicit_tname: false,
-        }
+        DescriptorContext { descriptors }
     }
     pub fn build_codec(&self, root_pos: TypePos) -> Result<Arc<dyn Codec>, Error> {
         build_codec(Some(root_pos), self.descriptors).map_err(ProtocolEncodingError::with_source)

@@ -52,45 +52,6 @@ pub fn derive_struct(
     };
     let fieldname = fields.iter().map(|f| f.name.clone()).collect::<Vec<_>>();
     let base_fields = fields.len();
-    let type_id_block = Some(quote! {
-        if #decoder.has_implicit_tid {
-            #elements.skip_element()?;
-        }
-    });
-    let type_name_block = Some(quote! {
-        if #decoder.has_implicit_tname {
-            #elements.skip_element()?;
-        }
-    });
-    let id_block = Some(quote! {
-        if #decoder.has_implicit_id {
-            #elements.skip_element()?;
-        }
-    });
-    let type_id_check = Some(quote! {
-        if ctx.has_implicit_tid {
-            if(!shape.elements[idx].flag_implicit) {
-                return ::std::result::Result::Err(ctx.expected("implicit __tid__"));
-            }
-            idx += 1;
-        }
-    });
-    let type_name_check = Some(quote! {
-        if ctx.has_implicit_tname {
-            if(!shape.elements[idx].flag_implicit) {
-                return ::std::result::Result::Err(ctx.expected("implicit __tname__"));
-            }
-            idx += 1;
-        }
-    });
-    let id_check = Some(quote! {
-        if ctx.has_implicit_id {
-            if(!shape.elements[idx].flag_implicit) {
-                return ::std::result::Result::Err(ctx.expected("implicit id"));
-            }
-            idx += 1;
-        }
-    });
     let field_decoders = fields
         .iter()
         .enumerate()
@@ -189,17 +150,11 @@ pub fn derive_struct(
                 (#order, #sub_args): &Self::Args,
                 #buf: &[u8]
             ) -> ::std::result::Result<Self, #gel_protocol::errors::DecodeError> {
-                let #nfields = #base_fields
-                    + if #decoder.has_implicit_id { 1 } else { 0 }
-                    + if #decoder.has_implicit_tid { 1 } else { 0 }
-                    + if #decoder.has_implicit_tname { 1 } else { 0 };
+                let #nfields = #base_fields;
                 let mut #elements =
                     #gel_protocol::serialization::decode::DecodeTupleLike
                     ::new_object(#buf, #nfields)?;
 
-                #type_id_block
-                #type_name_block
-                #id_block
                 let fields = #elements.read_n(#field_count)?;
                 #field_decoders
                 ::std::result::Result::Ok(#name {
@@ -224,9 +179,6 @@ pub fn derive_struct(
 
                 // TODO(tailhook) cache shape.id somewhere
                 let mut idx = 0;
-                #type_id_check
-                #type_name_check
-                #id_check
                 if(shape.elements.len() != #field_count) {
                     return ::std::result::Result::Err(ctx.field_number(
                         #field_count, shape.elements.len())
