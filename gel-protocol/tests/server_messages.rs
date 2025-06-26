@@ -285,13 +285,13 @@ fn raw_packet() -> Result<(), Box<dyn Error>> {
     // of dump packets, this will need to be replaced.
     encoding_eq!(
         ServerMessage::DumpHeader(RawPacket {
-            data: Bytes::from_static(b"\0\0\0\x12\0\x01\0\0\0\x08\0\0\0\0\0\0\0\x01"),
+            data: Bytes::from_static(b"\0\x01\0\0\0\x08\0\0\0\0\0\0\0\x01"),
         }),
         b"@\0\0\0\x12\0\x01\0\0\0\x08\0\0\0\0\0\0\0\x01"
     );
     encoding_eq!(
         ServerMessage::DumpBlock(RawPacket {
-            data: Bytes::from_static(b"\0\0\0\x12\0\x01\0\0\0\x08\0\0\0\0\0\0\0\x01"),
+            data: Bytes::from_static(b"\0\x01\0\0\0\x08\0\0\0\0\0\0\0\x01"),
         }),
         b"=\0\0\0\x12\0\x01\0\0\0\x08\0\0\0\0\0\0\0\x01"
     );
