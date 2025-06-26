@@ -12,7 +12,7 @@ readme = "README.md"
 rust-version.workspace = true
 
 [dependencies]
-gel-protocol = { path = "../gel-protocol", version = "^0.9.1", features = [
+gel-protocol = { path = "../gel-protocol", version = "^0.9.2", features = [
     "with-serde",
 ] }
 gel-errors = { path = "../gel-errors", version = "^0.5.4" }
