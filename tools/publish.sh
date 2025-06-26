@@ -37,6 +37,11 @@ cd $CRATE_ROOT
 
 CRATE_ORDER=$(./tools/list.sh $CRATE)
 
+# Check out a temporary worktree for this project from origin/master
+git fetch origin master >> $LOG_FILE 2>&1
+git worktree add $TEMP_DIR/worktree origin/master >> $LOG_FILE 2>&1
+cd $TEMP_DIR/worktree
+
 cargo metadata --format-version 1 > $TEMP_DIR/metadata.json 2> /dev/null
 
 if [ $NEW_CRATE -eq 1 ]; then
@@ -55,11 +60,6 @@ else
     NEEDS_BUMP=()
     NEEDS_PUBLISH=()
     COMPARE_DIR="$TEMP_DIR/compare"
-
-    # Check out a temporary worktree for this project from origin/master
-    git fetch origin master >> $LOG_FILE 2>&1
-    git worktree add $TEMP_DIR/worktree origin/master >> $LOG_FILE 2>&1
-    cd $TEMP_DIR/worktree
 
     mkdir -p target/package-cache
 
