@@ -796,6 +796,7 @@ impl Decode for RestoreReady {
 impl Encode for (u8, &'_ RawPacket) {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
         buf.put_u8(self.0);
+        buf.put_u32((self.1.data.len() + 4) as u32);
         buf.extend(&self.1.data);
         Ok(())
     }
@@ -804,9 +805,8 @@ impl Encode for (u8, &'_ RawPacket) {
 impl Decode for RawPacket {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
         // Skip the message type
-        buf.advance(1);
-        Ok(RawPacket {
-            data: buf.copy_to_bytes(buf.remaining()),
-        })
+        buf.advance(5);
+        let data = buf.copy_to_bytes(buf.remaining());
+        Ok(RawPacket { data })
     }
 }
