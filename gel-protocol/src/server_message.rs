@@ -807,8 +807,6 @@ impl Decode for RawPacket {
         // Skip the message type
         buf.advance(5);
         let data = buf.copy_to_bytes(buf.remaining());
-        Ok(RawPacket {
-            data,
-        })
+        Ok(RawPacket { data })
     }
 }
