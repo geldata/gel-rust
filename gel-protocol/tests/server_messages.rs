@@ -8,7 +8,6 @@ use uuid::Uuid;
 use gel_protocol::common::{Capabilities, RawTypedesc};
 use gel_protocol::encoding::{Input, Output};
 use gel_protocol::features::ProtocolVersion;
-use gel_protocol::server_message::Authentication;
 use gel_protocol::server_message::Cardinality;
 use gel_protocol::server_message::CommandComplete1;
 use gel_protocol::server_message::CommandDataDescription1;
@@ -17,6 +16,7 @@ use gel_protocol::server_message::RestoreReady;
 use gel_protocol::server_message::ServerHandshake;
 use gel_protocol::server_message::ServerMessage;
 use gel_protocol::server_message::StateDataDescription;
+use gel_protocol::server_message::{Authentication, RawPacket};
 use gel_protocol::server_message::{ErrorResponse, ErrorSeverity};
 use gel_protocol::server_message::{LogMessage, MessageSeverity};
 use gel_protocol::server_message::{ParameterStatus, ServerKeyData};
@@ -275,6 +275,25 @@ fn state_data_description() -> Result<(), Box<dyn Error>> {
         }),
         b"s\0\0\0)\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\x05\0\0\0\
         \x11\x02\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\x05"
+    );
+    Ok(())
+}
+
+#[test]
+fn raw_packet() -> Result<(), Box<dyn Error>> {
+    // NOTE: this is not a valid message! Once we start validating the contents
+    // of dump packets, this will need to be replaced.
+    encoding_eq!(
+        ServerMessage::DumpHeader(RawPacket {
+            data: Bytes::from_static(b"\0\0\0\x12\0\x01\0\0\0\x08\0\0\0\0\0\0\0\x01"),
+        }),
+        b"@\0\0\0\x12\0\x01\0\0\0\x08\0\0\0\0\0\0\0\x01"
+    );
+    encoding_eq!(
+        ServerMessage::DumpBlock(RawPacket {
+            data: Bytes::from_static(b"\0\0\0\x12\0\x01\0\0\0\x08\0\0\0\0\0\0\0\x01"),
+        }),
+        b"=\0\0\0\x12\0\x01\0\0\0\x08\0\0\0\0\0\0\0\x01"
     );
     Ok(())
 }
