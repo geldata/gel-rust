@@ -242,8 +242,8 @@ impl ServerMessage {
             StateDataDescription(h) => encode(buf, h),
             Data(h) => encode(buf, h),
             RestoreReady(h) => encode(buf, h),
-            DumpHeader(h) => encode(buf, h),
-            DumpBlock(h) => encode(buf, h),
+            DumpHeader(h) => encode(buf, &(b'@', h)),
+            DumpBlock(h) => encode(buf, &(b'=', h)),
 
             UnknownMessage(_, _) => errors::UnknownMessageCantBeEncoded.fail()?,
         }
@@ -793,15 +793,18 @@ impl Decode for RestoreReady {
     }
 }
 
-impl Encode for RawPacket {
+impl Encode for (u8, &'_ RawPacket) {
     fn encode(&self, buf: &mut Output) -> Result<(), EncodeError> {
-        buf.extend(&self.data);
+        buf.put_u8(self.0);
+        buf.extend(&self.1.data);
         Ok(())
     }
 }
 
 impl Decode for RawPacket {
     fn decode(buf: &mut Input) -> Result<Self, DecodeError> {
+        // Skip the message type
+        buf.advance(1);
         Ok(RawPacket {
             data: buf.copy_to_bytes(buf.remaining()),
         })
