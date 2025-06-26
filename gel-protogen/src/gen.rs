@@ -217,19 +217,6 @@ macro_rules! make_static {
 
 #[doc(hidden)]
 #[macro_export]
-macro_rules! strip_lifetime {
-    ($ty:ty) => { $crate::type_mapper::map_types!(match $ty {
-        _T<'a> => _T::<>,
-        _T<'a, _T2> => _T::<recurse!(_T2)>,
-        _T<'a, _T2, _T3> => _T::<recurse!(_T2), recurse!(_T3)>,
-        _T<_T2> => _T::<recurse!(_T2)>,
-        _T<_T2, _T3> => _T::<recurse!(_T2), recurse!(_T3)>,
-        _T => _T,
-    }) };
-}
-
-#[doc(hidden)]
-#[macro_export]
 macro_rules! protocol_builder {
     (__struct__, struct $name:ident <$lt:lifetime> {
         super($($super:ident)?),

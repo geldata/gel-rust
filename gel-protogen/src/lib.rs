@@ -35,7 +35,6 @@ pub mod prelude {
     pub use super::declare_meta;
     pub use super::declare_type;
     pub use super::make_static;
-    pub use super::strip_lifetime;
 
     pub use super::encoding::BuilderFor;
     pub use super::encoding::DataType;
