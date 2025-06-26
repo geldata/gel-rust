@@ -266,19 +266,21 @@ protocol!(
 
 /// Generates the boilerplate for each descriptor type. There's a lot of repetition.
 macro_rules! impl_descriptor {
-    ($($type:ident),* $(,)?) => {
-        gel_protogen::paste!( impl_descriptor!(__inner__ $(
-            ($type,
+    ($self:ident, $($type:ident [ $($debug_name:ident = $debug_value:expr),* $(,)? ]),* $(,)?) => {
+        gel_protogen::paste!( impl_descriptor!(__inner__ $self $((
+            $type,
             [< $type Descriptor >],
-            [< Parsed $type Descriptor >])
-        )* ); );
+            [< Parsed $type Descriptor >],
+            [ $($debug_name = ( $debug_value )),* ]
+        ))* ); );
     };
 
-    (__inner__ $(
-        ($name:ident,
+    (__inner__ $self:ident $((
+        $name:ident,
         $descriptor:ident,
-        $parsed_descriptor:ident)
-    )*) => {
+        $parsed_descriptor:ident,
+        [ $($debug_name:ident = ($($debug_value:tt)*)),* ]
+    ))*) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Protocol)]
         pub enum Descriptor<'a> {
             $(
@@ -298,6 +300,7 @@ macro_rules! impl_descriptor {
             }
         }
 
+        /// An enumeration of all possible parsed descriptors.
         #[derive(derive_more::Debug, Clone, Copy, derive_more::From)]
         pub enum ParsedDescriptor<'a, 'b> {
             $(
@@ -318,24 +321,46 @@ macro_rules! impl_descriptor {
                 }
             }
         }
+
+        // Generate the parsed descriptor structs
+        $(
+            #[derive(Clone, Copy, derive_more::Deref, derive_more::Constructor)]
+            pub struct $parsed_descriptor<'a, 'b> {
+                #[allow(unused)]
+                descriptors: &'b ParsedDescriptors<'a>,
+                #[deref]
+                descriptor: $descriptor<'a>,
+            }
+
+            impl<'a, 'b> std::fmt::Debug for $parsed_descriptor<'a, 'b> {
+                fn fmt(&$self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    f.debug_struct(stringify!($parsed_descriptor))
+                        .field("id", &$self.id())
+                        $(.field(stringify!($debug_name), {&$($debug_value)*}))*
+                        .finish()
+                }
+            }
+        )*
     };
 }
-
+// Descriptor implementations with debug strings in [...].
 impl_descriptor!(
-    Set,
-    ObjectShape,
-    BaseScalarType,
-    ScalarType,
-    TupleType,
-    NamedTupleType,
-    ArrayType,
-    EnumerationType,
-    InputShape,
-    RangeType,
-    ObjectType,
-    CompoundType,
-    MultiRangeType,
-    SQLRecord,
+    self, // required for hygiene
+
+    Set[],
+    ObjectShape[ephemeral_free_shape=self.ephemeral_free_shape(), elements=self.elements().collect::<Vec<_>>()],
+    BaseScalarType[],
+    ScalarType[name=self.name(), schema_defined=self.schema_defined(), ancestors=self.ancestors().collect::<Vec<_>>()],
+    TupleType[name=self.name(), schema_defined=self.schema_defined(), elements=self.elements().collect::<Vec<_>>(), ancestors=self.ancestors().collect::<Vec<_>>()],
+    NamedTupleType[name=self.name(), schema_defined=self.schema_defined(), elements=self.elements().collect::<Vec<_>>(), ancestors=self.ancestors().collect::<Vec<_>>()],
+    ArrayType[name=self.name(), schema_defined=self.schema_defined(), element_type=self.element_type(), dimensions=self.dimensions(), ancestors=self.ancestors().collect::<Vec<_>>()],
+    EnumerationType[name=self.name(), schema_defined=self.schema_defined(), members=self.members().collect::<Vec<_>>(), ancestors=self.ancestors().collect::<Vec<_>>()],
+    InputShape[elements=self.elements().collect::<Vec<_>>()],
+    RangeType[name=self.name(), schema_defined=self.schema_defined(), element_type=self.element_type(), ancestors=self.ancestors().collect::<Vec<_>>()],
+    ObjectType[name=self.name(), schema_defined=self.schema_defined()],
+    CompoundType[name=self.name(), schema_defined=self.schema_defined(), op=self.op(), components=self.components().collect::<Vec<_>>()],
+    MultiRangeType[name=self.name(), schema_defined=self.schema_defined(), range_type=self.range_type(), ancestors=self.ancestors().collect::<Vec<_>>()],
+    SQLRecord[elements=self.elements().collect::<Vec<_>>()],
 );
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Protocol)]
@@ -390,26 +415,11 @@ impl<'a> ParsedDescriptors<'a> {
     }
 }
 
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("Set(id={})", self.id())]
-pub struct ParsedSetDescriptor<'a, 'b> {
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: SetDescriptor<'a>,
-}
-
+// Implementation blocks for the parsed descriptors
 impl<'a, 'b> ParsedSetDescriptor<'a, 'b> {
     pub fn set_type(&self) -> ParsedDescriptor<'a, 'b> {
         self.descriptors.get_descriptor(self.descriptor.type_pos)
     }
-}
-
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("ObjectShape(id={}, ephemeral_free_shape={}, elements={:#?})", self.id(), self.ephemeral_free_shape(), self.elements().collect::<Vec<_>>())]
-pub struct ParsedObjectShapeDescriptor<'a, 'b> {
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: ObjectShapeDescriptor<'a>,
 }
 
 impl<'a, 'b> ParsedObjectShapeDescriptor<'a, 'b> {
@@ -422,7 +432,7 @@ impl<'a, 'b> ParsedObjectShapeDescriptor<'a, 'b> {
 }
 
 #[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("ObjectShapeElement(name={:?}, cardinality={:?}, element_type={:?}, source_type={:?})", self.name(), self.cardinality(), self.element_type(), self.source_type())]
+#[debug("ObjectShapeElement(name={:?}, cardinality={:?}, element_type={:#?}, source_type={:#?})", self.name(), self.cardinality(), self.element_type(), self.source_type())]
 pub struct ParsedObjectShapeElement<'a, 'b> {
     descriptors: &'b ParsedDescriptors<'a>,
     #[deref]
@@ -440,23 +450,6 @@ impl<'a, 'b> ParsedObjectShapeElement<'a, 'b> {
     }
 }
 
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("Set(id={})", self.id())]
-pub struct ParsedBaseScalarTypeDescriptor<'a, 'b> {
-    #[expect(unused)]
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: BaseScalarTypeDescriptor<'a>,
-}
-
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("ScalarType(id={}, name={:?}, schema_defined={})", self.id(), self.name(), self.schema_defined())]
-pub struct ParsedScalarTypeDescriptor<'a, 'b> {
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: ScalarTypeDescriptor<'a>,
-}
-
 impl<'a, 'b> ParsedScalarTypeDescriptor<'a, 'b> {
     pub fn ancestors(&self) -> impl Iterator<Item = ParsedDescriptor<'a, 'b>> {
         self.descriptor
@@ -464,14 +457,6 @@ impl<'a, 'b> ParsedScalarTypeDescriptor<'a, 'b> {
             .into_iter()
             .map(|index| self.descriptors.get_descriptor(index))
     }
-}
-
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("TupleType(id={}, name={:?}, schema_defined={}, elements={:#?})", self.id(), self.name(), self.schema_defined(), self.elements().collect::<Vec<_>>())]
-pub struct ParsedTupleTypeDescriptor<'a, 'b> {
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: TupleTypeDescriptor<'a>,
 }
 
 impl<'a, 'b> ParsedTupleTypeDescriptor<'a, 'b> {
@@ -488,14 +473,6 @@ impl<'a, 'b> ParsedTupleTypeDescriptor<'a, 'b> {
             .into_iter()
             .map(|index| self.descriptors.get_descriptor(index))
     }
-}
-
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("NamedTupleType(id={}, name={:?}, schema_defined={}, elements={:#?})", self.id(), self.name(), self.schema_defined(), self.elements().collect::<Vec<_>>())]
-pub struct ParsedNamedTupleTypeDescriptor<'a, 'b> {
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: NamedTupleTypeDescriptor<'a>,
 }
 
 impl<'a, 'b> ParsedNamedTupleTypeDescriptor<'a, 'b> {
@@ -516,14 +493,6 @@ impl<'a, 'b> ParsedNamedTupleTypeDescriptor<'a, 'b> {
     }
 }
 
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("ArrayType(id={}, name={:?}, schema_defined={}, element_type={:?}, dimensions={:?})", self.id(), self.name(), self.schema_defined(), self.element_type(), self.dimensions())]
-pub struct ParsedArrayTypeDescriptor<'a, 'b> {
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: ArrayTypeDescriptor<'a>,
-}
-
 impl<'a, 'b> ParsedArrayTypeDescriptor<'a, 'b> {
     pub fn element_type(&self) -> ParsedDescriptor<'a, 'b> {
         self.descriptors.get_descriptor(self.descriptor.type_pos)
@@ -539,14 +508,6 @@ impl<'a, 'b> ParsedArrayTypeDescriptor<'a, 'b> {
             .into_iter()
             .map(|index| self.descriptors.get_descriptor(index))
     }
-}
-
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("EnumerationType(id={}, name={:?}, schema_defined={}, members={:#?})", self.id(), self.name(), self.schema_defined(), self.members().collect::<Vec<_>>())]
-pub struct ParsedEnumerationTypeDescriptor<'a, 'b> {
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: EnumerationTypeDescriptor<'a>,
 }
 
 impl<'a, 'b> ParsedEnumerationTypeDescriptor<'a, 'b> {
@@ -565,14 +526,6 @@ impl<'a, 'b> ParsedEnumerationTypeDescriptor<'a, 'b> {
     }
 }
 
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("InputShape(id={}, elements={:#?})", self.id(), self.elements().collect::<Vec<_>>())]
-pub struct ParsedInputShapeDescriptor<'a, 'b> {
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: InputShapeDescriptor<'a>,
-}
-
 impl<'a, 'b> ParsedInputShapeDescriptor<'a, 'b> {
     pub fn elements(&self) -> impl Iterator<Item = ParsedInputShapeElement<'a, 'b>> {
         self.descriptor
@@ -583,7 +536,7 @@ impl<'a, 'b> ParsedInputShapeDescriptor<'a, 'b> {
 }
 
 #[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("InputShapeElement(name={:?}, cardinality={:?}, element_type={:?})", self.name(), self.cardinality(), self.element_type())]
+#[debug("InputShapeElement(name={:?}, cardinality={:?}, element_type={:#?})", self.name(), self.cardinality(), self.element_type())]
 pub struct ParsedInputShapeElement<'a, 'b> {
     descriptors: &'b ParsedDescriptors<'a>,
     #[deref]
@@ -594,14 +547,6 @@ impl<'a, 'b> ParsedInputShapeElement<'a, 'b> {
     pub fn element_type(&self) -> ParsedDescriptor<'a, 'b> {
         self.descriptors.get_descriptor(self.descriptor.type_pos)
     }
-}
-
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("RangeType(id={}, name={:?}, schema_defined={}, element_type={:?})", self.id(), self.name(), self.schema_defined(), self.element_type())]
-pub struct ParsedRangeTypeDescriptor<'a, 'b> {
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: RangeTypeDescriptor<'a>,
 }
 
 impl<'a, 'b> ParsedRangeTypeDescriptor<'a, 'b> {
@@ -617,23 +562,6 @@ impl<'a, 'b> ParsedRangeTypeDescriptor<'a, 'b> {
     }
 }
 
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("ObjectType(id={}, name={:?}, schema_defined={})", self.id(), self.name(), self.schema_defined())]
-pub struct ParsedObjectTypeDescriptor<'a, 'b> {
-    #[expect(unused)]
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: ObjectTypeDescriptor<'a>,
-}
-
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("CompoundType(id={}, name={:?}, schema_defined={}, elements={:#?})", self.id(), self.name(), self.schema_defined(), self.components().collect::<Vec<_>>())]
-pub struct ParsedCompoundTypeDescriptor<'a, 'b> {
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: CompoundTypeDescriptor<'a>,
-}
-
 impl<'a, 'b> ParsedCompoundTypeDescriptor<'a, 'b> {
     pub fn op(&self) -> TypeOperation {
         self.descriptor.op
@@ -647,14 +575,6 @@ impl<'a, 'b> ParsedCompoundTypeDescriptor<'a, 'b> {
     }
 }
 
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("MultiRangeType(id={}, name={:?}, schema_defined={}, range_type={:?})", self.id(), self.name(), self.schema_defined(), self.range_type())]
-pub struct ParsedMultiRangeTypeDescriptor<'a, 'b> {
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: MultiRangeTypeDescriptor<'a>,
-}
-
 impl<'a, 'b> ParsedMultiRangeTypeDescriptor<'a, 'b> {
     pub fn range_type(&self) -> ParsedDescriptor<'a, 'b> {
         self.descriptors.get_descriptor(self.descriptor.type_pos)
@@ -666,14 +586,6 @@ impl<'a, 'b> ParsedMultiRangeTypeDescriptor<'a, 'b> {
             .into_iter()
             .map(|index| self.descriptors.get_descriptor(index))
     }
-}
-
-#[derive(derive_more::Debug, Clone, Copy, derive_more::Deref, derive_more::Constructor)]
-#[debug("SQLRecord(id={}, elements={:#?})", self.id(), self.elements().collect::<Vec<_>>())]
-pub struct ParsedSQLRecordDescriptor<'a, 'b> {
-    descriptors: &'b ParsedDescriptors<'a>,
-    #[deref]
-    descriptor: SQLRecordDescriptor<'a>,
 }
 
 impl<'a, 'b> ParsedSQLRecordDescriptor<'a, 'b> {
@@ -808,6 +720,19 @@ mod tests {
         ]);
 
         let root = Uuid::parse_str("672bd2bf-0523-572a-9f7a-38f6e43a07a6").unwrap();
+        let desc = parse_descriptor(root, &buf).unwrap();
+        eprintln!("desc: {:#?}", desc);
+    }
+
+    #[test]
+    fn test_union() {
+        let buf = concat_bytes(&[b"\0\0\0!\x03\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\0\0\0\0\tstd::uuid",
+            b"\x01\0\0\0\0\03\n@\xcb\xfb\xa9R\x96\x11\xf0\x87\xb1\xe5\xf0\xe4\x14\x17=\0\0\0\x1d__derived__",
+            b"::default|A@view~1\x01\0\0\03\n@\xccPvR\x96\x11\xf0\xb9\xe2\xf5\x99I\x91\xb2\xfd\0\0\0\x1d__derived__",
+            b"::default|B@view~2\x01\0\0\0g\x0b@\xcc\x8b\xe8R\x96\x11\xf0\x9eN?\x7f\xed\xb8\x0cx\0\0\0J__derived__",
+            b"::(__derived__:default|A@view~1 | __derived__:default|B@view~2)\0\x01\0\x02\0\x01\0\x02\0\0\0%\x01_",
+            b"\xba\x14>\xe0\xc2_$\xb7\x85\xa9\xd3\xa8Z*1\0\0\x03\0\x01\0\0\0\x01A\0\0\0\x02id\0\0\0\x03"]);
+        let root = Uuid::parse_str("5fba143e-e0c2-5f24-b785-a9d3a85a2a31").unwrap();
         let desc = parse_descriptor(root, &buf).unwrap();
         eprintln!("desc: {:#?}", desc);
     }
