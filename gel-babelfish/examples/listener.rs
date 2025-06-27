@@ -5,10 +5,10 @@ use std::{future::Future, time::Duration};
 
 use gel_auth::AuthType;
 use gel_auth::CredentialData;
-use gel_frontend::config::TestListenerConfig;
-use gel_frontend::listener::BoundServer;
-use gel_frontend::service::{AuthTarget, BabelfishService, ConnectionIdentity, StreamLanguage};
-use gel_frontend::stream::ListenerStream;
+use gel_babelfish::config::TestListenerConfig;
+use gel_babelfish::listener::BoundServer;
+use gel_babelfish::service::{AuthTarget, BabelfishService, ConnectionIdentity, StreamLanguage};
+use gel_babelfish::stream::ListenerStream;
 use gel_pg_protocol::prelude::*;
 use hyper::Response;
 use tokio::io::ReadBuf;
@@ -54,7 +54,7 @@ impl BabelfishService for ExampleService {
                 StreamLanguage::EdgeDB => {
                     use gel_db_protocol::protocol::{
                         Annotation, CommandDataDescriptionBuilder, Execute, Message, Parse,
-                        ReadyForCommandBuilder, Sync, TransactionState,
+                        ReadyForCommandBuilder, Sync, TransactionState, Parse2, Execute2, DataBuilder, CommandCompleteBuilder, DataElementBuilder
                     };
                     let mut buffer = StructBuffer::<Message>::default();
                     let mut send_queue = VecDeque::new();
@@ -77,6 +77,24 @@ impl BabelfishService for ExampleService {
                             match_message!(msg, EdgeDBFrontend {
                                 (Execute as msg) => {
                                     eprintln!("{msg:?}");
+                                    if msg.command_text() == "SELECT 1" {
+                                        send_queue.extend(DataBuilder {
+                                            data: &[&DataElementBuilder { data: b"1" }],
+                                        }.to_vec());
+                                    } else if msg.command_text() == "SELECT sys::get_version_as_str()" {
+                                        send_queue.extend(DataBuilder {
+                                            data: &[&DataElementBuilder { data: b"7.0+fffffff" }],
+                                        }.to_vec());
+                                    } else {
+                                        // todo
+                                    }
+                                    send_queue.extend(CommandCompleteBuilder {
+                                        status: "SELECT",
+                                        annotations: Array::<_, Annotation>::empty(),
+                                        capabilities: 0,
+                                        state_typedesc_id: Uuid::default(),
+                                        state_data: Array::<_, u8>::empty(),
+                                    }.to_vec());
                                 },
                                 (Parse as msg) => {
                                     eprintln!("{msg:?}");
@@ -86,8 +104,8 @@ impl BabelfishService for ExampleService {
                                         result_cardinality: msg.expected_cardinality(),
                                         input_typedesc_id: Uuid::default(),
                                         input_typedesc: Array::<_, u8>::empty(),
-                                        output_typedesc_id: Uuid::default(),
-                                        output_typedesc: Array::<_, u8>::empty()
+                                        output_typedesc_id: Uuid::from_u128(0x101),
+                                        output_typedesc: b"\0\0\0 \x03\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\x01\0\0\0\x08std::str\x01\0\0"
                                     }.to_vec());
                                 },
                                 (Sync as msg) => {

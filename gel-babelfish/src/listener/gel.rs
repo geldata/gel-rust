@@ -39,6 +39,9 @@ pub async fn handle_stream_gel_binary(
             Parameter(name, value) => {
                 startup_params.insert(name.to_owned(), value.to_owned());
             }
+            ProtocolVersion(major, minor) => {
+                startup_params.insert("protocol_version".to_string(), format!("{major}.{minor}"));
+            }
             Params => params_ready.store(true, Ordering::SeqCst),
             Send(bytes) => {
                 // TODO: Reduce copies and allocations here

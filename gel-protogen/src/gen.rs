@@ -282,7 +282,7 @@ macro_rules! protocol_builder {
                 pub fn new(mut buf: &'a [u8]) -> Result<Self, ParseError> {
                     let res = <$name<'a> as $crate::prelude::DecoderFor<$name<'a>>>::decode_for(&mut buf);
                     if buf.len() > 0 {
-                        return Err(ParseError::TooLong(buf.len()));
+                        return Err(ParseError::TooLong(stringify!($name), buf.len()));
                     }
                     res
                 }
