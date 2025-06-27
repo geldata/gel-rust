@@ -118,26 +118,9 @@ impl<T: ScalarArg> ScalarArg for &T {
 impl QueryArgs for () {
     fn encode(&self, enc: &mut Encoder) -> Result<(), Error> {
         if enc.ctx.root_pos.is_some() {
-            if enc.ctx.proto.is_at_most(0, 11) {
-                let root = enc.ctx.root_pos.and_then(|p| enc.ctx.get(p).ok());
-                match root {
-                    Some(Descriptor::Tuple(t))
-                        if t.id == Uuid::from_u128(0xFF) && t.element_types.is_empty() => {}
-                    _ => {
-                        return Err(ParameterTypeMismatchError::with_message(
-                            "query arguments expected",
-                        ))
-                    }
-                };
-            } else {
-                return Err(ParameterTypeMismatchError::with_message(
-                    "query arguments expected",
-                ));
-            }
-        }
-        if enc.ctx.proto.is_at_most(0, 11) {
-            enc.buf.reserve(4);
-            enc.buf.put_u32(0);
+            return Err(ParameterTypeMismatchError::with_message(
+                "query arguments expected",
+            ));
         }
         Ok(())
     }
@@ -492,7 +475,6 @@ macro_rules! implement_tuple {
                 let desc = enc.ctx.get(root_pos)?;
                 match desc {
                     Descriptor::ObjectShape(desc)
-                    if enc.ctx.proto.is_at_least(0, 12)
                     => {
                         if desc.elements.len() != $count {
                             return Err(enc.ctx.field_number(
@@ -511,22 +493,7 @@ macro_rules! implement_tuple {
                             $name.check_descriptor(enc.ctx, el.type_pos)?;
                         )+
                     }
-                    Descriptor::Tuple(desc) if enc.ctx.proto.is_at_most(0, 11)
-                    => {
-                        if desc.element_types.len() != $count {
-                            return Err(enc.ctx.field_number(
-                                desc.element_types.len(), $count));
-                        }
-                        let mut els = desc.element_types.iter();
-                        let ($(ref $name,)+) = self;
-                        $(
-                            let type_pos = els.next().unwrap();
-                            $name.check_descriptor(enc.ctx, *type_pos)?;
-                        )+
-                    }
-                    _ => return Err(enc.ctx.wrong_type(desc,
-                        if enc.ctx.proto.is_at_least(0, 12) { "object" }
-                        else { "tuple" }))
+                    _ => return Err(enc.ctx.wrong_type(desc, "object"))
                 }
 
                 enc.buf.reserve(4 + 8*$count);
