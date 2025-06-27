@@ -5,12 +5,11 @@ macro_rules! __message_group {
         $crate::paste!(
 
         $(#[$doc])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-        #[allow(unused)]
-        pub enum $group {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, $crate::prelude::Protocol)]
+        pub enum $group<'a> {
             $(
                 #[doc = concat!("Matched [`", stringify!($message), "`]")]
-                $message
+                $message($message::<'a>)
             ),*
         }
 
@@ -26,7 +25,7 @@ macro_rules! __message_group {
                 message.into_builder()
             }
 
-            pub fn encode<'b>(&self, buf: &mut BufWriter<'b>) {
+            pub fn encode(&self, buf: &mut BufWriter<'_>) {
                 match self {
                     $(
                         Self::$message(message) => message.encode_for(buf),
@@ -88,23 +87,8 @@ macro_rules! __message_group {
                     opt
                 }
             )*
-            // fn unknown(&mut self, message: self::struct_defs::Message::Message) {
-            //     // No implementation by default
-            // }
         }
 
-        #[allow(unused)]
-        impl $group {
-            pub fn identify(buf: &[u8]) -> Option<Self> {
-                $(
-                    if $message::is_buffer(buf) {
-                        return Some(Self::$message);
-                    }
-                )*
-                None
-            }
-
-        }
         );
     };
 }

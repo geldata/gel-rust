@@ -111,16 +111,17 @@ protocol!(
         /// The UUIDs.
         uuids: Array<'a, u32, Uuid>,
     }
-
-    #[repr(u8)]
-    enum QueryParameterType {
-        #[default]
-        Int = 1,
-        Float = 2,
-        String = 3,
-        Uuid = 4,
-    }
 );
+
+#[derive(Copy, Clone, Protocol, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[repr(u8)]
+pub enum QueryParameterType {
+    #[default]
+    Int = 1,
+    Float = 2,
+    String = 3,
+    Uuid = 4,
+}
 
 #[cfg(test)]
 mod tests {
@@ -129,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_query() {
-        let docs = vec!["docs"];
+        let docs = ["docs"];
 
         let buf = QueryBuilder {
             query: "SELECT * from foo",

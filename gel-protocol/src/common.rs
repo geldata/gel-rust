@@ -2,7 +2,6 @@
 ([Website reference](https://www.edgedb.com/docs/reference/protocol/messages#parse)) Capabilities, CompilationFlags etc. from the message protocol.
 */
 
-use crate::errors;
 use crate::model::Uuid;
 use bytes::Bytes;
 
@@ -11,17 +10,7 @@ use crate::encoding::Input;
 use crate::errors::DecodeError;
 use crate::features::ProtocolVersion;
 
-pub use crate::client_message::{InputLanguage, IoFormat};
-
-#[repr(u8)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum Cardinality {
-    NoResult = 0x6e,
-    AtMostOne = 0x6f,
-    One = 0x41,
-    Many = 0x6d,
-    AtLeastOne = 0x4d,
-}
+pub use crate::client_message::{Cardinality, InputLanguage, IoFormat};
 
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,33 +76,6 @@ impl RawTypedesc {
     pub fn decode(&self) -> Result<Typedesc, DecodeError> {
         let cur = &mut Input::new(self.proto.clone(), self.data.clone());
         Typedesc::decode_with_id(self.id, cur)
-    }
-}
-
-impl std::convert::TryFrom<u8> for Cardinality {
-    type Error = errors::DecodeError;
-    fn try_from(cardinality: u8) -> Result<Cardinality, errors::DecodeError> {
-        match cardinality {
-            0x6e => Ok(Cardinality::NoResult),
-            0x6f => Ok(Cardinality::AtMostOne),
-            0x41 => Ok(Cardinality::One),
-            0x6d => Ok(Cardinality::Many),
-            0x4d => Ok(Cardinality::AtLeastOne),
-            _ => Err(errors::InvalidCardinality { cardinality }.build()),
-        }
-    }
-}
-
-impl Cardinality {
-    pub fn is_optional(&self) -> bool {
-        use Cardinality::*;
-        match self {
-            NoResult => true,
-            AtMostOne => true,
-            One => false,
-            Many => true,
-            AtLeastOne => false,
-        }
     }
 }
 

@@ -712,39 +712,43 @@ struct Terminate<'a>: Message {
     mlen: len = 4,
 }
 
-#[repr(u8)]
-/// The type of object to close.
-enum CloseType {
-    #[default]
-    Portal = b'P',
-    Statement = b'S',
-}
-
-#[repr(u8)]
-/// The type of object to describe.
-enum DescribeType {
-    #[default]
-    Portal = b'P',
-    Statement = b'S',
-}
-
-#[repr(u8)]
-/// The data format for a copy operation.
-enum CopyFormat {
-    #[default]
-    Text = 0,
-    Binary = 1,
-}
-
-#[repr(u16)]
-/// The format code for an input or output value.
-enum FormatCode {
-    #[default]
-    Text = 0,
-    Binary = 1,
-}
-
 );
+
+/// The type of object to close.
+#[derive(Copy, Clone, Protocol, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[repr(u8)]
+pub enum CloseType {
+    #[default]
+    Portal = b'P',
+    Statement = b'S',
+}
+
+/// The type of object to describe.
+#[derive(Copy, Clone, Protocol, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[repr(u8)]
+pub enum DescribeType {
+    #[default]
+    Portal = b'P',
+    Statement = b'S',
+}
+
+/// The data format for a copy operation.
+#[derive(Copy, Clone, Protocol, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[repr(u8)]
+pub enum CopyFormat {
+    #[default]
+    Text = 0,
+    Binary = 1,
+}
+
+/// The format code for an input or output value.
+#[derive(Copy, Clone, Protocol, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[repr(u16)]
+pub enum FormatCode {
+    #[default]
+    Text = 0,
+    Binary = 1,
+}
 
 #[cfg(test)]
 mod tests {

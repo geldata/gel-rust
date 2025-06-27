@@ -14,7 +14,7 @@ impl<'a> BufWriter<'a> {
         Self {
             // SAFETY: it's safe to go the other way as long as we never
             // uninitialize bytes
-            buf: unsafe { std::mem::transmute(buf) },
+            buf: unsafe { std::mem::transmute::<&mut [u8], &mut [MaybeUninit<u8>]>(buf) },
             size: 0,
             error: false,
         }
@@ -51,7 +51,8 @@ impl<'a> BufWriter<'a> {
         if self.error {
             return;
         }
-        self.buf[offset..offset + buf.len()].copy_from_slice(unsafe { std::mem::transmute(buf) });
+        self.buf[offset..offset + buf.len()]
+            .copy_from_slice(unsafe { std::mem::transmute::<&[u8], &[MaybeUninit<u8>]>(buf) });
     }
 
     #[inline]
@@ -65,7 +66,8 @@ impl<'a> BufWriter<'a> {
             self.error = true;
             return;
         }
-        self.buf[self.size - len..self.size].copy_from_slice(unsafe { std::mem::transmute(buf) });
+        self.buf[self.size - len..self.size]
+            .copy_from_slice(unsafe { std::mem::transmute::<&[u8], &[MaybeUninit<u8>]>(buf) });
     }
 
     #[inline]

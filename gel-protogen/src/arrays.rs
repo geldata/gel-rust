@@ -51,8 +51,15 @@ macro_rules! array_impl {
             }
 
             #[inline(always)]
-            pub const fn into_slice(self) -> &'a [u8] {
+            pub const fn into_bytes(self) -> &'a [u8] {
                 self.buf
+            }
+
+            /// Convert the array into a vector.
+            pub fn to_vec(&self) -> Vec<T> {
+                let mut vec = Vec::with_capacity(self.len);
+                vec.extend(self.into_iter());
+                vec
             }
         }
 
@@ -219,7 +226,7 @@ where
 {
     #[inline(always)]
     fn len(&self) -> usize {
-        self.len as usize
+        self.len
     }
 }
 
@@ -230,7 +237,7 @@ mod tests {
     #[test]
     fn test_rest_array_u8() {
         // Test with u8 values
-        let data = vec![1, 2, 3, 4, 5];
+        let data = [1, 2, 3, 4, 5];
         let mut buf = &data[..];
         let rest_array = RestArray::<u8>::decode_for(&mut buf).unwrap();
 
@@ -244,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_rest_array_u32() {
-        let data = vec![
+        let data = [
             0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03,
         ];
 
@@ -277,7 +284,7 @@ mod tests {
     #[test]
     fn test_rest_array_get() {
         // Test get method for fixed-size elements
-        let data = vec![1u8, 2, 3, 4, 5];
+        let data = [1u8, 2, 3, 4, 5];
         let mut buf = &data[..];
         let rest_array = RestArray::<u8>::decode_for(&mut buf).unwrap();
 
@@ -289,7 +296,7 @@ mod tests {
 
     #[test]
     fn test_array_u32() {
-        let data = vec![
+        let data = [
             0x00, 0x00, 0x00, 0x03, // Length prefix
             0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03,
         ];
@@ -307,7 +314,7 @@ mod tests {
 
     #[test]
     fn test_array_invalid_length() {
-        let data = vec![
+        let data = [
             0xFF, 0xFF, 0xFF, 0xFF, // Invalid length
             0x00, 0x00, 0x00, 0x01,
         ];
@@ -323,9 +330,7 @@ mod tests {
 
     #[test]
     fn test_zt_array() {
-        let data = vec![
-            0x01, 0x02, 0x03, 0x00, // Zero-terminated array
-        ];
+        let data = [0x01, 0x02, 0x03, 0x00];
 
         let mut buf = &data[..];
         let array = ZTArray::<u8>::decode_for(&mut buf).unwrap();
@@ -341,7 +346,7 @@ mod tests {
     #[test]
     fn test_zt_array_u32() {
         // Unlikely, but helps test our primitive fast path
-        let data = vec![0xff, 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xfe, 0xfe, 0];
+        let data = [0xff, 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xfe, 0xfe, 0];
 
         let mut buf = &data[..];
         let array = ZTArray::<u32>::decode_for(&mut buf).unwrap();
@@ -353,9 +358,8 @@ mod tests {
 
     #[test]
     fn test_zt_array_string() {
-        let data = vec![
-            b'h', b'e', b'l', b'l', b'o', b'\0', b'w', b'o', b'r', b'l', b'd', b'\0',
-            b'\0', // Zero-terminated array
+        let data = [
+            b'h', b'e', b'l', b'l', b'o', b'\0', b'w', b'o', b'r', b'l', b'd', b'\0', b'\0',
         ];
 
         let mut buf = &data[..];
@@ -371,7 +375,7 @@ mod tests {
 
     #[test]
     fn test_zt_array_missing_terminator() {
-        let data = vec![0x01, 0x02, 0x03]; // No zero terminator
+        let data = [0x01, 0x02, 0x03]; // No zero terminator
 
         let mut buf = &data[..];
         let result = ZTArray::<u8>::decode_for(&mut buf);
@@ -386,7 +390,7 @@ mod tests {
 
     #[test]
     fn test_zt_array_empty() {
-        let data = vec![0x00]; // Just terminator
+        let data = [0x00]; // Just terminator
 
         let mut buf = &data[..];
         let array = ZTArray::<u8>::decode_for(&mut buf).unwrap();

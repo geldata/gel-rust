@@ -1,3 +1,5 @@
+pub mod codecs;
+pub mod descriptors;
 pub mod errors;
 pub mod protocol;
 
