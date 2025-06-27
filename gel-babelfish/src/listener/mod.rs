@@ -190,6 +190,8 @@ impl BoundServer {
     }
 }
 
+// We should be able to provide an ALPN callback to gel-stream. If that's the case, we can use that here.
+#[allow(unused)]
 fn compute_alpn(config: Arc<impl ListenerConfig>, stream_props: &StreamProperties) -> TlsAlpn {
     let mut alpn = Vec::default();
     if config

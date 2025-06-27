@@ -7,6 +7,8 @@ docs can currently be found on docs.rs:
 | Crate | Source | Description |
 |-------|--------|-------------|
 | [gel-auth](https://docs.rs/gel-auth) | [Source](./gel-auth) | Authentication and authorization for the Gel database. |
+| [gel-babelfish](https://docs.rs/gel-babelfish) | [Source](./gel-babelfish) | Babelfish is a Gel socket frontend that speaks Gel, Postgres, HTTP and more. |
+| [gel-captive](https://docs.rs/gel-captive) | [Source](./gel-captive) | Run a captive Gel server for testing purposes. |
 | [gel-derive](https://docs.rs/gel-derive) | [Source](./gel-derive) | Derive macros for Gel database client. |
 | [gel-db-protocol](https://docs.rs/gel-db-protocol) | [Source](./gel-db-protocol) | Low-level protocol implementation of the EdgeDB/Gel wire protocol. |
 | [gel-dsn](https://docs.rs/gel-dsn) | [Source](./gel-dsn) | Data-source name (DSN) parser for Gel and PostgreSQL databases. |

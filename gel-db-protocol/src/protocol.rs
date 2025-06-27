@@ -25,6 +25,22 @@ message_group!(
 );
 
 message_group!(
+    EdgeDBFrontend2: Message = [
+        ClientHandshake,
+        AuthenticationSASLInitialResponse,
+        AuthenticationSASLResponse,
+        Parse2,
+        Execute2,
+        Sync,
+        Terminate,
+        Dump2,
+        Restore,
+        RestoreBlock,
+        RestoreEof
+    ]
+);
+
+message_group!(
     EdgeDBFrontend: Message = [
         ClientHandshake,
         AuthenticationSASLInitialResponse,
@@ -33,7 +49,7 @@ message_group!(
         Execute,
         Sync,
         Terminate,
-        Dump,
+        Dump3,
         Restore,
         RestoreBlock,
         RestoreEof

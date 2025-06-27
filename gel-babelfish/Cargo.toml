@@ -1,7 +1,8 @@
 [package]
-name = "gel-frontend"
+name = "gel-babelfish"
 version = "0.1.0"
 edition = "2024"
+description = "Babelfish is a Gel socket frontend that speaks Gel, Postgres, HTTP and more."
 
 [features]
 
