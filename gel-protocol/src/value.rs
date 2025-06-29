@@ -270,3 +270,9 @@ impl From<LocalDatetime> for Value {
         Value::LocalDatetime(v)
     }
 }
+
+impl From<LocalTime> for Value {
+    fn from(v: LocalTime) -> Value {
+        Value::LocalTime(v)
+    }
+}
