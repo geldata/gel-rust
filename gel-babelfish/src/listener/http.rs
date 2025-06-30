@@ -137,7 +137,11 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
                 let mut split = uri.path().split('/');
                 split.next();
                 if let Some(branch_or_db) = split.next() {
-                    if split.next().is_none() {}
+                    if uri.path().starts_with("/db/") {
+                        identity.set_database(branch_or_db.to_string());
+                    } else {
+                        identity.set_branch(branch_or_db.to_string());
+                    }
                 }
             }
 
@@ -309,12 +313,19 @@ async fn handle_ws_upgrade_http2(
             }
 
             tokio::task::spawn_local(async move {
-                if let Ok(upgraded) = hyper::upgrade::on(req).await {
-                    let stream = ListenerStream::new_websocket(
-                        stream_props,
-                        HyperUpgradedStream::new(upgraded),
-                    );
-                    handle_ws_upgrade(stream, identity, bound_config).await;
+                match hyper::upgrade::on(req).await {
+                    Ok(upgraded) => {
+                        let stream = ListenerStream::new_websocket(
+                            stream_props,
+                            HyperUpgradedStream::new(upgraded),
+                        );
+                        if let Err(err) = handle_ws_upgrade(stream, identity, bound_config).await {
+                            error!("WebSocket task failed {err:?}");
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to upgrade WebSocket: {e:?}");
+                    }
                 }
             });
 
