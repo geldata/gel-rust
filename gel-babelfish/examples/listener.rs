@@ -53,8 +53,9 @@ impl BabelfishService for ExampleService {
             match language {
                 StreamLanguage::EdgeDB => {
                     use gel_db_protocol::protocol::{
-                        Annotation, CommandDataDescriptionBuilder, Execute, Message, Parse,
-                        ReadyForCommandBuilder, Sync, TransactionState, Parse2, Execute2, DataBuilder, CommandCompleteBuilder, DataElementBuilder
+                        Annotation, CommandCompleteBuilder, CommandDataDescriptionBuilder,
+                        DataBuilder, DataElementBuilder, Execute, Execute2, Message, Parse, Parse2,
+                        ReadyForCommandBuilder, Sync, TransactionState,
                     };
                     let mut buffer = StructBuffer::<Message>::default();
                     let mut send_queue = VecDeque::new();

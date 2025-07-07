@@ -41,7 +41,7 @@ pub enum StreamType {
     /// SSL/TLS connection.
     SSLTLS,
     /// Gel/EdgeDB binary protocol.
-    GelBinary,
+    GelBinary(u8, u8),
     /// HTTP/2 protocol.
     HTTP2,
     /// HTTP/1.x protocols.
