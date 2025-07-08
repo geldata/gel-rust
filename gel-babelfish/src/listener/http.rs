@@ -1,6 +1,6 @@
 use super::{IsBoundConfig, handle_connection_inner};
-use crate::hyper::{HyperStream, HyperUpgradedStream};
-use crate::service::{BabelfishService, IdentityError};
+use crate::hyper::{HyperStream, HyperStreamBody, HyperUpgradedStream};
+use crate::service::{BabelfishService, GelVariant, GelVersion, IdentityError, StreamLanguage};
 use crate::tower::build_tower;
 use crate::{
     service::ConnectionIdentityBuilder,
@@ -13,9 +13,31 @@ use hyper::{Response, server::conn::http2};
 use hyper_util::rt::TokioIo;
 use std::io::ErrorKind;
 use std::{future::Future, pin::Pin, sync::Arc};
+use tokio::io::AsyncWriteExt;
 use tracing::{error, trace};
 
 use hyper::server::conn::http1;
+
+const MASCOT: &str = r#"
+                     ▄██▄        
+   ▄▄▄▄▄      ▄▄▄    ████        
+ ▄███████▄ ▄███████▄ ████        
+ ▀███████▀ ▀███▀▀▀▀▀ ████        
+   ▀▀▀▀▀      ▀▀▀     ▀▀         
+  ▀▄▄▄▄▄▀                 
+    ▀▀▀               
+"#;
+
+pub async fn handle_stream_http0x(
+    mut socket: ListenerStream,
+    _identity: ConnectionIdentityBuilder,
+    _bound_config: impl IsBoundConfig,
+) -> Result<(), std::io::Error> {
+    socket.write_all(b"HTTP/1.0 200 OK\r\n\r\n").await?;
+    socket.write_all(MASCOT.as_bytes()).await?;
+
+    Ok(())
+}
 
 pub async fn handle_stream_http1x(
     socket: ListenerStream,
@@ -87,8 +109,8 @@ impl<T: IsBoundConfig> HttpService<T> {
 impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpService<T> {
     type Error = std::io::Error;
     type Future =
-        Pin<Box<dyn Future<Output = Result<Response<HyperStream>, std::io::Error>> + Send>>;
-    type Response = Response<HyperStream>;
+        Pin<Box<dyn Future<Output = Result<Response<HyperStreamBody>, std::io::Error>> + Send>>;
+    type Response = Response<HyperStreamBody>;
 
     fn poll_ready(
         &mut self,
@@ -97,11 +119,50 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
         std::task::Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: Request<hyper::body::Incoming>) -> Self::Future {
+    fn call(&mut self, mut req: Request<hyper::body::Incoming>) -> Self::Future {
         let bound_config = self.bound_config.clone();
         let stream_props = self.stream_props.clone();
         let identity = self.identity.new_builder();
+
         tokio::task::spawn(async move {
+            let content_type = req
+                .headers()
+                .get(hyper::header::CONTENT_TYPE)
+                .map(|v| v.to_str().map(|s| s.to_string()))
+                .transpose()
+                .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
+
+            if let Some(user) = req.headers().get("x-gel-user") {
+                if let Ok(user) = user.to_str() {
+                    identity.set_user(user.to_string());
+                } else {
+                    return Ok(Response::new(HyperStream::static_response("Invalid user")));
+                }
+            } else if let Some(user) = req.headers().get("x-edgedb-user") {
+                if let Ok(user) = user.to_str() {
+                    identity.set_user(user.to_string());
+                } else {
+                    return Ok(Response::new(HyperStream::static_response("Invalid user")));
+                }
+            };
+
+            let stream_props = StreamProperties {
+                parent: Some(stream_props),
+                http_version: Some(req.version()),
+                request_headers: Some(std::mem::take(req.headers_mut())),
+                request_uri: Some(req.uri().clone()),
+                ..StreamProperties::new(TransportType::Http)
+            };
+
+            // Special case for the root path.
+            if req.uri().path() == "/" {
+                let mut resp = Response::new(HyperStream::static_response(MASCOT));
+                resp.headers_mut()
+                    .insert("Content-Type", "text/plain; charset=utf-8".parse().unwrap());
+
+                return Ok(resp);
+            }
+
             // First, check for invalid URI segments. The server will require fully-normalized paths.
             let uri = req.uri();
             if uri.path()[1..]
@@ -113,17 +174,25 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
                 )));
             }
 
-            req.headers().get("x-edgedb-user");
-
             if req.extensions().get::<OnUpgrade>().is_some() {
                 match req.version() {
                     hyper::Version::HTTP_11 => {
-                        return handle_ws_upgrade_http1(stream_props, identity, req, bound_config)
-                            .await;
+                        return handle_ws_upgrade_http1(
+                            stream_props.into(),
+                            identity,
+                            req,
+                            bound_config,
+                        )
+                        .await;
                     }
                     hyper::Version::HTTP_2 => {
-                        return handle_ws_upgrade_http2(stream_props, identity, req, bound_config)
-                            .await;
+                        return handle_ws_upgrade_http2(
+                            stream_props.into(),
+                            identity,
+                            req,
+                            bound_config,
+                        )
+                        .await;
                     }
                     _ => {
                         return Ok(Response::new(HyperStream::static_response(
@@ -135,7 +204,8 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
 
             if uri.path().starts_with("/db/") || uri.path().starts_with("/branch/") {
                 let mut split = uri.path().split('/');
-                split.next();
+                assert_eq!(split.next(), Some(""));
+                assert!(matches!(split.next(), Some("db") | Some("branch")));
                 if let Some(branch_or_db) = split.next() {
                     if uri.path().starts_with("/db/") {
                         identity.set_database(branch_or_db.to_string());
@@ -143,29 +213,76 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
                         identity.set_branch(branch_or_db.to_string());
                     }
                 }
+
+                let next = split.next();
+
+                if next.is_none() || (next == Some("") && split.next().is_none()) {
+                    // If this request is a POST, AND the content-type is application/x.edgedb.v_x_x.binary,
+                    // then we need to convert the request body into a stream.
+                    if req.method() == hyper::Method::POST {
+                        // TODO: other versions
+                        if content_type.as_deref() == Some("application/x.edgedb.v_3_0.binary") {
+                            let identity = match identity.build() {
+                                Ok(identity) => identity,
+                                Err(IdentityError::NoUser) => {
+                                    return Ok(Response::new(HyperStream::static_response(
+                                        "Unauthorized",
+                                    )));
+                                }
+                                Err(e) => {
+                                    error!("Failed to build identity: {e:?}");
+                                    return Ok(Response::new(HyperStream::static_response(
+                                        "Unauthorized",
+                                    )));
+                                }
+                            };
+
+                            // Convert the request body into a stream
+                            let (incoming, response) = HyperStream::new(req.into_body());
+                            let stream = ListenerStream::new_http(stream_props, incoming);
+                            tokio::task::spawn(async move {
+                                bound_config
+                                    .service()
+                                    .accept_stream(
+                                        identity,
+                                        StreamLanguage::Gel(GelVersion::V3, GelVariant::Wire),
+                                        stream,
+                                    )
+                                    .await
+                            });
+                            return Ok(Response::new(response));
+                        }
+                    } else {
+                        return Ok(Response::new(HyperStream::static_response(
+                            "Invalid request",
+                        )));
+                    }
+                }
             }
 
             // This probably needs to handle more cases
             let identity = match identity.build() {
-                Ok(identity) => identity,
-                Err(IdentityError::NoUser) => {
-                    return Ok(bound_config
-                        .service()
-                        .accept_http_unauthenticated(req)
-                        .await?
-                        .map(Into::into));
-                }
+                Ok(identity) => Some(identity),
+                Err(IdentityError::NoUser) => None,
                 Err(e) => {
                     error!("Failed to build identity: {e:?}");
                     return Ok(Response::new(HyperStream::static_response("Unauthorized")));
                 }
             };
-            let response = bound_config
-                .service()
-                .accept_http(identity, req)
-                .await?
-                .map(Into::into);
-            Ok(response)
+
+            if let Some(identity) = identity {
+                Ok(bound_config
+                    .service()
+                    .accept_http(identity, req)
+                    .await?
+                    .map(Into::into))
+            } else {
+                Ok(bound_config
+                    .service()
+                    .accept_http_unauthenticated(req)
+                    .await?
+                    .map(Into::into))
+            }
         })
         .map(|r| r.unwrap())
         .boxed()
@@ -177,7 +294,7 @@ async fn handle_ws_upgrade_http1(
     identity: ConnectionIdentityBuilder,
     mut req: Request<hyper::body::Incoming>,
     bound_config: impl IsBoundConfig,
-) -> Result<Response<HyperStream>, std::io::Error> {
+) -> Result<Response<HyperStreamBody>, std::io::Error> {
     let mut stream_props = StreamProperties {
         parent: Some(stream_props),
         http_version: Some(req.version()),
@@ -272,7 +389,7 @@ async fn handle_ws_upgrade_http2(
     identity: ConnectionIdentityBuilder,
     mut req: Request<hyper::body::Incoming>,
     bound_config: impl IsBoundConfig,
-) -> Result<Response<HyperStream>, std::io::Error> {
+) -> Result<Response<HyperStreamBody>, std::io::Error> {
     let mut stream_props = StreamProperties {
         parent: Some(stream_props),
         http_version: Some(req.version()),

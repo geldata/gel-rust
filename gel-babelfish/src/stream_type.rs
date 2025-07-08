@@ -41,11 +41,13 @@ pub enum StreamType {
     /// SSL/TLS connection.
     SSLTLS,
     /// Gel/EdgeDB binary protocol.
-    GelBinary(u8, u8),
+    GelBinary,
     /// HTTP/2 protocol.
     HTTP2,
     /// HTTP/1.x protocols.
     HTTP1x,
+    /// HTTP/0.x protocols.
+    HTTP0x,
 }
 
 impl StreamType {
@@ -83,6 +85,7 @@ impl StreamType {
             StreamType::HTTP1x => {
                 b"HTTP/1.1 505 HTTP Version Not Supported\r\nContent-Length: 0\r\n\r\n"
             }
+            StreamType::HTTP0x => b"HTTP/1.0 400 Bad Request\r\n\r\n",
         }
     }
 }
@@ -158,6 +161,9 @@ const fn identify_connection(
 
         // HTTP/2: Connection Preface
         (StreamState::Raw | StreamState::Ssl, &HTTP_2_PREFACE) => Ok(StreamType::HTTP2),
+
+        // HTTP/0.x: Only GET / is supported as a special case for telnetters
+        (StreamState::Raw | StreamState::Ssl, [b'G'|b'g', b'E'|b'e', b'T'|b't', b' ', b'/', b'\r'|b'\n', _, _]) => Ok(StreamType::HTTP0x),
 
         // HTTP/1.x: Various HTTP methods
 

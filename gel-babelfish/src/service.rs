@@ -1,22 +1,34 @@
 use gel_auth::CredentialData;
 
-use crate::stream::ListenerStream;
+use crate::{hyper::HyperStreamBody, stream::ListenerStream};
 use std::{
     future::Future,
     sync::{Arc, Mutex},
 };
 
 /// A stream language.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StreamLanguage {
     /// A Postgres stream using the Postgres wire protocol.
     Postgres,
     /// A Gel-language stream, using the Gel/EdgeDB wire protocol.
-    EdgeDB,
-    /// A Gel-language stream, using the EdgeDB JSON-specific wire protocol.
-    EdgeDBJSON,
-    /// A Gel-language stream, using the EdgeDB Notebook wire protocol.
-    EdgeDBNotebook,
+    Gel(GelVersion, GelVariant),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GelVersion {
+    V0,
+    V1,
+    V2,
+    V3,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GelVariant {
+    // Raw wire protocol.
+    Wire,
+    // TODO: the future "tutorial" handler
+    Notebook,
 }
 
 #[derive(Debug)]
@@ -159,11 +171,11 @@ pub trait BabelfishService: std::fmt::Debug + Send + Sync + 'static {
         &self,
         identity: ConnectionIdentity,
         req: hyper::http::Request<hyper::body::Incoming>,
-    ) -> impl Future<Output = Result<hyper::http::Response<String>, std::io::Error>> + Send + Sync;
+    ) -> impl Future<Output = Result<hyper::http::Response<HyperStreamBody>, std::io::Error>> + Send + Sync;
 
     /// Accept an unauthenticated HTTP request.
     fn accept_http_unauthenticated(
         &self,
         req: hyper::http::Request<hyper::body::Incoming>,
-    ) -> impl Future<Output = Result<hyper::http::Response<String>, std::io::Error>> + Send + Sync;
+    ) -> impl Future<Output = Result<hyper::http::Response<HyperStreamBody>, std::io::Error>> + Send + Sync;
 }

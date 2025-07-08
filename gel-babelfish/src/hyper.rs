@@ -33,7 +33,10 @@ impl HyperUpgradedStream {
 /// the state.
 pub struct HyperStream {
     state: StreamState,
-    response_body_rx: tokio::sync::mpsc::Receiver<Bytes>,
+}
+
+pub struct HyperStreamBody {
+    state: ResponseStreamState,
 }
 
 enum StreamState {
@@ -43,44 +46,67 @@ enum StreamState {
         response_body_tx: tokio::sync::mpsc::Sender<Bytes>,
     },
     Writing(tokio_util::sync::PollSender<Bytes>),
-    StaticResponse {
-        buffer: hyper::body::Bytes,
-    },
     Shutdown,
 }
 
-impl HyperStream {
-    pub fn new(incoming: hyper::body::Incoming) -> Self {
-        let (response_body_tx, response_body_rx) = tokio::sync::mpsc::channel(10); // Adjust buffer size as needed
-        HyperStream {
-            state: StreamState::Reading {
-                incoming,
-                partial_frame: Bytes::new(),
-                response_body_tx,
-            },
-            response_body_rx,
-        }
-    }
+#[derive(Debug)]
+enum ResponseStreamState {
+    StaticResponse { buffer: hyper::body::Bytes },
+    Stream(tokio::sync::mpsc::Receiver<Bytes>),
+}
 
-    pub fn static_response(s: impl AsRef<str>) -> Self {
-        let (_, response_body_rx) = tokio::sync::mpsc::channel(10); // Adjust buffer size as needed
-        HyperStream {
-            state: StreamState::StaticResponse {
-                buffer: s.as_ref().as_bytes().to_vec().into(),
+impl Default for HyperStreamBody {
+    fn default() -> Self {
+        Self {
+            state: ResponseStreamState::StaticResponse {
+                buffer: Bytes::new(),
             },
-            response_body_rx,
         }
     }
 }
 
-impl From<String> for HyperStream {
+impl HyperStream {
+    pub fn new(incoming: hyper::body::Incoming) -> (Self, HyperStreamBody) {
+        let (response_body_tx, response_body_rx) = tokio::sync::mpsc::channel(10); // Adjust buffer size as needed
+        (
+            HyperStream {
+                state: StreamState::Reading {
+                    incoming,
+                    partial_frame: Bytes::new(),
+                    response_body_tx,
+                },
+            },
+            HyperStreamBody {
+                state: ResponseStreamState::Stream(response_body_rx),
+            },
+        )
+    }
+
+    pub fn static_response(s: impl AsRef<str>) -> HyperStreamBody {
+        HyperStreamBody {
+            state: ResponseStreamState::StaticResponse {
+                buffer: s.as_ref().as_bytes().to_vec().into(),
+            },
+        }
+    }
+}
+
+impl From<String> for HyperStreamBody {
     fn from(s: String) -> Self {
-        let (_, response_body_rx) = tokio::sync::mpsc::channel(10); // Adjust buffer size as needed
         Self {
-            state: StreamState::StaticResponse {
+            state: ResponseStreamState::StaticResponse {
                 buffer: s.as_bytes().to_vec().into(),
             },
-            response_body_rx,
+        }
+    }
+}
+
+impl From<&'_ str> for HyperStreamBody {
+    fn from(s: &'_ str) -> Self {
+        Self {
+            state: ResponseStreamState::StaticResponse {
+                buffer: s.as_bytes().to_vec().into(),
+            },
         }
     }
 }
@@ -94,10 +120,6 @@ impl tokio::io::AsyncRead for HyperStream {
         let this = self.get_mut();
 
         match &mut this.state {
-            StreamState::StaticResponse { .. } => Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::BrokenPipe,
-                "Stream is in static response state",
-            ))),
             StreamState::Reading {
                 incoming,
                 partial_frame,
@@ -154,12 +176,6 @@ impl tokio::io::AsyncWrite for HyperStream {
         let this = self.get_mut();
         loop {
             break match &mut this.state {
-                StreamState::StaticResponse { .. } => {
-                    return Poll::Ready(Err(std::io::Error::new(
-                        std::io::ErrorKind::BrokenPipe,
-                        "Stream is in static response state",
-                    )));
-                }
                 StreamState::Reading {
                     response_body_tx, ..
                 } => {
@@ -203,9 +219,7 @@ impl tokio::io::AsyncWrite for HyperStream {
                 outgoing.abort_send();
                 Poll::Ready(Ok(()))
             }
-            StreamState::StaticResponse { .. }
-            | StreamState::Reading { .. }
-            | StreamState::Shutdown => Poll::Ready(Ok(())),
+            StreamState::Reading { .. } | StreamState::Shutdown => Poll::Ready(Ok(())),
         }
     }
 
@@ -216,7 +230,7 @@ impl tokio::io::AsyncWrite for HyperStream {
     }
 }
 
-impl hyper::body::Body for HyperStream {
+impl hyper::body::Body for HyperStreamBody {
     type Data = hyper::body::Bytes;
     type Error = std::io::Error;
     fn poll_frame(
@@ -224,23 +238,35 @@ impl hyper::body::Body for HyperStream {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
         let this = self.get_mut();
-        if let StreamState::StaticResponse { buffer } = &mut this.state {
-            return if buffer.is_empty() {
-                Poll::Ready(None)
-            } else {
-                Poll::Ready(Some(Ok(hyper::body::Frame::data(buffer.split_off(0)))))
-            };
+        match &mut this.state {
+            ResponseStreamState::StaticResponse { buffer } => {
+                return if buffer.is_empty() {
+                    Poll::Ready(None)
+                } else {
+                    Poll::Ready(Some(Ok(hyper::body::Frame::data(buffer.split_off(0)))))
+                };
+            }
+            ResponseStreamState::Stream(response_body_rx) => {
+                return response_body_rx
+                    .poll_recv(cx)
+                    .map(|option| option.map(|bytes| Ok(hyper::body::Frame::data(bytes))));
+            }
         }
-        this.response_body_rx
-            .poll_recv(cx)
-            .map(|option| option.map(|bytes| Ok(hyper::body::Frame::data(bytes))))
     }
 
     fn is_end_stream(&self) -> bool {
-        self.response_body_rx.is_closed()
+        match &self.state {
+            ResponseStreamState::Stream(response_body_rx) => response_body_rx.is_closed(),
+            ResponseStreamState::StaticResponse { buffer } => buffer.is_empty(),
+        }
     }
 
     fn size_hint(&self) -> hyper::body::SizeHint {
-        hyper::body::SizeHint::default()
+        match &self.state {
+            ResponseStreamState::Stream(..) => hyper::body::SizeHint::default(),
+            ResponseStreamState::StaticResponse { buffer } => {
+                hyper::body::SizeHint::with_exact(buffer.len() as u64)
+            }
+        }
     }
 }

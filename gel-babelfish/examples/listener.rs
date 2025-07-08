@@ -6,6 +6,7 @@ use std::{future::Future, time::Duration};
 use gel_auth::AuthType;
 use gel_auth::CredentialData;
 use gel_babelfish::config::TestListenerConfig;
+use gel_babelfish::hyper::HyperStreamBody;
 use gel_babelfish::listener::BoundServer;
 use gel_babelfish::service::{AuthTarget, BabelfishService, ConnectionIdentity, StreamLanguage};
 use gel_babelfish::stream::ListenerStream;
@@ -51,7 +52,7 @@ impl BabelfishService for ExampleService {
         self.stream_count.fetch_add(1, Ordering::Relaxed);
         async move {
             match language {
-                StreamLanguage::EdgeDB => {
+                StreamLanguage::Gel(_, _) => {
                     use gel_db_protocol::protocol::{
                         Annotation, CommandCompleteBuilder, CommandDataDescriptionBuilder,
                         DataBuilder, DataElementBuilder, Execute, Execute2, Message, Parse, Parse2,
@@ -190,24 +191,24 @@ impl BabelfishService for ExampleService {
         &self,
         identity: ConnectionIdentity,
         req: hyper::http::Request<hyper::body::Incoming>,
-    ) -> impl Future<Output = Result<hyper::http::Response<String>, std::io::Error>> {
+    ) -> impl Future<Output = Result<hyper::http::Response<HyperStreamBody>, std::io::Error>> {
         trace!("accept_http: {:?}, {:?}", identity, req);
         self.http_count.fetch_add(1, Ordering::Relaxed);
         async {
             tokio::time::sleep(Duration::from_secs(1)).await;
-            Ok(Response::new("Hello!\n".to_string()))
+            Ok(Response::new("Hello!\n".into()))
         }
     }
 
     fn accept_http_unauthenticated(
         &self,
         req: hyper::http::Request<hyper::body::Incoming>,
-    ) -> impl Future<Output = Result<hyper::http::Response<String>, std::io::Error>> {
+    ) -> impl Future<Output = Result<hyper::http::Response<HyperStreamBody>, std::io::Error>> {
         trace!("accept_http_unauthenticated: {:?}", req);
         self.http_count.fetch_add(1, Ordering::Relaxed);
         async {
             tokio::time::sleep(Duration::from_millis(100)).await;
-            Ok(Response::new("Hello (no user)!\n".to_string()))
+            Ok(Response::new("Hello (no user)!\n".into()))
         }
     }
 }

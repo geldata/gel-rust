@@ -6,7 +6,7 @@ use consume_on_drop::{Consume, ConsumeOnDrop};
 use gel_stream::{
     Preview, PreviewConfiguration, RawStream, RemoteAddress, ResolvedTarget, StreamUpgrade,
 };
-use hyper::{HeaderMap, Version};
+use hyper::{HeaderMap, Uri, Version};
 use std::{collections::HashMap, mem::MaybeUninit, sync::Arc, time::Duration};
 use strum::IntoDiscriminant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadBuf};
@@ -99,6 +99,8 @@ stream_properties! {
     pub http_version: Option<Version>,
     /// The HTTP request headers (for HTTP connections)
     pub request_headers: Option<HeaderMap>,
+    /// The request URI (for HTTP connections)
+    pub request_uri: Option<Uri>,
     /// The stream parameters (for PG/EDB connections)
     pub stream_params: Option<HashMap<String, String>>,
     /// The peer's SSL certificate (for SSL connections)
@@ -264,6 +266,14 @@ impl ListenerStream {
             stream_properties: stream_props.into(),
             preview: None,
             inner: ConsumeOnDrop::new(ListenerStreamInner::WebSocket(stream)),
+        }
+    }
+
+    pub fn new_http(stream_props: StreamProperties, stream: HyperStream) -> Self {
+        ListenerStream {
+            stream_properties: stream_props.into(),
+            preview: None,
+            inner: ConsumeOnDrop::new(ListenerStreamInner::Http(stream)),
         }
     }
 
