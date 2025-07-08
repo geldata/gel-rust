@@ -240,17 +240,15 @@ impl hyper::body::Body for HyperStreamBody {
         let this = self.get_mut();
         match &mut this.state {
             ResponseStreamState::StaticResponse { buffer } => {
-                return if buffer.is_empty() {
+                if buffer.is_empty() {
                     Poll::Ready(None)
                 } else {
                     Poll::Ready(Some(Ok(hyper::body::Frame::data(buffer.split_off(0)))))
-                };
+                }
             }
-            ResponseStreamState::Stream(response_body_rx) => {
-                return response_body_rx
-                    .poll_recv(cx)
-                    .map(|option| option.map(|bytes| Ok(hyper::body::Frame::data(bytes))));
-            }
+            ResponseStreamState::Stream(response_body_rx) => response_body_rx
+                .poll_recv(cx)
+                .map(|option| option.map(|bytes| Ok(hyper::body::Frame::data(bytes)))),
         }
     }
 

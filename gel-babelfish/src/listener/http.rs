@@ -159,6 +159,45 @@ impl<T: IsBoundConfig> HttpService<T> {
     }
 }
 
+/// Parse a content-type like `application/x.{edgedb,gel}.v_<major>_<minor>.binary`, or return None
+fn parse_content_type(content_type: &str) -> Option<GelVersion> {
+    let Some(rest) = rest.strip_suffix(".binary") else {
+        return None;
+    };
+
+    let Some(rest) = content_type.strip_prefix("application/x.") else {
+        return None;
+    };
+
+    let rest = if let Some(rest) = rest.strip_prefix("edgedb.") {
+        rest
+    } else if let Some(rest) = rest.strip_prefix("gel.") {
+        rest
+    } else {
+        return None;
+    };
+
+    let Some(rest) = content_type.strip_prefix("v_") else {
+        return None;
+    };
+
+    // We are now left with `<major>_<minor>`
+    let Some((Some(major), Some(minor))) = rest
+        .split_once('_')
+        .map(|(major, minor)| (major.parse::<u8>().ok(), minor.parse::<u8>().ok()))
+    else {
+        return None;
+    };
+
+    match (major, minor) {
+        (0, _) => Some(GelVersion::V0),
+        (1, _) => Some(GelVersion::V1),
+        (2, _) => Some(GelVersion::V2),
+        (3, _) => Some(GelVersion::V3),
+        _ => None,
+    }
+}
+
 impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpService<T> {
     type Error = std::io::Error;
     type Future =
@@ -293,45 +332,47 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
                     if req.method() == hyper::Method::POST {
                         // TODO: other versions
                         if let Some(content_type) = content_type.as_deref() {
-                            if content_type.starts_with("application/x.edgedb.v_") {
-                                let version = content_type.split('.').nth(2).unwrap_or("3.0");
-                                let version = version.split('_').next().unwrap_or("3.0");
-                                let version = version.split('.').next().unwrap_or("3.0");
-                            }
-                            let identity = match identity.build() {
-                                Ok(identity) => identity,
-                                Err(IdentityError::NoUser) => {
-                                    return Ok(http_response(
-                                        bound_config.config(),
-                                        StatusCode::UNAUTHORIZED,
-                                    ));
-                                }
-                                Err(e) => {
-                                    error!("Failed to build identity: {e:?}");
-                                    return Ok(http_response(
-                                        bound_config.config(),
-                                        StatusCode::UNAUTHORIZED,
-                                    ));
-                                }
-                            };
+                            if let Some(version) = parse_content_type(content_type) {
+                                let identity = match identity.build() {
+                                    Ok(identity) => identity,
+                                    Err(IdentityError::NoUser) => {
+                                        return Ok(http_response(
+                                            bound_config.config(),
+                                            StatusCode::UNAUTHORIZED,
+                                        ));
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to build identity: {e:?}");
+                                        return Ok(http_response(
+                                            bound_config.config(),
+                                            StatusCode::UNAUTHORIZED,
+                                        ));
+                                    }
+                                };
 
-                            // Convert the request body into a stream
-                            let (incoming, response) = HyperStream::new(req.into_body());
-                            let stream = ListenerStream::new_http(stream_props, incoming);
-                            tokio::task::spawn(async move {
-                                bound_config
-                                    .service()
-                                    .accept_stream(
-                                        identity,
-                                        StreamLanguage::Gel(GelVersion::V3, GelVariant::Wire),
-                                        stream,
-                                    )
-                                    .await
-                            });
-                            let mut resp = Response::new(response);
-                            resp.headers_mut()
-                                .insert("Content-Type", content_type.parse().unwrap());
-                            return Ok(resp);
+                                // Convert the request body into a stream
+                                let (incoming, response) = HyperStream::new(req.into_body());
+                                let stream = ListenerStream::new_http(stream_props, incoming);
+                                tokio::task::spawn(async move {
+                                    bound_config
+                                        .service()
+                                        .accept_stream(
+                                            identity,
+                                            StreamLanguage::Gel(version, GelVariant::Wire),
+                                            stream,
+                                        )
+                                        .await
+                                });
+                                let mut resp = Response::new(response);
+                                resp.headers_mut()
+                                    .insert("Content-Type", content_type.parse().unwrap());
+                                return Ok(resp);
+                            } else {
+                                return Ok(http_response(
+                                    bound_config.config(),
+                                    StatusCode::BAD_REQUEST,
+                                ));
+                            }
                         }
                     } else {
                         return Ok(http_response(
@@ -546,5 +587,26 @@ async fn handle_ws_upgrade_http2(
             .status(StatusCode::BAD_REQUEST)
             .body(HyperStream::static_response("Missing protocol extension"))
             .unwrap())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_content_type() {
+        assert_eq!(
+            parse_content_type("application/x.edgedb.v_3_0.binary"),
+            Some(GelVersion::V3)
+        );
+        assert_eq!(
+            parse_content_type("application/x.edgedb.v_3_1.binary"),
+            Some(GelVersion::V3)
+        );
+        assert_eq!(
+            parse_content_type("application/x.edgedb.v_2_0.binary"),
+            Some(GelVersion::V2)
+        );
     }
 }

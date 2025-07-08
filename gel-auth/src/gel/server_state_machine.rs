@@ -231,7 +231,7 @@ impl ServerStateImpl {
                             }
                             (2, 1..) | (3.., _) => {
                                 update.protocol_version(major_ver as u8, minor_ver as u8);
-                                update.send(&ServerHandshakeBuilder { major_ver: major_ver, minor_ver: minor_ver, extensions: Array::<_, ProtocolExtension>::default() })?;
+                                update.send(&ServerHandshakeBuilder { major_ver, minor_ver, extensions: Array::<_, ProtocolExtension>::default() })?;
                             }
                             _ => {}
                         }
