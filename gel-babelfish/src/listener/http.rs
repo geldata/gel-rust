@@ -161,11 +161,11 @@ impl<T: IsBoundConfig> HttpService<T> {
 
 /// Parse a content-type like `application/x.{edgedb,gel}.v_<major>_<minor>.binary`, or return None
 fn parse_content_type(content_type: &str) -> Option<GelVersion> {
-    let Some(rest) = rest.strip_suffix(".binary") else {
+    let Some(rest) = content_type.strip_suffix(".binary") else {
         return None;
     };
 
-    let Some(rest) = content_type.strip_prefix("application/x.") else {
+    let Some(rest) = rest.strip_prefix("application/x.") else {
         return None;
     };
 
@@ -177,7 +177,7 @@ fn parse_content_type(content_type: &str) -> Option<GelVersion> {
         return None;
     };
 
-    let Some(rest) = content_type.strip_prefix("v_") else {
+    let Some(rest) = rest.strip_prefix("v_") else {
         return None;
     };
 
@@ -608,5 +608,30 @@ mod tests {
             parse_content_type("application/x.edgedb.v_2_0.binary"),
             Some(GelVersion::V2)
         );
+
+        assert_eq!(
+            parse_content_type("application/x.edgedb.v_2_1.binary"),
+            Some(GelVersion::V2)
+        );
+
+        // Invalid cases
+        assert_eq!(
+            parse_content_type("application/x.edgedb.v_4_0.binary"),
+            None
+        );
+        assert_eq!(
+            parse_content_type("application/x.edgedb.v_abc_0.binary"),
+            None
+        );
+        assert_eq!(
+            parse_content_type("application/x.edgedb.v_1_abc.binary"),
+            None
+        );
+        assert_eq!(parse_content_type("application/x.edgedb.v_1.binary"), None);
+        assert_eq!(parse_content_type("application/x.edgedb.v_1_0"), None);
+        assert_eq!(parse_content_type("application/x.foo.v_1_0.binary"), None);
+        assert_eq!(parse_content_type("application/x.v_1_0.binary"), None);
+        assert_eq!(parse_content_type("application/edgedb.v_1_0.binary"), None);
+        assert_eq!(parse_content_type(""), None);
     }
 }
