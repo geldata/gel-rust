@@ -222,7 +222,11 @@ fn run_test_service() {
         .block_on(async move {
             let stream_count = server.stream_count.clone();
             let http_count = server.http_count.clone();
-            BoundServer::bind(TestListenerConfig::new("localhost:21340"), server).unwrap();
+            let config = TestListenerConfig::new("localhost:21340");
+            for addr in &config.addrs {
+                eprintln!("Listening on: http://{addr:?}");
+            }
+            BoundServer::bind(config, server).unwrap();
             let mut last_metrics = (0, 0);
             loop {
                 tokio::time::sleep(Duration::from_secs(1)).await;

@@ -18,11 +18,13 @@ method.
 | TCP              | EdgeDB/Gel binary protocol                       | SCRAM (default), JWT[4], Trust[1], mTLS[6]    |
 | TCP_PG           | Postgres protocol for SQL query mode             | SCRAM (default), JWT[4], Trust[1], mTLS[6]    |
 | HTTP             | EdgeDB/Gel binary protocol tunneled over HTTP    | JWT[5] (default), SCRAM, Trust[1], mTLS[6]    |
-| WEBSOCKET        | EdgeDB/Gel over WebSocket                        | JWT[5] (default), SCRAM, Trust[1], mTLS[6]    |
-| WEBSOCKET_PG     | Postgres over WebSocket                          | JWT[5] (default), SCRAM, Trust[1], mTLS[6]    |
+| WEBSOCKET        | EdgeDB/Gel over WebSocket `[+]`                  | JWT[5] (default), SCRAM, Trust[1], mTLS[6]    |
+| WEBSOCKET_PG     | Postgres over WebSocket `[+]`                    | JWT[5] (default), SCRAM, Trust[1], mTLS[6]    |
 | SIMPLE_HTTP      | EdgeQL over HTTP, Notebook and GraphQL endpoints | Password[2] (default), JWT[5], Trust[1], mTLS |
 | HTTP_METRICS [7] | Metrics endpoint                                 | Trust[1] (default), mTLS[3]                   |
 | HTTP_HEALTH [7]  | Health check endpoint                            | Trust[1] (default), mTLS[3]                   |
+
+`[+]` - Not yet implemented.
 
 Notes:
 
@@ -123,9 +125,9 @@ the remainder use `SIMPLE_HTTP`.
   - Request:
     - Header: X-EdgeDB-User: {USERNAME}
     - Header: Authorization: Bearer {TOKEN}
-    - Header: Content-Type: application/x.edgedb.v_1_0.binary
+    - Header: Content-Type: application/x.edgedb.v_x_y.binary
   - Response:
-    - Content-Type: application/x.edgedb.v_1_0.binary
+    - Content-Type: application/x.edgedb.v_x_y.binary
     - Body: Message format as described in the protocol
   - NOTE: Password and SCRAM auth are not supported.
 

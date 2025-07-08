@@ -1,4 +1,5 @@
 use super::{IsBoundConfig, handle_connection_inner};
+use crate::config::ListenerConfig;
 use crate::hyper::{HyperStream, HyperStreamBody, HyperUpgradedStream};
 use crate::service::{BabelfishService, GelVariant, GelVersion, IdentityError, StreamLanguage};
 use crate::tower::build_tower;
@@ -18,23 +19,75 @@ use tracing::{error, trace};
 
 use hyper::server::conn::http1;
 
-const MASCOT: &str = r#"
-                     ▄██▄        
-   ▄▄▄▄▄      ▄▄▄    ████        
- ▄███████▄ ▄███████▄ ████        
- ▀███████▀ ▀███▀▀▀▀▀ ████        
-   ▀▀▀▀▀      ▀▀▀     ▀▀         
-  ▀▄▄▄▄▄▀                 
-    ▀▀▀               
+const MASCOT: &str = concat!(
+    "                     ▄██▄  \n",
+    "   ▄▄▄▄▄      ▄▄▄    ████  \n",
+    " ▄███████▄ ▄███████▄ ████  \n",
+    " ▀███████▀ ▀███▀▀▀▀▀ ████  \n",
+    "   ▀▀▀▀▀      ▀▀▀     ▀▀   \n",
+    "  ▀▄▄▄▄▄▀                  \n",
+    "    ▀▀▀                    \n",
+);
+
+const STYLE: &str = r#"
+html {
+    overflow: hidden;
+}
+body {
+    font-family: monospace;
+    background-color: #19002d;
+    background-image: linear-gradient(135deg, rgba(0,0,0,0.9), transparent);
+    color: #cccccc;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    width: 100vw;
+}
+pre {
+    text-shadow: 0px 1px 1px rgba(247, 247, 247, 0.3);
+    background-image: linear-gradient(-135deg,rgba(183, 159, 206, 0.56), #f7fffe);
+    color: transparent;
+    background-clip: text;
+}
 "#;
+
+fn http_response_html(
+    config: &impl ListenerConfig,
+    code: StatusCode,
+    message: &str,
+) -> Response<HyperStreamBody> {
+    Response::builder()
+        .status(code)
+        .header("Content-Type", "text/html; charset=utf-8")
+        .body(HyperStream::static_response(format!("<html><head><title>Gel {v}</title><style>{STYLE}</style></head><body><pre>{mascot}</pre>Gel {v}<br /><b>{message}</b></body></html>", v = config.version(), mascot = MASCOT)))
+        .unwrap()
+}
+
+fn http_response(config: &impl ListenerConfig, status: StatusCode) -> Response<HyperStreamBody> {
+    http_response_html(
+        config,
+        status,
+        &format!(
+            "{} {}",
+            status.as_u16(),
+            status.canonical_reason().unwrap_or("Error")
+        ),
+    )
+}
 
 pub async fn handle_stream_http0x(
     mut socket: ListenerStream,
     _identity: ConnectionIdentityBuilder,
-    _bound_config: impl IsBoundConfig,
+    bound_config: impl IsBoundConfig,
 ) -> Result<(), std::io::Error> {
     socket.write_all(b"HTTP/1.0 200 OK\r\n\r\n").await?;
     socket.write_all(MASCOT.as_bytes()).await?;
+    socket.write_all(b"\nGel ").await?;
+    socket
+        .write_all(bound_config.config().version().as_bytes())
+        .await?;
 
     Ok(())
 }
@@ -136,13 +189,19 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
                 if let Ok(user) = user.to_str() {
                     identity.set_user(user.to_string());
                 } else {
-                    return Ok(Response::new(HyperStream::static_response("Invalid user")));
+                    return Ok(http_response(
+                        bound_config.config(),
+                        StatusCode::BAD_REQUEST,
+                    ));
                 }
             } else if let Some(user) = req.headers().get("x-edgedb-user") {
                 if let Ok(user) = user.to_str() {
                     identity.set_user(user.to_string());
                 } else {
-                    return Ok(Response::new(HyperStream::static_response("Invalid user")));
+                    return Ok(http_response(
+                        bound_config.config(),
+                        StatusCode::BAD_REQUEST,
+                    ));
                 }
             };
 
@@ -156,11 +215,21 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
 
             // Special case for the root path.
             if req.uri().path() == "/" {
-                let mut resp = Response::new(HyperStream::static_response(MASCOT));
-                resp.headers_mut()
-                    .insert("Content-Type", "text/plain; charset=utf-8".parse().unwrap());
-
-                return Ok(resp);
+                if req.method() == hyper::Method::GET
+                    || req.method() == hyper::Method::HEAD
+                    || req.method() == hyper::Method::OPTIONS
+                {
+                    return Ok(http_response_html(
+                        bound_config.config(),
+                        StatusCode::OK,
+                        "Welcome to Gel!",
+                    ));
+                } else {
+                    return Ok(http_response(
+                        bound_config.config(),
+                        StatusCode::METHOD_NOT_ALLOWED,
+                    ));
+                }
             }
 
             // First, check for invalid URI segments. The server will require fully-normalized paths.
@@ -169,9 +238,10 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
                 .split('/')
                 .any(|segment| segment == "." || segment == ".." || segment.is_empty())
             {
-                return Ok(Response::new(HyperStream::static_response(
-                    "Invalid request: URI contains invalid segments",
-                )));
+                return Ok(http_response(
+                    bound_config.config(),
+                    StatusCode::BAD_REQUEST,
+                ));
             }
 
             if req.extensions().get::<OnUpgrade>().is_some() {
@@ -195,9 +265,10 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
                         .await;
                     }
                     _ => {
-                        return Ok(Response::new(HyperStream::static_response(
-                            "Unsupported HTTP version",
-                        )));
+                        return Ok(http_response(
+                            bound_config.config(),
+                            StatusCode::BAD_REQUEST,
+                        ));
                     }
                 }
             }
@@ -221,19 +292,26 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
                     // then we need to convert the request body into a stream.
                     if req.method() == hyper::Method::POST {
                         // TODO: other versions
-                        if content_type.as_deref() == Some("application/x.edgedb.v_3_0.binary") {
+                        if let Some(content_type) = content_type.as_deref() {
+                            if content_type.starts_with("application/x.edgedb.v_") {
+                                let version = content_type.split('.').nth(2).unwrap_or("3.0");
+                                let version = version.split('_').next().unwrap_or("3.0");
+                                let version = version.split('.').next().unwrap_or("3.0");
+                            }
                             let identity = match identity.build() {
                                 Ok(identity) => identity,
                                 Err(IdentityError::NoUser) => {
-                                    return Ok(Response::new(HyperStream::static_response(
-                                        "Unauthorized",
-                                    )));
+                                    return Ok(http_response(
+                                        bound_config.config(),
+                                        StatusCode::UNAUTHORIZED,
+                                    ));
                                 }
                                 Err(e) => {
                                     error!("Failed to build identity: {e:?}");
-                                    return Ok(Response::new(HyperStream::static_response(
-                                        "Unauthorized",
-                                    )));
+                                    return Ok(http_response(
+                                        bound_config.config(),
+                                        StatusCode::UNAUTHORIZED,
+                                    ));
                                 }
                             };
 
@@ -250,12 +328,16 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
                                     )
                                     .await
                             });
-                            return Ok(Response::new(response));
+                            let mut resp = Response::new(response);
+                            resp.headers_mut()
+                                .insert("Content-Type", content_type.parse().unwrap());
+                            return Ok(resp);
                         }
                     } else {
-                        return Ok(Response::new(HyperStream::static_response(
-                            "Invalid request",
-                        )));
+                        return Ok(http_response(
+                            bound_config.config(),
+                            StatusCode::BAD_REQUEST,
+                        ));
                     }
                 }
             }
@@ -266,7 +348,10 @@ impl<T: IsBoundConfig> tower::Service<Request<hyper::body::Incoming>> for HttpSe
                 Err(IdentityError::NoUser) => None,
                 Err(e) => {
                     error!("Failed to build identity: {e:?}");
-                    return Ok(Response::new(HyperStream::static_response("Unauthorized")));
+                    return Ok(http_response(
+                        bound_config.config(),
+                        StatusCode::UNAUTHORIZED,
+                    ));
                 }
             };
 

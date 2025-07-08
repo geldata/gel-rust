@@ -365,7 +365,7 @@ pub async fn identify_stream(
         return res;
     }
 
-    // TODO: Should add a custom preface sniffer for gel-stream so we can bail with "GET /"
+    // TODO: Should add a custom preface sniffer for gel-stream so we can bail with "GET /\n\n"
     if let Some(preface) = socket.preface() {
         let res = identify_connection(state, &preface);
         trace!(

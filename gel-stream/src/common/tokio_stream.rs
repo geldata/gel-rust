@@ -35,7 +35,7 @@ impl ResolvedTarget {
     ) -> std::io::Result<
         impl futures::Stream<Item = std::io::Result<(TokioStream, ResolvedTarget)>> + LocalAddress,
     > {
-        self.listen_raw(None).await
+        self.listen_raw(None, false, false).await
     }
 
     #[cfg(feature = "server")]
@@ -53,7 +53,7 @@ impl ResolvedTarget {
         }
         let backlog = u32::try_from(backlog)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
-        self.listen_raw(Some(backlog)).await
+        self.listen_raw(Some(backlog), false, false).await
     }
 
     /// Listens for incoming connections on the socket address and returns a
@@ -62,6 +62,8 @@ impl ResolvedTarget {
     pub(crate) async fn listen_raw(
         &self,
         backlog: Option<u32>,
+        reuse_port: bool,
+        reuse_addr: bool,
     ) -> std::io::Result<TokioListenerStream> {
         use std::net::SocketAddr;
 
@@ -76,6 +78,12 @@ impl ResolvedTarget {
                     SocketAddr::V4(..) => TcpSocket::new_v4()?,
                     SocketAddr::V6(..) => TcpSocket::new_v6()?,
                 };
+                if reuse_port {
+                    socket.set_reuseport(true)?;
+                }
+                if reuse_addr {
+                    socket.set_reuseaddr(true)?;
+                }
                 socket.bind(*addr)?;
                 let listener = socket.listen(backlog)?;
 

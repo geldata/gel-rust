@@ -96,11 +96,43 @@ pub trait ListenerConfig: std::fmt::Debug + Send + Sync + 'static {
         transport_type: TransportType,
         stream_props: &StreamProperties,
     ) -> bool;
+
+    fn version(&self) -> &str;
+}
+
+impl<C: ListenerConfig> ListenerConfig for Arc<C> {
+    fn listen_address(&self) -> impl Stream<Item = std::io::Result<ListenerEntry>> + Send {
+        self.as_ref().listen_address()
+    }
+
+    fn is_supported(
+        &self,
+        stream_type: Option<StreamType>,
+        transport_type: TransportType,
+        stream_props: &StreamProperties,
+    ) -> StreamSupported {
+        self.as_ref()
+            .is_supported(stream_type, transport_type, stream_props)
+    }
+
+    fn is_supported_final(
+        &self,
+        stream_type: StreamType,
+        transport_type: TransportType,
+        stream_props: &StreamProperties,
+    ) -> bool {
+        self.as_ref()
+            .is_supported_final(stream_type, transport_type, stream_props)
+    }
+
+    fn version(&self) -> &str {
+        self.as_ref().version()
+    }
 }
 
 #[derive(Debug)]
 pub struct TestListenerConfig {
-    addrs: Vec<SocketAddr>,
+    pub addrs: Vec<SocketAddr>,
 }
 
 impl TestListenerConfig {
@@ -156,6 +188,10 @@ impl ListenerConfig for TestListenerConfig {
             .boxed(),
             stream::pending().boxed(),
         ])
+    }
+
+    fn version(&self) -> &str {
+        "(development)"
     }
 }
 

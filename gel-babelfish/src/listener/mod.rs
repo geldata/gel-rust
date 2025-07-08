@@ -312,7 +312,9 @@ async fn bind(
         Acceptor::new_tls_previewing(addr.clone(), PreviewConfiguration::default(), tls_lookup)
     } else {
         Acceptor::new_previewing(addr.clone(), PreviewConfiguration::default())
-    };
+    }
+    .with_reuse_addr()
+    .with_reuse_port();
 
     let mut acceptor = acceptor.bind().await?;
     let local_addr = acceptor.local_address()?;
