@@ -78,6 +78,7 @@ impl ResolvedTarget {
                     SocketAddr::V4(..) => TcpSocket::new_v4()?,
                     SocketAddr::V6(..) => TcpSocket::new_v6()?,
                 };
+                #[cfg(not(windows))]
                 if reuse_port {
                     socket.set_reuseport(true)?;
                 }
