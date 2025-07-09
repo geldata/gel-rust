@@ -24,6 +24,8 @@ pub struct Acceptor<const PREVIEW: bool = false> {
 #[derive(Debug, Clone, Copy)]
 struct StreamOptions<const PREVIEW: bool> {
     ignore_missing_tls_close_notify: bool,
+    reuse_port: bool,
+    reuse_addr: bool,
     preview_configuration: Option<PreviewConfiguration>,
     tcp_backlog: Option<u32>,
     tls_backlog: Option<u32>,
@@ -33,9 +35,77 @@ impl<const PREVIEW: bool> Default for StreamOptions<PREVIEW> {
     fn default() -> Self {
         Self {
             ignore_missing_tls_close_notify: false,
+            reuse_port: false,
+            reuse_addr: false,
             preview_configuration: None,
             tcp_backlog: None,
             tls_backlog: None,
+        }
+    }
+}
+
+impl<const PREVIEW: bool> Acceptor<PREVIEW> {
+    /// Set the `SO_REUSEADDR` option on the socket.
+    ///
+    /// This may have platform-specific semantics, and is not guaranteed to work
+    /// on all platforms.
+    ///
+    ///  - Linux: Allows binding to a port in `TIME_WAIT`, but not if another
+    ///    socket is actively bound to it unless `SO_REUSEPORT` is also set.
+    ///    Also used to enable multiple binds on different IPs with same port.
+    ///
+    ///    Does not allow multiple processes to bind to the same port and IP
+    ///    unless using `SO_REUSEPORT`.
+    ///
+    ///  - macOS: Similar to Linux: allows bind if previous socket is in
+    ///    `TIME_WAIT`. Required for binding to a multicast address.
+    ///    
+    ///    Also does not allow simultaneous same-port binds unless using
+    ///    `SO_REUSEPORT`.
+    ///  - Windows: Allows rebinding to a port in TIME_WAIT. Also used to allow
+    ///    multiple binds to same port and IP for multicast reception.
+    ///
+    ///    Will not allow two sockets to bind to the same port and IP even with
+    ///    `SO_REUSEADDR`.
+    ///
+    /// More information:
+    /// <https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ/>
+    /// <https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/setsockopt.2.html>
+    /// <https://learn.microsoft.com/en-us/windows/win32/winsock/using-so-reuseaddr-and-so-exclusiveaddruse>
+    pub fn with_reuse_addr(self) -> Self {
+        Self {
+            options: StreamOptions {
+                reuse_addr: true,
+                ..self.options
+            },
+            ..self
+        }
+    }
+
+    /// Set the `SO_REUSEPORT` option on the socket.
+    ///
+    /// This may have platform-specific semantics, and is not guaranteed to work
+    /// on all platforms.
+    ///
+    ///  - Linux: Allows multiple sockets to bind to the same IP and port, if
+    ///    all set this option before bind. Kernel will load-balance between
+    ///    them.
+    ///  - macOS: Similar to Linux since macOS 10.9: allows same-IP/port
+    ///    binding. Used for load balancing.
+    ///  - Windows: Not supported (ignored if set). Only `SO_REUSEADDR` is
+    ///    meaningful.
+    ///
+    /// More information:
+    /// <https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ/>
+    /// <https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/setsockopt.2.html>
+    /// <https://learn.microsoft.com/en-us/windows/win32/winsock/using-so-reuseaddr-and-so-exclusiveaddruse>
+    pub fn with_reuse_port(self) -> Self {
+        Self {
+            options: StreamOptions {
+                reuse_port: true,
+                ..self.options
+            },
+            ..self
         }
     }
 }
@@ -146,7 +216,11 @@ impl Acceptor<false> {
     > {
         let stream = self
             .resolved_target
-            .listen_raw(self.options.tcp_backlog)
+            .listen_raw(
+                self.options.tcp_backlog,
+                self.options.reuse_port,
+                self.options.reuse_addr,
+            )
             .await?;
         Ok(AcceptedStream::<Connection<Ssl>> {
             stream,
@@ -170,7 +244,11 @@ impl Acceptor<false> {
     > {
         let stream = self
             .resolved_target
-            .listen_raw(self.options.tcp_backlog)
+            .listen_raw(
+                self.options.tcp_backlog,
+                self.options.reuse_port,
+                self.options.reuse_addr,
+            )
             .await?;
         Ok(AcceptedStream::<Connection<D>, D> {
             stream,
@@ -259,7 +337,11 @@ impl Acceptor<true> {
     > {
         let stream = self
             .resolved_target
-            .listen_raw(self.options.tcp_backlog)
+            .listen_raw(
+                self.options.tcp_backlog,
+                self.options.reuse_port,
+                self.options.reuse_addr,
+            )
             .await?;
         Ok(AcceptedStream::<(Preview, Connection<Ssl>)> {
             stream,
@@ -281,7 +363,11 @@ impl Acceptor<true> {
     > {
         let stream = self
             .resolved_target
-            .listen_raw(self.options.tcp_backlog)
+            .listen_raw(
+                self.options.tcp_backlog,
+                self.options.reuse_port,
+                self.options.reuse_addr,
+            )
             .await?;
         Ok(AcceptedStream::<(Preview, Connection<D>), D> {
             stream,

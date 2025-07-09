@@ -65,6 +65,7 @@ pub async fn handle_connection_inner(
         StreamType::GelBinary => {
             gel::handle_stream_gel_binary(socket, identity, bound_config).await
         }
+        StreamType::HTTP0x => http::handle_stream_http0x(socket, identity, bound_config).await,
         StreamType::HTTP1x => http::handle_stream_http1x(socket, identity, bound_config).await,
         StreamType::HTTP2 => http::handle_stream_http2(socket, identity, bound_config).await,
         StreamType::SSLTLS => handle_stream_ssltls(socket, identity, bound_config).await,
@@ -190,6 +191,8 @@ impl BoundServer {
     }
 }
 
+// We should be able to provide an ALPN callback to gel-stream. If that's the case, we can use that here.
+#[allow(unused)]
 fn compute_alpn(config: Arc<impl ListenerConfig>, stream_props: &StreamProperties) -> TlsAlpn {
     let mut alpn = Vec::default();
     if config
@@ -309,7 +312,9 @@ async fn bind(
         Acceptor::new_tls_previewing(addr.clone(), PreviewConfiguration::default(), tls_lookup)
     } else {
         Acceptor::new_previewing(addr.clone(), PreviewConfiguration::default())
-    };
+    }
+    .with_reuse_addr()
+    .with_reuse_port();
 
     let mut acceptor = acceptor.bind().await?;
     let local_addr = acceptor.local_address()?;
@@ -378,9 +383,9 @@ pub async fn handle_stream_ssltls(
 #[cfg(test)]
 mod tests {
     use gel_auth::CredentialData;
-    use gel_pg_protocol::prelude::StructBuffer;
     use gel_stream::{Connector, RawStream, Target, TlsParameters};
-    use hyper::Uri;
+    use http_body_util::BodyExt;
+    use hyper::{HeaderMap, Uri, header::HeaderValue};
     use hyper_util::rt::TokioIo;
     use ntest_timeout::timeout;
     use rstest::rstest;
@@ -389,6 +394,7 @@ mod tests {
 
     use crate::{
         config::TestListenerConfig,
+        hyper::HyperStreamBody,
         service::{AuthTarget, ConnectionIdentity, StreamLanguage},
     };
 
@@ -415,6 +421,14 @@ mod tests {
         0x56, 0x00, 0x00, 0x00, 0x4d, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x08,
         0x64,
     ];
+
+    fn concat_bytes(bytes: &[&[u8]]) -> Vec<u8> {
+        let mut result = Vec::new();
+        for b in bytes {
+            result.extend_from_slice(b);
+        }
+        result
+    }
 
     #[derive(Clone, Debug, Default)]
     struct TestService {
@@ -448,19 +462,31 @@ mod tests {
             &self,
             identity: ConnectionIdentity,
             language: StreamLanguage,
-            stream: ListenerStream,
+            mut stream: ListenerStream,
         ) -> impl Future<Output = Result<(), std::io::Error>> {
             self.log(format!(
                 "accept_stream: {identity:?}, {language:?}, {stream:?}"
             ));
-            async { Ok(()) }
+
+            async move {
+                let mut buf = vec![];
+                stream.read_to_end(&mut buf).await?;
+                stream
+                    .write_all(
+                        format!("stream {identity:?} {language:?} {size}", size = buf.len())
+                            .as_bytes(),
+                    )
+                    .await?;
+                Ok(())
+            }
         }
 
         fn accept_http(
             &self,
             identity: ConnectionIdentity,
             req: hyper::http::Request<hyper::body::Incoming>,
-        ) -> impl Future<Output = Result<hyper::http::Response<String>, std::io::Error>> {
+        ) -> impl Future<Output = Result<hyper::http::Response<HyperStreamBody>, std::io::Error>>
+        {
             self.log(format!("accept_http: {identity:?}, {req:?}"));
             async { Ok(Default::default()) }
         }
@@ -468,7 +494,8 @@ mod tests {
         fn accept_http_unauthenticated(
             &self,
             req: hyper::http::Request<hyper::body::Incoming>,
-        ) -> impl Future<Output = Result<hyper::http::Response<String>, std::io::Error>> {
+        ) -> impl Future<Output = Result<hyper::http::Response<HyperStreamBody>, std::io::Error>>
+        {
             self.log(format!("accept_http_unauthenticated: {req:?}"));
             async { Ok(Default::default()) }
         }
@@ -595,7 +622,7 @@ mod tests {
             let mut buf = vec![];
             stm.read_to_end(&mut buf).await.unwrap();
             let result = String::from_utf8(buf).unwrap();
-            assert_eq!(&result[..12], "HTTP/1.1 400");
+            assert_eq!(&result[..12], "HTTP/1.0 200");
             Ok(())
         });
     }
@@ -659,55 +686,43 @@ mod tests {
                     hyper::client::conn::http2::Builder::new(hyper_util::rt::TokioExecutor::new());
                 let (mut send, conn) = http2.handshake::<_, _>(TokioIo::new(stm)).await.unwrap();
                 tokio::task::spawn(conn);
-                let body = vec![];
 
-                // body.extend_from_slice(&gel_protocol::new_protocol::ExecuteBuilder {
-                //     annotations: &[],
-                //     allowed_capabilities: 18446744073709551577,
-                //     compilation_flags: 0,
-                //     implicit_limit: 0,
-                //     output_format: 98,
-                //     expected_cardinality: 111,
-                //     command_text: "select {\n        instanceName := sys::get_instance_name(),\n        databases := sys::Database.name,\n        roles := sys::Role.name,\n      }",
-                //     state_typedesc_id: Uuid::from_u128(0xffffffffffff_ffff_ffff_ffffffff),
-                //     state_data: &[],
-                //     input_typedesc_id: Uuid::from_u128(0x00000000_0000_0000_0000_000000000000),
-                //     output_typedesc_id: Uuid::from_u128(0x00000000_0000_0000_0000_000000000000),
-                //     arguments: &[]
-                // }.to_vec());
+                // Captured from the Gel web interface
+                let body = concat_bytes(&[
+                    b"O\x00\x00\x00\x8c\x00\x01\x00\x00\x00\x03tag\x00\x00\x00\x0bgel/webrepl\xff\xff\xff\xff\xff\xff\xff\xfb",
+                    b"\x00\x00\x00\x00\x00\x00\x00\x07\x00\x00\x00\x00\x00\x00\x00eEbm\x00\x00\x00\x09select 1;\xd2\xbd--\x9cqS\"\xa9\x00\xd23\xb9",
+                    b"\x81\xfe\x01\x00\x00\x00\x10\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+                    b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x05\x00\x00\x00\x00S\x00\x00\x00\x04"
+                ]);
 
-                // body.extend_from_slice(b"O\x00\x00\x00\xef\x00\x00\xff\xff\xff\xff\xff\xff\xff\xd9\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00bo\x00\x00\x00\x93");
-                // body.extend_from_slice(b"\n      select {\n        instanceName := sys::get_instance_name(),\n        databases := sys::Database.name,\n        s,\n      }");
-                // body.extend_from_slice(b"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
-                // body.extend_from_slice(b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00S\x00\x00\x00\x04");
-
-                let mut buf = StructBuffer::<gel_db_protocol::protocol::Message>::default();
-                buf.push(&body, |msg| {
-                    let msg = msg.unwrap();
-                    match msg.mtype() {
-                        b'S' => {
-                            let status =
-                                gel_db_protocol::protocol::Sync::new(msg.as_ref()).unwrap();
-                            eprintln!("{status:?}");
-                        }
-                        b'O' => {
-                            let execute =
-                                gel_db_protocol::protocol::Execute::new(msg.as_ref()).unwrap();
-                            eprintln!("{execute:?}");
-                        }
-                        _ => {
-                            eprintln!("{msg:?} {}", msg.mtype() as char);
-                        }
-                    }
-                });
+                assert_eq!(body.len(), 146);
 
                 let mut req =
                     hyper::Request::new(http_body_util::Full::new(hyper::body::Bytes::from(body)));
-                *req.uri_mut() = Uri::from_static("/db/./mydb");
+                *req.uri_mut() = Uri::from_static("/db/mydb");
+                *req.method_mut() = hyper::Method::POST;
+                *req.headers_mut() = HeaderMap::new();
+                req.headers_mut().insert(
+                    hyper::header::CONTENT_TYPE,
+                    HeaderValue::from_static("application/x.edgedb.v_3_0.binary"),
+                );
+                req.headers_mut()
+                    .insert("x-gel-user", HeaderValue::from_static("me"));
                 let resp = send.send_request(req).await.unwrap();
-                eprintln!("{resp:?}");
+                let body = String::from_utf8(
+                    resp.into_body()
+                        .collect()
+                        .await
+                        .unwrap()
+                        .to_bytes()
+                        .to_vec(),
+                )
+                .unwrap();
 
-                // assert_eq!(stm.read_u8().await.unwrap(), b'S');
+                assert_eq!(
+                    body,
+                    "stream ConnectionIdentity { tenant: None, db: DB(\"mydb\"), user: \"me\" } Gel(V3, Wire) 146"
+                );
                 Ok(())
             }
         });

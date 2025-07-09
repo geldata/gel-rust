@@ -119,8 +119,11 @@ impl<T> EncoderForExt for T where T: ?Sized {}
 pub enum ParseError {
     #[display("Buffer is too short for {_0}")]
     TooShort(#[error(not(source))] &'static str),
-    #[display("Buffer is too long ({_0} extra bytes)")]
-    TooLong(#[error(not(source))] usize),
+    #[display("Buffer is too long for {_0}: ({_1} extra bytes)")]
+    TooLong(
+        #[error(not(source))] &'static str,
+        #[error(not(source))] usize,
+    ),
     #[display("Invalid data for {_0}: {_1}")]
     InvalidData(
         #[error(not(source))] &'static str,

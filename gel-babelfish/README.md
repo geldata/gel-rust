@@ -18,11 +18,13 @@ method.
 | TCP              | EdgeDB/Gel binary protocol                       | SCRAM (default), JWT[4], Trust[1], mTLS[6]    |
 | TCP_PG           | Postgres protocol for SQL query mode             | SCRAM (default), JWT[4], Trust[1], mTLS[6]    |
 | HTTP             | EdgeDB/Gel binary protocol tunneled over HTTP    | JWT[5] (default), SCRAM, Trust[1], mTLS[6]    |
-| WEBSOCKET        | EdgeDB/Gel over WebSocket                        | JWT[5] (default), SCRAM, Trust[1], mTLS[6]    |
-| WEBSOCKET_PG     | Postgres over WebSocket                          | JWT[5] (default), SCRAM, Trust[1], mTLS[6]    |
+| WEBSOCKET        | EdgeDB/Gel over WebSocket `[+]`                  | JWT[5] (default), SCRAM, Trust[1], mTLS[6]    |
+| WEBSOCKET_PG     | Postgres over WebSocket `[+]`                    | JWT[5] (default), SCRAM, Trust[1], mTLS[6]    |
 | SIMPLE_HTTP      | EdgeQL over HTTP, Notebook and GraphQL endpoints | Password[2] (default), JWT[5], Trust[1], mTLS |
 | HTTP_METRICS [7] | Metrics endpoint                                 | Trust[1] (default), mTLS[3]                   |
 | HTTP_HEALTH [7]  | Health check endpoint                            | Trust[1] (default), mTLS[3]                   |
+
+`[+]` - Not yet implemented.
 
 Notes:
 
@@ -108,11 +110,14 @@ All endpoints in this namespace are used for authorization exchange.
 - /auth/*
   - Description: Additional auth extension paths (none at this time)
 
-### `/{branch,db}/{BRANCH}` (`SIMPLE_HTTP`)
+### `/{branch,db}/{BRANCH}` (`HTTP` or `SIMPLE_HTTP`)
 
-All endpoints in this namespace require authentication and support all auth
-types except Password. When using `mTLS`, the `X-EdgeDB-User` or `X-Gel-User`
-header is required.
+All endpoints in this namespace require authentication. When using `mTLS`, the
+`X-EdgeDB-User` or `X-Gel-User` header is required and the username must match
+the Common Name of the client certificate.
+
+The `/{branch,db}/{BRANCH}` endpoint uses the `HTTP` transport for auth, while
+the remainder use `SIMPLE_HTTP`.
 
 - /{branch,db}/{BRANCH}
   - Method: POST
@@ -120,23 +125,26 @@ header is required.
   - Request:
     - Header: X-EdgeDB-User: {USERNAME}
     - Header: Authorization: Bearer {TOKEN}
-    - Header: Content-Type: application/x.edgedb.v_1_0.binary
+    - Header: Content-Type: application/x.edgedb.v_x_y.binary
   - Response:
-    - Content-Type: application/x.edgedb.v_1_0.binary
+    - Content-Type: application/x.edgedb.v_x_y.binary
     - Body: Message format as described in the protocol
+  - NOTE: Password and SCRAM auth are not supported.
+
+Additional HTTP endpoints, enabled by extensions.
+
+NOTE: SCRAM is not currently supported in this namespace.
 
 - /{branch,db}/{BRANCH}/edgeql
   - Method: POST
-  - Description: Execute EdgeQL queries over HTTP
+  - Description: Execute EdgeQL queries over HTTP (JSON)
+  - NOTE: An alias for /{branch,db}/{BRANCH}/ext/edgeql_http
 
-- /{branch,db}/{BRANCH}/notebook
+- /{branch,db}/{BRANCH}/ext/edgeql_http
   - Method: POST
-  - Description: Serve EdgeDB notebook protocol. This protocol does not allow
-    for transaction commits or DDL.
+  - Description: Execute EdgeQL queries over HTTP (JSON)
 
-Additional HTTP endpoints:
-
-- /{branch,db}/{BRANCH}/graphql
+- /{branch,db}/{BRANCH}/ext/graphql
   - Method: POST
   - Description: Execute GraphQL queries
 
@@ -144,9 +152,14 @@ Additional HTTP endpoints:
   - Method: GET, POST
   - Description: Handle authentication extension requests
 
-- /{branch,db}/{BRANCH}/ai
+- /{branch,db}/{BRANCH}/ext/ai
   - Method: POST
   - Description: Handle AI-related requests
+
+- /{branch,db}/{BRANCH}/ext/notebook
+  - Method: POST
+  - Description: Serve EdgeDB notebook protocol. This protocol does not allow
+    for transactions or DDL.
 
 ### `HTTP_METRICS` and `HTTP_HEALTH`
 

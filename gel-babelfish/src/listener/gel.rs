@@ -1,5 +1,8 @@
 use crate::{
-    service::{AuthTarget, BabelfishService, ConnectionIdentityBuilder, StreamLanguage},
+    service::{
+        AuthTarget, BabelfishService, ConnectionIdentityBuilder, GelVariant, GelVersion,
+        StreamLanguage,
+    },
     stream::{ListenerStream, StreamPropertiesBuilder},
 };
 use bytes::BytesMut;
@@ -26,6 +29,8 @@ pub async fn handle_stream_gel_binary(
     let send_buf = Mutex::new(BytesMut::new());
     let auth_ready = AtomicBool::new(false);
     let params_ready = AtomicBool::new(false);
+    let mut major_version = None;
+    let mut minor_version = None;
     let mut update = |update: ConnectionEvent<'_>| {
         use ConnectionEvent::*;
         trace!("UPDATE: {update:?}");
@@ -38,6 +43,11 @@ pub async fn handle_stream_gel_binary(
             }
             Parameter(name, value) => {
                 startup_params.insert(name.to_owned(), value.to_owned());
+            }
+            ProtocolVersion(major, minor) => {
+                startup_params.insert("protocol_version".to_string(), format!("{major}.{minor}"));
+                major_version = Some(major);
+                minor_version = Some(minor);
             }
             Params => params_ready.store(true, Ordering::SeqCst),
             Send(bytes) => {
@@ -79,7 +89,7 @@ pub async fn handle_stream_gel_binary(
                 .service()
                 .lookup_auth(
                     resolved_identity.clone().unwrap(),
-                    AuthTarget::Stream(StreamLanguage::EdgeDB),
+                    AuthTarget::Stream(StreamLanguage::Gel(GelVersion::V0, GelVariant::Wire)),
                 )
                 .await?;
             server_state
@@ -115,7 +125,11 @@ pub async fn handle_stream_gel_binary(
     });
     bound_config
         .service()
-        .accept_stream(resolved_identity.unwrap(), StreamLanguage::EdgeDB, socket)
+        .accept_stream(
+            resolved_identity.unwrap(),
+            StreamLanguage::Gel(GelVersion::V0, GelVariant::Wire),
+            socket,
+        )
         .await?;
 
     Ok(())

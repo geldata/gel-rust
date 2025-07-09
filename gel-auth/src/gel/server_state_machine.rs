@@ -53,6 +53,7 @@ pub trait ConnectionStateUpdate: ConnectionStateSend {
     fn parameter(&mut self, name: &str, value: &str) {}
     fn state_changed(&mut self, state: ConnectionStateType) {}
     fn server_error(&mut self, error: &EdbError) {}
+    fn protocol_version(&mut self, major: u8, minor: u8) {}
 }
 
 #[derive(derive_more::Debug)]
@@ -62,6 +63,7 @@ pub enum ConnectionEvent<'a> {
     Auth(String, String, String),
     Params,
     Parameter(&'a str, &'a str),
+    ProtocolVersion(u8, u8),
     StateChanged(ConnectionStateType),
     ServerError(EdbError),
 }
@@ -220,6 +222,7 @@ impl ServerStateImpl {
                         let minor_ver = handshake.minor_ver();
                         match (major_ver, minor_ver) {
                             (..=0, _) => {
+                                update.protocol_version(major_ver as u8, minor_ver as u8);
                                 update.send(&ServerHandshakeBuilder { major_ver: 1, minor_ver: 0, extensions: Array::<_, ProtocolExtension>::default() })?;
                             }
                             (1, 1..) => {
@@ -227,7 +230,8 @@ impl ServerStateImpl {
                                 return Err(PROTOCOL_VERSION_ERROR);
                             }
                             (2, 1..) | (3.., _) => {
-                                update.send(&ServerHandshakeBuilder { major_ver: 2, minor_ver: 0, extensions: Array::<_, ProtocolExtension>::default() })?;
+                                update.protocol_version(major_ver as u8, minor_ver as u8);
+                                update.send(&ServerHandshakeBuilder { major_ver, minor_ver, extensions: Array::<_, ProtocolExtension>::default() })?;
                             }
                             _ => {}
                         }

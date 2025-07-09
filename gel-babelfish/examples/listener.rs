@@ -5,10 +5,11 @@ use std::{future::Future, time::Duration};
 
 use gel_auth::AuthType;
 use gel_auth::CredentialData;
-use gel_frontend::config::TestListenerConfig;
-use gel_frontend::listener::BoundServer;
-use gel_frontend::service::{AuthTarget, BabelfishService, ConnectionIdentity, StreamLanguage};
-use gel_frontend::stream::ListenerStream;
+use gel_babelfish::config::TestListenerConfig;
+use gel_babelfish::hyper::HyperStreamBody;
+use gel_babelfish::listener::BoundServer;
+use gel_babelfish::service::{AuthTarget, BabelfishService, ConnectionIdentity, StreamLanguage};
+use gel_babelfish::stream::ListenerStream;
 use gel_pg_protocol::prelude::*;
 use hyper::Response;
 use tokio::io::ReadBuf;
@@ -51,9 +52,10 @@ impl BabelfishService for ExampleService {
         self.stream_count.fetch_add(1, Ordering::Relaxed);
         async move {
             match language {
-                StreamLanguage::EdgeDB => {
+                StreamLanguage::Gel(_, _) => {
                     use gel_db_protocol::protocol::{
-                        Annotation, CommandDataDescriptionBuilder, Execute, Message, Parse,
+                        Annotation, CommandCompleteBuilder, CommandDataDescriptionBuilder,
+                        DataBuilder, DataElementBuilder, Execute, Execute2, Message, Parse, Parse2,
                         ReadyForCommandBuilder, Sync, TransactionState,
                     };
                     let mut buffer = StructBuffer::<Message>::default();
@@ -77,6 +79,24 @@ impl BabelfishService for ExampleService {
                             match_message!(msg, EdgeDBFrontend {
                                 (Execute as msg) => {
                                     eprintln!("{msg:?}");
+                                    if msg.command_text() == "SELECT 1" {
+                                        send_queue.extend(DataBuilder {
+                                            data: &[&DataElementBuilder { data: b"1" }],
+                                        }.to_vec());
+                                    } else if msg.command_text() == "SELECT sys::get_version_as_str()" {
+                                        send_queue.extend(DataBuilder {
+                                            data: &[&DataElementBuilder { data: b"7.0+fffffff" }],
+                                        }.to_vec());
+                                    } else {
+                                        // todo
+                                    }
+                                    send_queue.extend(CommandCompleteBuilder {
+                                        status: "SELECT",
+                                        annotations: Array::<_, Annotation>::empty(),
+                                        capabilities: 0,
+                                        state_typedesc_id: Uuid::default(),
+                                        state_data: Array::<_, u8>::empty(),
+                                    }.to_vec());
                                 },
                                 (Parse as msg) => {
                                     eprintln!("{msg:?}");
@@ -86,8 +106,8 @@ impl BabelfishService for ExampleService {
                                         result_cardinality: msg.expected_cardinality(),
                                         input_typedesc_id: Uuid::default(),
                                         input_typedesc: Array::<_, u8>::empty(),
-                                        output_typedesc_id: Uuid::default(),
-                                        output_typedesc: Array::<_, u8>::empty()
+                                        output_typedesc_id: Uuid::from_u128(0x101),
+                                        output_typedesc: b"\0\0\0 \x03\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\x01\0\0\0\x08std::str\x01\0\0"
                                     }.to_vec());
                                 },
                                 (Sync as msg) => {
@@ -171,24 +191,24 @@ impl BabelfishService for ExampleService {
         &self,
         identity: ConnectionIdentity,
         req: hyper::http::Request<hyper::body::Incoming>,
-    ) -> impl Future<Output = Result<hyper::http::Response<String>, std::io::Error>> {
+    ) -> impl Future<Output = Result<hyper::http::Response<HyperStreamBody>, std::io::Error>> {
         trace!("accept_http: {:?}, {:?}", identity, req);
         self.http_count.fetch_add(1, Ordering::Relaxed);
         async {
             tokio::time::sleep(Duration::from_secs(1)).await;
-            Ok(Response::new("Hello!\n".to_string()))
+            Ok(Response::new("Hello!\n".into()))
         }
     }
 
     fn accept_http_unauthenticated(
         &self,
         req: hyper::http::Request<hyper::body::Incoming>,
-    ) -> impl Future<Output = Result<hyper::http::Response<String>, std::io::Error>> {
+    ) -> impl Future<Output = Result<hyper::http::Response<HyperStreamBody>, std::io::Error>> {
         trace!("accept_http_unauthenticated: {:?}", req);
         self.http_count.fetch_add(1, Ordering::Relaxed);
         async {
             tokio::time::sleep(Duration::from_millis(100)).await;
-            Ok(Response::new("Hello (no user)!\n".to_string()))
+            Ok(Response::new("Hello (no user)!\n".into()))
         }
     }
 }
@@ -202,7 +222,11 @@ fn run_test_service() {
         .block_on(async move {
             let stream_count = server.stream_count.clone();
             let http_count = server.http_count.clone();
-            BoundServer::bind(TestListenerConfig::new("localhost:21340"), server).unwrap();
+            let config = TestListenerConfig::new("localhost:21340");
+            for addr in &config.addrs {
+                eprintln!("Listening on: http://{addr:?}");
+            }
+            BoundServer::bind(config, server).unwrap();
             let mut last_metrics = (0, 0);
             loop {
                 tokio::time::sleep(Duration::from_secs(1)).await;
