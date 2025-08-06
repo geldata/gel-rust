@@ -1,0 +1,12 @@
+["cfg::Config"]
+session_idle_timeout = "8m42s"
+durprop = "996"
+apply_access_policies = false
+multiprop = "single"
+current_email_provider_name = "localmock"
+
+[[magic_smtp_config]]
+_tname = "cfg::SMTPProviderConfig"
+name = "localmock"
+sender = "sender@example.com"
+timeout_per_email = "1 minute 48 seconds"
