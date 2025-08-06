@@ -74,6 +74,9 @@ impl<T> Stream for T where
 {
 }
 
+#[cfg(not(feature = "tokio"))]
+impl<T> Stream for T where T: StreamMetadata + AsHandle + Unpin + Send + 'static {}
+
 // NOTE: Once we're on Rust 1.87, we can use trait upcasting and get rid of this impl.
 impl PeerCred for Box<dyn Stream + Send> {
     #[cfg(all(unix, feature = "tokio"))]
@@ -101,11 +104,43 @@ impl StreamMetadata for Box<dyn Stream + Send> {
 }
 
 #[cfg(not(feature = "tokio"))]
+impl StreamMetadata for () {
+    fn transport(&self) -> Transport {
+        unreachable!()
+    }
+}
+
+#[cfg(not(feature = "tokio"))]
+impl LocalAddress for () {
+    fn local_address(&self) -> std::io::Result<ResolvedTarget> {
+        unreachable!()
+    }
+}
+
+#[cfg(not(feature = "tokio"))]
+impl RemoteAddress for () {
+    fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
+        unreachable!()
+    }
+}
+
+#[cfg(not(feature = "tokio"))]
+impl PeerCred for () {}
+
+#[cfg(not(feature = "tokio"))]
+impl AsHandle for () {
+    #[cfg(unix)]
+    fn as_fd(&self) -> std::os::fd::BorrowedFd {
+        unreachable!()
+    }
+    #[cfg(windows)]
+    fn as_handle(&self) -> std::os::windows::io::BorrowedSocket {
+        unreachable!()
+    }
+}
+
+#[cfg(not(feature = "tokio"))]
 pub trait Stream: StreamMetadata + Unpin + AsHandle + 'static {}
-#[cfg(not(feature = "tokio"))]
-impl<S: Stream, D: TlsDriver> Stream for UpgradableStream<S, D> {}
-#[cfg(not(feature = "tokio"))]
-impl Stream for () {}
 
 /// A trait for streams that can be upgraded to a TLS stream.
 pub trait StreamUpgrade: Stream + Sized {
@@ -323,7 +358,8 @@ struct UpgradableStreamOptions {
 }
 
 #[allow(private_bounds)]
-#[derive(derive_more::Debug, derive_io::AsyncWrite, derive_io::AsSocketDescriptor)]
+#[cfg_attr(feature = "tokio", derive(derive_io::AsyncWrite))]
+#[derive(derive_more::Debug, derive_io::AsSocketDescriptor)]
 pub struct UpgradableStream<S: Stream, D: TlsDriver = Ssl> {
     #[write]
     #[descriptor]
@@ -480,7 +516,10 @@ impl<S: Stream, D: TlsDriver> StreamUpgrade for UpgradableStream<S, D> {
         };
         let mut buffer = smallvec::SmallVec::with_capacity(options.max_preview_bytes.get());
         buffer.resize(options.max_preview_bytes.get(), 0);
+        #[cfg(feature = "tokio")]
         upgraded.read_exact(&mut buffer).await?;
+        #[cfg(not(feature = "tokio"))]
+        unimplemented!("Preview is not supported without tokio");
         let mut rewind = RewindStream::new(upgraded);
         rewind.rewind(&buffer);
         Ok((
@@ -548,9 +587,8 @@ impl<S: Stream, D: TlsDriver> StreamMetadata for UpgradableStream<S, D> {
     }
 }
 
-#[derive(
-    derive_more::Debug, derive_io::AsyncRead, derive_io::AsyncWrite, derive_io::AsSocketDescriptor,
-)]
+#[cfg_attr(feature = "tokio", derive(derive_io::AsyncRead, derive_io::AsyncWrite))]
+#[derive(derive_more::Debug, derive_io::AsSocketDescriptor)]
 enum UpgradableStreamInner<S: Stream, D: TlsDriver> {
     #[debug("BaseClient(..)")]
     BaseClient(
@@ -635,7 +673,8 @@ pub trait Rewindable {
 }
 
 /// A stream that can be rewound.
-#[derive(derive_io::AsyncWrite, derive_io::AsSocketDescriptor)]
+#[cfg_attr(feature = "tokio", derive(derive_io::AsyncWrite))]
+#[derive(derive_more::Debug, derive_io::AsSocketDescriptor)]
 pub(crate) struct RewindStream<S> {
     buffer: Vec<u8>,
     #[write]
@@ -712,6 +751,7 @@ impl<S: StreamMetadata> StreamMetadata for RewindStream<S> {
 }
 
 impl<S: PeekableStream> PeekableStream for RewindStream<S> {
+    #[cfg(feature = "tokio")]
     fn poll_peek(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
