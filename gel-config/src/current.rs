@@ -13,7 +13,10 @@ pub fn default_schema() -> Schema {
     )];
 
     let oauth_provider_config = ObjectType::new(provider_config.clone().into_iter().chain([
-        ("secret".into(), Pointer::new(primitive(PrimitiveType::String)).required()),
+        (
+            "secret".into(),
+            Pointer::new(primitive(PrimitiveType::String)).required(),
+        ),
         (
             "client_id".into(),
             Pointer::new(primitive(PrimitiveType::String)).required(),
@@ -22,7 +25,10 @@ pub fn default_schema() -> Schema {
             "display_name".into(),
             Pointer::new(primitive(PrimitiveType::String)).required(),
         ),
-        ("additional_scope".into(), Pointer::new(primitive(PrimitiveType::String))),
+        (
+            "additional_scope".into(),
+            Pointer::new(primitive(PrimitiveType::String)),
+        ),
     ]));
 
     let openid_connect_provider_config = ObjectType::new(
@@ -35,7 +41,10 @@ pub fn default_schema() -> Schema {
                     "issuer_url".into(),
                     Pointer::new(primitive(PrimitiveType::String)).required(),
                 ),
-                ("logo_url".into(), Pointer::new(primitive(PrimitiveType::String))),
+                (
+                    "logo_url".into(),
+                    Pointer::new(primitive(PrimitiveType::String)),
+                ),
             ]),
     );
     let vendor_oauth_provider_config = ObjectType::new(
@@ -48,14 +57,20 @@ pub fn default_schema() -> Schema {
     );
 
     let email_password_provider_config = ObjectType::new(vec![
-        ("name".to_string(), Pointer::new(primitive(PrimitiveType::String))),
+        (
+            "name".to_string(),
+            Pointer::new(primitive(PrimitiveType::String)),
+        ),
         (
             "require_verification".into(),
             Pointer::new(primitive(PrimitiveType::Boolean)),
         ),
     ]);
     let web_authn_provider_config = ObjectType::new(vec![
-        ("name".to_string(), Pointer::new(primitive(PrimitiveType::String))),
+        (
+            "name".to_string(),
+            Pointer::new(primitive(PrimitiveType::String)),
+        ),
         (
             "relying_party_origin".into(),
             Pointer::new(primitive(PrimitiveType::String)).required(),
@@ -66,7 +81,10 @@ pub fn default_schema() -> Schema {
         ),
     ]);
     let magic_link_provider_config = ObjectType::new(vec![
-        ("name".to_string(), Pointer::new(primitive(PrimitiveType::String))),
+        (
+            "name".to_string(),
+            Pointer::new(primitive(PrimitiveType::String)),
+        ),
         (
             "token_time_to_live".into(),
             Pointer::new(primitive(PrimitiveType::Duration)),
@@ -119,22 +137,37 @@ pub fn default_schema() -> Schema {
     let ui_config = schema.register(
         "ext::auth::UIConfig",
         ObjectType::new([
-            ("redirect_to", Pointer::new(primitive(PrimitiveType::String)).required()),
-            ("redirect_to_on_signup", Pointer::new(primitive(PrimitiveType::String))),
+            (
+                "redirect_to",
+                Pointer::new(primitive(PrimitiveType::String)).required(),
+            ),
+            (
+                "redirect_to_on_signup",
+                Pointer::new(primitive(PrimitiveType::String)),
+            ),
             (
                 "flow_type",
                 Pointer::new(enumeration("ext::auth::FlowType", ["PKCE", "implicit"])),
             ),
             ("app_name", Pointer::new(primitive(PrimitiveType::String))),
             ("logo_url", Pointer::new(primitive(PrimitiveType::String))),
-            ("dark_logo_url", Pointer::new(primitive(PrimitiveType::String))),
-            ("brand_color", Pointer::new(primitive(PrimitiveType::String))),
+            (
+                "dark_logo_url",
+                Pointer::new(primitive(PrimitiveType::String)),
+            ),
+            (
+                "brand_color",
+                Pointer::new(primitive(PrimitiveType::String)),
+            ),
         ]),
     );
     let webhooks_config = schema.register(
         "ext::auth::WebhookConfig",
         ObjectType::new([
-            ("url", Pointer::new(primitive(PrimitiveType::String)).required()),
+            (
+                "url",
+                Pointer::new(primitive(PrimitiveType::String)).required(),
+            ),
             (
                 "events",
                 Pointer::new(enumeration(
@@ -152,7 +185,10 @@ pub fn default_schema() -> Schema {
                 .multi()
                 .required(),
             ),
-            ("signing_secret_key", Pointer::new(primitive(PrimitiveType::String))),
+            (
+                "signing_secret_key",
+                Pointer::new(primitive(PrimitiveType::String)),
+            ),
         ]),
     );
     schema.register(
@@ -163,10 +199,22 @@ pub fn default_schema() -> Schema {
             ("webhooks", Pointer::new(webhooks_config).multi()),
             ("app_name", Pointer::new(primitive(PrimitiveType::String))),
             ("logo_url", Pointer::new(primitive(PrimitiveType::String))),
-            ("dark_logo_url", Pointer::new(primitive(PrimitiveType::String))),
-            ("brand_color", Pointer::new(primitive(PrimitiveType::String))),
-            ("auth_signing_key", Pointer::new(primitive(PrimitiveType::String))),
-            ("token_time_to_live", Pointer::new(primitive(PrimitiveType::Duration))),
+            (
+                "dark_logo_url",
+                Pointer::new(primitive(PrimitiveType::String)),
+            ),
+            (
+                "brand_color",
+                Pointer::new(primitive(PrimitiveType::String)),
+            ),
+            (
+                "auth_signing_key",
+                Pointer::new(primitive(PrimitiveType::String)),
+            ),
+            (
+                "token_time_to_live",
+                Pointer::new(primitive(PrimitiveType::Duration)),
+            ),
             (
                 "allowed_redirect_urls",
                 Pointer::new(primitive(PrimitiveType::String)).multi(),
@@ -189,7 +237,10 @@ pub fn default_schema() -> Schema {
             "api_url".to_string(),
             Pointer::new(primitive(PrimitiveType::String)).required(),
         ),
-        ("client_id".to_string(), Pointer::new(primitive(PrimitiveType::String))),
+        (
+            "client_id".to_string(),
+            Pointer::new(primitive(PrimitiveType::String)),
+        ),
         (
             "secret".to_string(),
             Pointer::new(primitive(PrimitiveType::String)).required(),
@@ -243,7 +294,10 @@ pub fn default_schema() -> Schema {
     schema.register(
         "ext::ai::Config",
         ObjectType::new([
-            ("indexer_naptime", Pointer::new(primitive(PrimitiveType::Duration))),
+            (
+                "indexer_naptime",
+                Pointer::new(primitive(PrimitiveType::Duration)),
+            ),
             ("providers", Pointer::new(ai_providers).multi()),
         ]),
     );
@@ -251,7 +305,10 @@ pub fn default_schema() -> Schema {
     let schema = rv.std();
 
     // email provider
-    let email_provider_config = vec![("name", Pointer::new(primitive(PrimitiveType::String)).required())];
+    let email_provider_config = vec![(
+        "name",
+        Pointer::new(primitive(PrimitiveType::String)).required(),
+    )];
 
     let smtp_provider_config = schema.register(
         "cfg::SMTPProviderConfig",
@@ -268,9 +325,18 @@ pub fn default_schema() -> Schema {
                     ["PlainText", "TLS", "STARTTLS", "STARTTLSOrPlainText"],
                 )),
             ),
-            ("validate_certs", Pointer::new(primitive(PrimitiveType::Boolean))),
-            ("timeout_per_email", Pointer::new(primitive(PrimitiveType::Duration))),
-            ("timeout_per_attempt", Pointer::new(primitive(PrimitiveType::Duration))),
+            (
+                "validate_certs",
+                Pointer::new(primitive(PrimitiveType::Boolean)),
+            ),
+            (
+                "timeout_per_email",
+                Pointer::new(primitive(PrimitiveType::Duration)),
+            ),
+            (
+                "timeout_per_attempt",
+                Pointer::new(primitive(PrimitiveType::Duration)),
+            ),
         ])),
     );
 
@@ -294,8 +360,14 @@ pub fn default_schema() -> Schema {
     let cfg_auth = schema.register(
         "cfg::Auth",
         ObjectType::new([
-            ("priority", Pointer::new(primitive(PrimitiveType::Int64)).required()),
-            ("user", Pointer::new(primitive(PrimitiveType::String)).multi()),
+            (
+                "priority",
+                Pointer::new(primitive(PrimitiveType::Int64)).required(),
+            ),
+            (
+                "user",
+                Pointer::new(primitive(PrimitiveType::String)).multi(),
+            ),
             ("method", Pointer::new(cfg_auth_method).required()),
             ("comment", Pointer::new(primitive(PrimitiveType::String))),
         ]),
@@ -341,7 +413,10 @@ pub fn default_schema() -> Schema {
                 "current_email_provider_name",
                 Pointer::new(primitive(PrimitiveType::String)),
             ),
-            ("allow_dml_in_functions", Pointer::new(primitive(PrimitiveType::Boolean))),
+            (
+                "allow_dml_in_functions",
+                Pointer::new(primitive(PrimitiveType::Boolean)),
+            ),
             (
                 "allow_bare_ddl",
                 Pointer::new(enumeration(
@@ -356,13 +431,34 @@ pub fn default_schema() -> Schema {
                     ["AlwaysStore", "NeverStore"],
                 )),
             ),
-            ("apply_access_policies", Pointer::new(primitive(PrimitiveType::Boolean))),
-            ("apply_access_policies_pg", Pointer::new(primitive(PrimitiveType::Boolean))),
-            ("allow_user_specified_id", Pointer::new(primitive(PrimitiveType::Boolean))),
-            ("simple_scoping", Pointer::new(primitive(PrimitiveType::Boolean))),
-            ("warn_old_scoping", Pointer::new(primitive(PrimitiveType::Boolean))),
-            ("cors_allow_origins", Pointer::new(primitive(PrimitiveType::String)).multi()),
-            ("auto_rebuild_query_cache", Pointer::new(primitive(PrimitiveType::Boolean))),
+            (
+                "apply_access_policies",
+                Pointer::new(primitive(PrimitiveType::Boolean)),
+            ),
+            (
+                "apply_access_policies_pg",
+                Pointer::new(primitive(PrimitiveType::Boolean)),
+            ),
+            (
+                "allow_user_specified_id",
+                Pointer::new(primitive(PrimitiveType::Boolean)),
+            ),
+            (
+                "simple_scoping",
+                Pointer::new(primitive(PrimitiveType::Boolean)),
+            ),
+            (
+                "warn_old_scoping",
+                Pointer::new(primitive(PrimitiveType::Boolean)),
+            ),
+            (
+                "cors_allow_origins",
+                Pointer::new(primitive(PrimitiveType::String)).multi(),
+            ),
+            (
+                "auto_rebuild_query_cache",
+                Pointer::new(primitive(PrimitiveType::Boolean)),
+            ),
             (
                 "auto_rebuild_query_cache_timeout",
                 Pointer::new(primitive(PrimitiveType::Duration)),
@@ -374,7 +470,10 @@ pub fn default_schema() -> Schema {
                     ["InMemory", "RegInline", "PgFunc", "Default"],
                 )),
             ),
-            ("http_max_connections", Pointer::new(primitive(PrimitiveType::Int64))),
+            (
+                "http_max_connections",
+                Pointer::new(primitive(PrimitiveType::Int64)),
+            ),
             (
                 "track_query_stats",
                 Pointer::new(enumeration("cfg::QueryStatsOption", ["None", "All"])),

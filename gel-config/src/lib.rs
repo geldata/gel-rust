@@ -1,13 +1,13 @@
-pub mod types;
+pub mod current;
 pub mod parser;
 pub mod schema;
-pub mod current;
+pub mod types;
 pub mod validation;
 
 use derive_more::{Display, Error};
+use indexmap::IndexMap;
 use std::{borrow::Cow, fmt::Debug};
 use toml::Value as TomlValue;
-use indexmap::IndexMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PrimitiveType {
@@ -137,7 +137,11 @@ pub enum ConfigError {
     UnknownType { path: String, type_name: String },
 
     #[display("{path} expected {expected}, got {got}")]
-    TypeMismatch { path: String, expected: String, got: String },
+    TypeMismatch {
+        path: String,
+        expected: String,
+        got: String,
+    },
 
     #[display("expected {expected}, got {got}")]
     ExpectedGot { expected: String, got: String },
@@ -165,14 +169,22 @@ impl ConfigError {
     }
 
     pub fn type_mismatch(path: String, expected: String, got: String) -> Self {
-        Self::TypeMismatch { path, expected, got }
+        Self::TypeMismatch {
+            path,
+            expected,
+            got,
+        }
     }
 
     pub fn expected_got(expected: String, got: String) -> Self {
         Self::ExpectedGot { expected, got }
     }
 
-    pub fn err_expected(expected: impl std::fmt::Display, got: &TomlValue, path: &[String]) -> Self {
+    pub fn err_expected(
+        expected: impl std::fmt::Display,
+        got: &TomlValue,
+        path: &[String],
+    ) -> Self {
         let got_str = match got {
             TomlValue::String(s) => Cow::Owned(format!("\"{s}\"")),
             TomlValue::Integer(_) => "an integer".into(),

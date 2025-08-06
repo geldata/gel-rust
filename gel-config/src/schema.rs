@@ -1,5 +1,5 @@
-use indexmap::IndexMap;
 use crate::PrimitiveType;
+use indexmap::IndexMap;
 
 pub fn primitive(typ: PrimitiveType) -> Type {
     Type::Primitive(typ)

@@ -4,8 +4,8 @@ use indexmap::IndexMap;
 
 use toml::Value as TomlValue;
 
-use crate::{ConfigError, HintExt, Value, quote_string as ql, PrimitiveType};
 use super::schema::{ObjectType, Schema, Type};
+use crate::{quote_string as ql, ConfigError, HintExt, PrimitiveType, Value};
 
 pub fn validate(value: TomlValue, schema: &Schema) -> Result<Commands, ConfigError> {
     let mut validator = Validator {
@@ -33,7 +33,11 @@ impl Debug for ConfigureSet {
         } else {
             write!(f, "configure")?;
         }
-        write!(f, " {} set {} = {:?}", self.object_name, self.property_name, self.value)
+        write!(
+            f,
+            " {} set {} = {:?}",
+            self.object_name, self.property_name, self.value
+        )
     }
 }
 
@@ -179,7 +183,7 @@ impl Validator<'_> {
 
             let Some(ptr) = obj.pointers.get(&key) else {
                 return Err(ConfigError::unknown_configuration_option(
-                    self.path.join(".")
+                    self.path.join("."),
                 ));
             };
 
@@ -261,7 +265,9 @@ impl Validator<'_> {
                 (PrimitiveType::Int16, Toml::Integer(value)) => Value::Injected(value.to_string()),
                 (PrimitiveType::Float64, Toml::Float(value)) => Value::Injected(value.to_string()),
                 (PrimitiveType::Float32, Toml::Float(value)) => Value::Injected(value.to_string()),
-                (PrimitiveType::Boolean, Toml::Boolean(value)) => Value::Injected(value.to_string()),
+                (PrimitiveType::Boolean, Toml::Boolean(value)) => {
+                    Value::Injected(value.to_string())
+                }
                 (PrimitiveType::Duration, Toml::String(value)) => {
                     Value::Injected(format!("<duration>{}", ql(&value)))
                 }
@@ -283,7 +289,11 @@ impl Validator<'_> {
         })
     }
 
-    fn validate_link(&mut self, value: TomlValue, typ: &Type) -> Result<Option<Value>, ConfigError> {
+    fn validate_link(
+        &mut self,
+        value: TomlValue,
+        typ: &Type,
+    ) -> Result<Option<Value>, ConfigError> {
         use TomlValue as Toml;
         use Type::*;
 
