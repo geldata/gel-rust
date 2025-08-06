@@ -35,11 +35,7 @@ impl<T: Queryable> QueryResult for T {
     type State = (Decoder, T::Args);
     fn prepare(ctx: &DescriptorContext, root_pos: TypePos) -> Result<Self::State, Error> {
         let args = T::check_descriptor(ctx, root_pos).map_err(DescriptorMismatch::with_source)?;
-        let decoder = Decoder {
-            has_implicit_id: ctx.has_implicit_id,
-            has_implicit_tid: ctx.has_implicit_tid,
-            has_implicit_tname: ctx.has_implicit_tname,
-        };
+        let decoder = Decoder::default();
         Ok((decoder, args))
     }
     fn decode((decoder, args): &mut Self::State, msg: &Bytes) -> Result<Self, Error> {
