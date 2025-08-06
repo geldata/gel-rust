@@ -1,0 +1,2 @@
+[[branch.config."ext::auth::EmailPasswordProviderConfig"]]
+require_verification              = false
