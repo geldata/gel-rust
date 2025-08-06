@@ -207,30 +207,30 @@ pub trait StreamOptimizationExt: Stream + Sized {
 
         let mut with_socket2_fn = move |s: socket2::SockRef<'_>| {
             #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-            try_optimize!(s.set_cork(false))?;
+            try_optimize!(s.set_tcp_cork(false))?;
 
             #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-            try_optimize!(s.set_quickack(false))?;
+            try_optimize!(s.set_tcp_quickack(false))?;
 
             #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-            try_optimize!(s.set_thin_linear_timeouts(false))?;
+            try_optimize!(s.set_tcp_thin_linear_timeouts(false))?;
 
             try_optimize!(s.set_send_buffer_size(256 * 1024))?;
             try_optimize!(s.set_recv_buffer_size(256 * 1024))?;
 
             match optimization {
                 StreamOptimization::General => {
-                    try_optimize!(s.set_nodelay(false))?;
+                    try_optimize!(s.set_tcp_nodelay(false))?;
                     #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-                    try_optimize!(s.set_thin_linear_timeouts(true))?;
+                    try_optimize!(s.set_tcp_thin_linear_timeouts(true))?;
                 }
                 StreamOptimization::Interactive => {
-                    try_optimize!(s.set_nodelay(true))?;
+                    try_optimize!(s.set_tcp_nodelay(true))?;
                     #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-                    try_optimize!(s.set_thin_linear_timeouts(true))?;
+                    try_optimize!(s.set_tcp_thin_linear_timeouts(true))?;
                 }
                 StreamOptimization::BulkStreaming(direction) => {
-                    try_optimize!(s.set_nodelay(false))?;
+                    try_optimize!(s.set_tcp_nodelay(false))?;
                     // Handle send buffer size
                     match direction {
                         BulkStreamDirection::Send | BulkStreamDirection::Both => {
@@ -240,7 +240,7 @@ pub trait StreamOptimizationExt: Stream + Sized {
                                 target_os = "fuchsia",
                                 target_os = "linux"
                             ))]
-                            try_optimize!(s.set_cork(true))?;
+                            try_optimize!(s.set_tcp_cork(true))?;
                         }
                         BulkStreamDirection::Receive => {}
                     }
@@ -254,7 +254,7 @@ pub trait StreamOptimizationExt: Stream + Sized {
                                 target_os = "fuchsia",
                                 target_os = "linux"
                             ))]
-                            try_optimize!(s.set_quickack(true))?;
+                            try_optimize!(s.set_tcp_quickack(true))?;
                         }
                         BulkStreamDirection::Send => {}
                     }
