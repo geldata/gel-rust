@@ -1,0 +1,293 @@
+//! Raw schema representation.
+//!
+//! ```
+/*
+with
+# This is a list of all the config objects in the schema.
+cfg_introspection := (
+    with cfgs := {
+        (select schema::ObjectType { name, children := .<ancestors[is schema::ObjectType] }
+            filter .name = 'cfg::AbstractConfig').children.id,
+        (select schema::ObjectType { id }
+            filter .name = 'cfg::AbstractConfig').id
+    },
+
+    cfg_objects := (select schema::ObjectType {
+        children := .<ancestors[is schema::ObjectType]
+    } filter (
+        .name = 'cfg::AbstractConfig' OR .name = 'cfg::ExtensionConfig' OR .name = 'cfg::ConfigObject'))
+    .children,
+
+    cfg_links := (select cfg_objects.links.id),
+
+    O := schema::ObjectType,
+
+    select cfg_objects {
+        id, name,
+        properties: {target: {[is schema::ScalarType].enum_values} }
+            filter .name != 'id',
+        links
+        filter .target.id not in cfgs and .name != '__type__',
+    } filter .abstract = false
+),
+
+# This is a list of the config roots
+cfg_roots := (select cfg_introspection filter 'cfg::AbstractConfig' in .ancestors.name),
+select {
+    roots := cfg_roots { id, name },
+    types := (
+        select cfg_introspection {
+            id,
+            name,
+            ancestors: { id, name },
+            properties: {
+                name,
+                multi := true if .cardinality = schema::Cardinality.Many else false,
+                default,
+                readonly,
+                required,
+                target: { name, enum_values }, constraints: { id, name, params: { name, value := @value } filter .name != '__subject__' },
+                annotations: { name, value := @value } },
+            links: {
+                name,
+                multi := true if .cardinality = schema::Cardinality.Many else false,
+                target: { id, name }
+            }
+        }
+    )
+};
+*/
+//! ```
+
+use serde::{Deserialize, Serialize};
+use std::ops::Bound;
+use typesafe_builder::*;
+
+use crate::schema2::ConfigSchemaPrimitiveType;
+
+#[derive(Debug, Clone)]
+pub enum ConfigSchemaRequired {
+    /// The property is required (required, !readonly)
+    Required,
+    /// The property is optional (!required, !readonly)
+    Optional,
+    /// The property is protected (inserted with default value only, !required, !readonly)
+    Protected,
+    /// The property is required but readonly (!required, readonly)
+    RequiredReadOnly,
+    /// The property is readonly (!required, readonly)
+    ReadOnly,
+}
+
+/// Represents a configuration schema object (type definition)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigSchemaObject {
+    /// Name of the type (e.g., "cfg::Config", "cfg::Auth")
+    pub name: String,
+    /// List of ancestor type IDs
+    pub ancestors: Vec<ConfigSchemaTypeReference>,
+    /// Properties of this type
+    pub properties: Vec<ConfigSchemaProperty>,
+    /// Links (relationships) to other types
+    pub links: Vec<ConfigSchemaLink>,
+}
+
+/// Represents a property of a configuration schema object
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
+pub struct ConfigSchemaProperty {
+    /// Name of the property
+    #[builder(required)]
+    pub name: String,
+    /// Default value (can be null)
+    #[builder(optional)]
+    pub default: Option<String>,
+    /// Target type information
+    #[builder(required)]
+    pub target: ConfigSchemaType,
+    /// Whether the property is required
+    #[builder(default = false)]
+    pub required: bool,
+    /// Whether the property is readonly
+    #[builder(default = false)]
+    pub readonly: bool,
+    /// Whether the property is protected
+    #[builder(default = false)]
+    #[serde(default)]
+    pub protected: bool,
+    /// Whether the property is multi-valued
+    #[builder(default = false)]
+    pub multi: bool,
+    /// Constraints for the property
+    #[builder(default = ConfigSchemaConstraints::default())]
+    pub constraints: ConfigSchemaConstraints,
+    /// Annotations for the property
+    #[builder(default = Vec::new())]
+    pub annotations: Vec<ConfigSchemaAnnotation>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
+pub struct ConfigSchemaAnnotation {
+    /// Name of the annotation
+    #[builder(required)]
+    pub name: String,
+    /// Value of the annotation
+    #[builder(required)]
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Builder)]
+pub struct ConfigSchemaConstraints {
+    /// Whether the property value is exclusive
+    #[builder(default = false)]
+    pub exclusive: bool,
+    /// Range of values if this type has a valid range
+    #[builder(default = (Bound::Unbounded, Bound::Unbounded))]
+    pub range: (Bound<String>, Bound<String>),
+}
+
+impl Default for ConfigSchemaConstraints {
+    fn default() -> Self {
+        Self {
+            exclusive: false,
+            range: (Bound::Unbounded, Bound::Unbounded),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ConfigSchemaConstraints {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Serialize, Deserialize)]
+        struct Constraint {
+            name: String,
+            params: Vec<NameValue>,
+        }
+
+        #[derive(Serialize, Deserialize)]
+        struct NameValue {
+            name: String,
+            value: String,
+        }
+
+        let mut range = (Bound::Unbounded, Bound::Unbounded);
+        let mut exclusive = false;
+        let constraints: Vec<Constraint> = serde::Deserialize::deserialize(deserializer)?;
+        for constraint in constraints {
+            if constraint.name == "std::min_value" {
+                range.0 = Bound::Included(constraint.params[0].value.clone());
+            } else if constraint.name == "std::max_value" {
+                range.1 = Bound::Included(constraint.params[0].value.clone());
+            } else if constraint.name == "std::exclusive" {
+                exclusive = true;
+            }
+        }
+        Ok(ConfigSchemaConstraints { exclusive, range })
+    }
+}
+
+impl serde::Serialize for ConfigSchemaConstraints {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        unimplemented!()
+    }
+}
+
+/// Represents a link/relationship to another type
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigSchemaLink {
+    /// Name of the link
+    pub name: String,
+    /// Whether the link is multi-valued
+    pub multi: bool,
+    /// Target type information
+    pub target: ConfigSchemaTypeReference,
+}
+
+/// Represents type information for properties and links
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigSchemaType {
+    /// Name of the type (e.g., "std::str", "cfg::ConnectionTransport")
+    pub name: String,
+    /// Enum values if this is an enum type
+    pub enum_values: Option<Vec<String>>,
+}
+
+impl ConfigSchemaPrimitiveType {
+    /// Convert to ConfigSchemaType
+    pub fn to_schema_type(&self) -> ConfigSchemaType {
+        ConfigSchemaType {
+            name: format!("{}", self),
+            enum_values: None,
+        }
+    }
+}
+
+/// Represents a type reference with ID and name
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigSchemaTypeReference {
+    /// Name of the referenced type
+    pub name: String,
+}
+
+/// Represents the complete configuration schema
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigSchema {
+    /// Root type IDs
+    pub roots: Vec<ConfigSchemaTypeReference>,
+    /// All type definitions
+    pub types: Vec<ConfigSchemaObject>,
+}
+
+impl ConfigSchema {
+    /// Create a new empty schema
+    pub fn new() -> Self {
+        Self {
+            roots: Vec::new(),
+            types: Vec::new(),
+        }
+    }
+
+    /// Find a type by its name
+    pub fn find_type_by_name(&self, name: &str) -> Option<&ConfigSchemaObject> {
+        self.types.iter().find(|t| t.name == name)
+    }
+
+    /// Find all types that are subclasses of the given name
+    pub fn find_types_by_subclass(&self, name: &str) -> Vec<&ConfigSchemaObject> {
+        self.types
+            .iter()
+            .filter(|t| t.name == name || t.ancestors.iter().any(|a| a.name == name))
+            .collect()
+    }
+
+    /// Get all root types
+    pub fn get_root_types(&self) -> Vec<&ConfigSchemaObject> {
+        self.roots
+            .iter()
+            .filter_map(|id| self.find_type_by_name(&id.name))
+            .collect()
+    }
+}
+
+impl Default for ConfigSchema {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_config_schema() {
+        let schema = ConfigSchema::new();
+        let json = include_str!("schema-6.json");
+        let schema: ConfigSchema = serde_json::from_str(json).unwrap();
+        println!("{:#?}", schema);
+    }
+}

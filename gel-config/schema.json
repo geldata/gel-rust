@@ -1,0 +1,969 @@
+[
+    {
+      "roots": [
+        "b8b6fefa-f0c7-5eea-9f2f-98a5222c7c5e",
+        "d9e9f342-7992-544c-b6af-459302121188",
+        "c046988e-25f8-55b8-8d94-9e2a13d7625f",
+        "363133b1-e993-50a0-94d3-aa0472b1a0a7"
+      ],
+      "types": [
+        {
+          "id": "7fc09ace-4af4-5d90-a9ab-94f9bb4cdb42",
+          "name": "cfg::Trust",
+          "ancestors": [
+            {"id": "0d14e49f-d9f9-51f0-b8f4-c432982cbac2"},
+            {"id": "d408002f-3891-5b9a-b19c-23589a88998b"},
+            {"id": "128fcc80-bf32-5bdc-abac-09cf1532a7c1"}
+          ],
+          "properties": [
+            {
+              "name": "transports",
+              "default": null,
+              "target": {
+                "name": "cfg::ConnectionTransport",
+                "enum_values": ["TCP", "TCP_PG", "HTTP", "SIMPLE_HTTP", "HTTP_METRICS", "HTTP_HEALTH"]
+              }
+            }
+          ],
+          "links": []
+        },
+        {
+          "id": "ca43bc46-6dd2-55fc-98dc-358978df0f24",
+          "name": "cfg::SCRAM",
+          "ancestors": [
+            {"id": "0d14e49f-d9f9-51f0-b8f4-c432982cbac2"},
+            {"id": "d408002f-3891-5b9a-b19c-23589a88998b"},
+            {"id": "128fcc80-bf32-5bdc-abac-09cf1532a7c1"}
+          ],
+          "properties": [
+            {
+              "name": "transports",
+              "default": "{cfg::ConnectionTransport.TCP}",
+              "target": {
+                "name": "cfg::ConnectionTransport",
+                "enum_values": ["TCP", "TCP_PG", "HTTP", "SIMPLE_HTTP", "HTTP_METRICS", "HTTP_HEALTH"]
+              }
+            }
+          ],
+          "links": []
+        },
+        {
+          "id": "4e795376-37e8-5381-8ae4-d621c80bbc7b",
+          "name": "cfg::JWT",
+          "ancestors": [
+            {"id": "0d14e49f-d9f9-51f0-b8f4-c432982cbac2"},
+            {"id": "d408002f-3891-5b9a-b19c-23589a88998b"},
+            {"id": "128fcc80-bf32-5bdc-abac-09cf1532a7c1"}
+          ],
+          "properties": [
+            {
+              "name": "transports",
+              "default": "{cfg::ConnectionTransport.HTTP}",
+              "target": {
+                "name": "cfg::ConnectionTransport",
+                "enum_values": ["TCP", "TCP_PG", "HTTP", "SIMPLE_HTTP", "HTTP_METRICS", "HTTP_HEALTH"]
+              }
+            }
+          ],
+          "links": []
+        },
+        {
+          "id": "9df8c566-c274-5d75-a948-2d901505d7de",
+          "name": "cfg::Password",
+          "ancestors": [
+            {"id": "0d14e49f-d9f9-51f0-b8f4-c432982cbac2"},
+            {"id": "d408002f-3891-5b9a-b19c-23589a88998b"},
+            {"id": "128fcc80-bf32-5bdc-abac-09cf1532a7c1"}
+          ],
+          "properties": [
+            {
+              "name": "transports",
+              "default": "{cfg::ConnectionTransport.SIMPLE_HTTP}",
+              "target": {
+                "name": "cfg::ConnectionTransport",
+                "enum_values": ["TCP", "TCP_PG", "HTTP", "SIMPLE_HTTP", "HTTP_METRICS", "HTTP_HEALTH"]
+              }
+            }
+          ],
+          "links": []
+        },
+        {
+          "id": "e96db572-9980-5ce1-8049-1561b3980d0e",
+          "name": "cfg::mTLS",
+          "ancestors": [
+            {"id": "0d14e49f-d9f9-51f0-b8f4-c432982cbac2"},
+            {"id": "d408002f-3891-5b9a-b19c-23589a88998b"},
+            {"id": "128fcc80-bf32-5bdc-abac-09cf1532a7c1"}
+          ],
+          "properties": [
+            {
+              "name": "transports",
+              "default": "{cfg::ConnectionTransport.HTTP_METRICS, cfg::ConnectionTransport.HTTP_HEALTH}",
+              "target": {
+                "name": "cfg::ConnectionTransport",
+                "enum_values": ["TCP", "TCP_PG", "HTTP", "SIMPLE_HTTP", "HTTP_METRICS", "HTTP_HEALTH"]
+              }
+            }
+          ],
+          "links": []
+        },
+        {
+          "id": "a2ba7516-d398-5ec2-b25e-221b2f7b9e87",
+          "name": "cfg::Auth",
+          "ancestors": [
+            {"id": "0d14e49f-d9f9-51f0-b8f4-c432982cbac2"},
+            {"id": "d408002f-3891-5b9a-b19c-23589a88998b"}
+          ],
+          "properties": [
+            {
+              "name": "priority",
+              "default": null,
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {"name": "user", "default": "{'*'}", "target": {"name": "std::str", "enum_values": null}},
+            {"name": "comment", "default": null, "target": {"name": "std::str", "enum_values": null}}
+          ],
+          "links": [
+            {
+              "name": "method",
+              "target": {"id": "128fcc80-bf32-5bdc-abac-09cf1532a7c1", "name": "cfg::AuthMethod"}
+            }
+          ]
+        },
+        {
+          "id": "519a3483-0198-576f-932d-508587433ec7",
+          "name": "cfg::SMTPProviderConfig",
+          "ancestors": [
+            {"id": "0d14e49f-d9f9-51f0-b8f4-c432982cbac2"},
+            {"id": "d408002f-3891-5b9a-b19c-23589a88998b"},
+            {"id": "0caa4e7a-7c52-5cff-aee4-920ede8a569c"}
+          ],
+          "properties": [
+            {"name": "name", "default": null, "target": {"name": "std::str", "enum_values": null}},
+            {"name": "sender", "default": null, "target": {"name": "std::str", "enum_values": null}},
+            {"name": "host", "default": null, "target": {"name": "std::str", "enum_values": null}},
+            {"name": "port", "default": null, "target": {"name": "std::int32", "enum_values": null}},
+            {"name": "username", "default": null, "target": {"name": "std::str", "enum_values": null}},
+            {"name": "password", "default": null, "target": {"name": "std::str", "enum_values": null}},
+            {
+              "name": "security",
+              "default": "cfg::SMTPSecurity.STARTTLSOrPlainText",
+              "target": {
+                "name": "cfg::SMTPSecurity",
+                "enum_values": ["PlainText", "TLS", "STARTTLS", "STARTTLSOrPlainText"]
+              }
+            },
+            {
+              "name": "validate_certs",
+              "default": "true",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "timeout_per_email",
+              "default": "<std::duration>'60 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "timeout_per_attempt",
+              "default": "<std::duration>'15 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            }
+          ],
+          "links": []
+        },
+        {
+          "id": "363133b1-e993-50a0-94d3-aa0472b1a0a7",
+          "name": "cfg::Config",
+          "ancestors": [
+            {"id": "0d14e49f-d9f9-51f0-b8f4-c432982cbac2"},
+            {"id": "d408002f-3891-5b9a-b19c-23589a88998b"},
+            {"id": "8b66e734-a01e-5638-a812-359e0d005a37"}
+          ],
+          "properties": [
+            {
+              "name": "track_query_stats",
+              "default": null,
+              "target": {"name": "cfg::QueryStatsOption", "enum_values": ["None", "All"]}
+            },
+            {
+              "name": "_pg_prepared_statement_cache_size",
+              "default": "100",
+              "target": {"name": "std::int16", "enum_values": null}
+            },
+            {
+              "name": "force_database_error",
+              "default": "'false'",
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "default_statistics_target",
+              "default": null,
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {
+              "name": "effective_io_concurrency",
+              "default": null,
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {
+              "name": "effective_cache_size",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "maintenance_work_mem",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "query_work_mem",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "shared_buffers",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "http_max_connections",
+              "default": "10",
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {
+              "name": "query_cache_mode",
+              "default": "cfg::QueryCacheMode.Default",
+              "target": {
+                "name": "cfg::QueryCacheMode",
+                "enum_values": ["InMemory", "RegInline", "PgFunc", "Default"]
+              }
+            },
+            {
+              "name": "auto_rebuild_query_cache_timeout",
+              "default": "<std::duration>'60 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "auto_rebuild_query_cache",
+              "default": "true",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "cors_allow_origins",
+              "default": null,
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "warn_old_scoping",
+              "default": null,
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "simple_scoping",
+              "default": null,
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "allow_user_specified_id",
+              "default": "false",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "apply_access_policies_pg",
+              "default": "false",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "apply_access_policies",
+              "default": "true",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "store_migration_sdl",
+              "default": "cfg::StoreMigrationSDL.NeverStore",
+              "target": {
+                "name": "cfg::StoreMigrationSDL",
+                "enum_values": ["AlwaysStore", "NeverStore"]
+              }
+            },
+            {
+              "name": "allow_bare_ddl",
+              "default": "cfg::AllowBareDDL.AlwaysAllow",
+              "target": {"name": "cfg::AllowBareDDL", "enum_values": ["AlwaysAllow", "NeverAllow"]}
+            },
+            {
+              "name": "allow_dml_in_functions",
+              "default": "false",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "current_email_provider_name",
+              "default": null,
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "listen_addresses",
+              "default": null,
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "listen_port",
+              "default": "5656",
+              "target": {"name": "std::int32", "enum_values": null}
+            },
+            {
+              "name": "query_execution_timeout",
+              "default": null,
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "session_idle_transaction_timeout",
+              "default": "<std::duration>'10 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "default_transaction_deferrable",
+              "default": "sys::TransactionDeferrability.NotDeferrable",
+              "target": {
+                "name": "sys::TransactionDeferrability",
+                "enum_values": ["Deferrable", "NotDeferrable"]
+              }
+            },
+            {
+              "name": "default_transaction_access_mode",
+              "default": "sys::TransactionAccessMode.ReadWrite",
+              "target": {
+                "name": "sys::TransactionAccessMode",
+                "enum_values": ["ReadOnly", "ReadWrite"]
+              }
+            },
+            {
+              "name": "default_transaction_isolation",
+              "default": "sys::TransactionIsolation.Serializable",
+              "target": {
+                "name": "sys::TransactionIsolation",
+                "enum_values": ["RepeatableRead", "Serializable"]
+              }
+            },
+            {
+              "name": "session_idle_timeout",
+              "default": "<std::duration>'60 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            }
+          ],
+          "links": [
+            {
+              "name": "email_providers",
+              "target": {
+                "id": "0caa4e7a-7c52-5cff-aee4-920ede8a569c",
+                "name": "cfg::EmailProviderConfig"
+              }
+            },
+            {
+              "name": "auth",
+              "target": {"id": "a2ba7516-d398-5ec2-b25e-221b2f7b9e87", "name": "cfg::Auth"}
+            },
+            {
+              "name": "extensions",
+              "target": {"id": "89fb9b8b-d3b2-5075-9d1a-f5b116a0f188", "name": "cfg::ExtensionConfig"}
+            }
+          ]
+        },
+        {
+          "id": "d9e9f342-7992-544c-b6af-459302121188",
+          "name": "cfg::InstanceConfig",
+          "ancestors": [
+            {"id": "0d14e49f-d9f9-51f0-b8f4-c432982cbac2"},
+            {"id": "d408002f-3891-5b9a-b19c-23589a88998b"},
+            {"id": "8b66e734-a01e-5638-a812-359e0d005a37"}
+          ],
+          "properties": [
+            {
+              "name": "track_query_stats",
+              "default": null,
+              "target": {"name": "cfg::QueryStatsOption", "enum_values": ["None", "All"]}
+            },
+            {
+              "name": "_pg_prepared_statement_cache_size",
+              "default": "100",
+              "target": {"name": "std::int16", "enum_values": null}
+            },
+            {
+              "name": "force_database_error",
+              "default": "'false'",
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "default_statistics_target",
+              "default": null,
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {
+              "name": "effective_io_concurrency",
+              "default": null,
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {
+              "name": "effective_cache_size",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "maintenance_work_mem",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "query_work_mem",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "shared_buffers",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "http_max_connections",
+              "default": "10",
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {
+              "name": "query_cache_mode",
+              "default": "cfg::QueryCacheMode.Default",
+              "target": {
+                "name": "cfg::QueryCacheMode",
+                "enum_values": ["InMemory", "RegInline", "PgFunc", "Default"]
+              }
+            },
+            {
+              "name": "auto_rebuild_query_cache_timeout",
+              "default": "<std::duration>'60 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "auto_rebuild_query_cache",
+              "default": "true",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "cors_allow_origins",
+              "default": null,
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "warn_old_scoping",
+              "default": null,
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "simple_scoping",
+              "default": null,
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "allow_user_specified_id",
+              "default": "false",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "apply_access_policies_pg",
+              "default": "false",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "apply_access_policies",
+              "default": "true",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "store_migration_sdl",
+              "default": "cfg::StoreMigrationSDL.NeverStore",
+              "target": {
+                "name": "cfg::StoreMigrationSDL",
+                "enum_values": ["AlwaysStore", "NeverStore"]
+              }
+            },
+            {
+              "name": "allow_bare_ddl",
+              "default": "cfg::AllowBareDDL.AlwaysAllow",
+              "target": {"name": "cfg::AllowBareDDL", "enum_values": ["AlwaysAllow", "NeverAllow"]}
+            },
+            {
+              "name": "allow_dml_in_functions",
+              "default": "false",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "current_email_provider_name",
+              "default": null,
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "listen_addresses",
+              "default": null,
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "listen_port",
+              "default": "5656",
+              "target": {"name": "std::int32", "enum_values": null}
+            },
+            {
+              "name": "query_execution_timeout",
+              "default": null,
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "session_idle_transaction_timeout",
+              "default": "<std::duration>'10 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "default_transaction_deferrable",
+              "default": "sys::TransactionDeferrability.NotDeferrable",
+              "target": {
+                "name": "sys::TransactionDeferrability",
+                "enum_values": ["Deferrable", "NotDeferrable"]
+              }
+            },
+            {
+              "name": "default_transaction_access_mode",
+              "default": "sys::TransactionAccessMode.ReadWrite",
+              "target": {
+                "name": "sys::TransactionAccessMode",
+                "enum_values": ["ReadOnly", "ReadWrite"]
+              }
+            },
+            {
+              "name": "default_transaction_isolation",
+              "default": "sys::TransactionIsolation.Serializable",
+              "target": {
+                "name": "sys::TransactionIsolation",
+                "enum_values": ["RepeatableRead", "Serializable"]
+              }
+            },
+            {
+              "name": "session_idle_timeout",
+              "default": "<std::duration>'60 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            }
+          ],
+          "links": [
+            {
+              "name": "email_providers",
+              "target": {
+                "id": "0caa4e7a-7c52-5cff-aee4-920ede8a569c",
+                "name": "cfg::EmailProviderConfig"
+              }
+            },
+            {
+              "name": "auth",
+              "target": {"id": "a2ba7516-d398-5ec2-b25e-221b2f7b9e87", "name": "cfg::Auth"}
+            },
+            {
+              "name": "extensions",
+              "target": {"id": "89fb9b8b-d3b2-5075-9d1a-f5b116a0f188", "name": "cfg::ExtensionConfig"}
+            }
+          ]
+        },
+        {
+          "id": "c046988e-25f8-55b8-8d94-9e2a13d7625f",
+          "name": "cfg::DatabaseConfig",
+          "ancestors": [
+            {"id": "0d14e49f-d9f9-51f0-b8f4-c432982cbac2"},
+            {"id": "d408002f-3891-5b9a-b19c-23589a88998b"},
+            {"id": "8b66e734-a01e-5638-a812-359e0d005a37"}
+          ],
+          "properties": [
+            {
+              "name": "track_query_stats",
+              "default": null,
+              "target": {"name": "cfg::QueryStatsOption", "enum_values": ["None", "All"]}
+            },
+            {
+              "name": "_pg_prepared_statement_cache_size",
+              "default": "100",
+              "target": {"name": "std::int16", "enum_values": null}
+            },
+            {
+              "name": "force_database_error",
+              "default": "'false'",
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "default_statistics_target",
+              "default": null,
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {
+              "name": "effective_io_concurrency",
+              "default": null,
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {
+              "name": "effective_cache_size",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "maintenance_work_mem",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "query_work_mem",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "shared_buffers",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "http_max_connections",
+              "default": "10",
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {
+              "name": "query_cache_mode",
+              "default": "cfg::QueryCacheMode.Default",
+              "target": {
+                "name": "cfg::QueryCacheMode",
+                "enum_values": ["InMemory", "RegInline", "PgFunc", "Default"]
+              }
+            },
+            {
+              "name": "auto_rebuild_query_cache_timeout",
+              "default": "<std::duration>'60 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "auto_rebuild_query_cache",
+              "default": "true",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "cors_allow_origins",
+              "default": null,
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "warn_old_scoping",
+              "default": null,
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "simple_scoping",
+              "default": null,
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "allow_user_specified_id",
+              "default": "false",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "apply_access_policies_pg",
+              "default": "false",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "apply_access_policies",
+              "default": "true",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "store_migration_sdl",
+              "default": "cfg::StoreMigrationSDL.NeverStore",
+              "target": {
+                "name": "cfg::StoreMigrationSDL",
+                "enum_values": ["AlwaysStore", "NeverStore"]
+              }
+            },
+            {
+              "name": "allow_bare_ddl",
+              "default": "cfg::AllowBareDDL.AlwaysAllow",
+              "target": {"name": "cfg::AllowBareDDL", "enum_values": ["AlwaysAllow", "NeverAllow"]}
+            },
+            {
+              "name": "allow_dml_in_functions",
+              "default": "false",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "current_email_provider_name",
+              "default": null,
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "listen_addresses",
+              "default": null,
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "listen_port",
+              "default": "5656",
+              "target": {"name": "std::int32", "enum_values": null}
+            },
+            {
+              "name": "query_execution_timeout",
+              "default": null,
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "session_idle_transaction_timeout",
+              "default": "<std::duration>'10 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "default_transaction_deferrable",
+              "default": "sys::TransactionDeferrability.NotDeferrable",
+              "target": {
+                "name": "sys::TransactionDeferrability",
+                "enum_values": ["Deferrable", "NotDeferrable"]
+              }
+            },
+            {
+              "name": "default_transaction_access_mode",
+              "default": "sys::TransactionAccessMode.ReadWrite",
+              "target": {
+                "name": "sys::TransactionAccessMode",
+                "enum_values": ["ReadOnly", "ReadWrite"]
+              }
+            },
+            {
+              "name": "default_transaction_isolation",
+              "default": "sys::TransactionIsolation.Serializable",
+              "target": {
+                "name": "sys::TransactionIsolation",
+                "enum_values": ["RepeatableRead", "Serializable"]
+              }
+            },
+            {
+              "name": "session_idle_timeout",
+              "default": "<std::duration>'60 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            }
+          ],
+          "links": [
+            {
+              "name": "email_providers",
+              "target": {
+                "id": "0caa4e7a-7c52-5cff-aee4-920ede8a569c",
+                "name": "cfg::EmailProviderConfig"
+              }
+            },
+            {
+              "name": "auth",
+              "target": {"id": "a2ba7516-d398-5ec2-b25e-221b2f7b9e87", "name": "cfg::Auth"}
+            },
+            {
+              "name": "extensions",
+              "target": {"id": "89fb9b8b-d3b2-5075-9d1a-f5b116a0f188", "name": "cfg::ExtensionConfig"}
+            }
+          ]
+        },
+        {
+          "id": "b8b6fefa-f0c7-5eea-9f2f-98a5222c7c5e",
+          "name": "cfg::BranchConfig",
+          "ancestors": [
+            {"id": "0d14e49f-d9f9-51f0-b8f4-c432982cbac2"},
+            {"id": "d408002f-3891-5b9a-b19c-23589a88998b"},
+            {"id": "8b66e734-a01e-5638-a812-359e0d005a37"},
+            {"id": "c046988e-25f8-55b8-8d94-9e2a13d7625f"}
+          ],
+          "properties": [
+            {
+              "name": "_pg_prepared_statement_cache_size",
+              "default": "100",
+              "target": {"name": "std::int16", "enum_values": null}
+            },
+            {
+              "name": "allow_bare_ddl",
+              "default": "cfg::AllowBareDDL.AlwaysAllow",
+              "target": {"name": "cfg::AllowBareDDL", "enum_values": ["AlwaysAllow", "NeverAllow"]}
+            },
+            {
+              "name": "allow_dml_in_functions",
+              "default": "false",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "allow_user_specified_id",
+              "default": "false",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "apply_access_policies",
+              "default": "true",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "apply_access_policies_pg",
+              "default": "false",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "auto_rebuild_query_cache",
+              "default": "true",
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "auto_rebuild_query_cache_timeout",
+              "default": "<std::duration>'60 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "cors_allow_origins",
+              "default": null,
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "current_email_provider_name",
+              "default": null,
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "default_statistics_target",
+              "default": null,
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {
+              "name": "default_transaction_access_mode",
+              "default": "sys::TransactionAccessMode.ReadWrite",
+              "target": {
+                "name": "sys::TransactionAccessMode",
+                "enum_values": ["ReadOnly", "ReadWrite"]
+              }
+            },
+            {
+              "name": "default_transaction_deferrable",
+              "default": "sys::TransactionDeferrability.NotDeferrable",
+              "target": {
+                "name": "sys::TransactionDeferrability",
+                "enum_values": ["Deferrable", "NotDeferrable"]
+              }
+            },
+            {
+              "name": "default_transaction_isolation",
+              "default": "sys::TransactionIsolation.Serializable",
+              "target": {
+                "name": "sys::TransactionIsolation",
+                "enum_values": ["RepeatableRead", "Serializable"]
+              }
+            },
+            {
+              "name": "effective_cache_size",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "effective_io_concurrency",
+              "default": null,
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {
+              "name": "force_database_error",
+              "default": "'false'",
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "http_max_connections",
+              "default": "10",
+              "target": {"name": "std::int64", "enum_values": null}
+            },
+            {
+              "name": "listen_addresses",
+              "default": null,
+              "target": {"name": "std::str", "enum_values": null}
+            },
+            {
+              "name": "listen_port",
+              "default": "5656",
+              "target": {"name": "std::int32", "enum_values": null}
+            },
+            {
+              "name": "maintenance_work_mem",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "query_cache_mode",
+              "default": "cfg::QueryCacheMode.Default",
+              "target": {
+                "name": "cfg::QueryCacheMode",
+                "enum_values": ["InMemory", "RegInline", "PgFunc", "Default"]
+              }
+            },
+            {
+              "name": "query_execution_timeout",
+              "default": null,
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "query_work_mem",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "session_idle_timeout",
+              "default": "<std::duration>'60 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "session_idle_transaction_timeout",
+              "default": "<std::duration>'10 seconds'",
+              "target": {"name": "std::duration", "enum_values": null}
+            },
+            {
+              "name": "shared_buffers",
+              "default": null,
+              "target": {"name": "cfg::memory", "enum_values": null}
+            },
+            {
+              "name": "simple_scoping",
+              "default": null,
+              "target": {"name": "std::bool", "enum_values": null}
+            },
+            {
+              "name": "store_migration_sdl",
+              "default": "cfg::StoreMigrationSDL.NeverStore",
+              "target": {
+                "name": "cfg::StoreMigrationSDL",
+                "enum_values": ["AlwaysStore", "NeverStore"]
+              }
+            },
+            {
+              "name": "track_query_stats",
+              "default": null,
+              "target": {"name": "cfg::QueryStatsOption", "enum_values": ["None", "All"]}
+            },
+            {
+              "name": "warn_old_scoping",
+              "default": null,
+              "target": {"name": "std::bool", "enum_values": null}
+            }
+          ],
+          "links": [
+            {
+              "name": "auth",
+              "target": {"id": "a2ba7516-d398-5ec2-b25e-221b2f7b9e87", "name": "cfg::Auth"}
+            },
+            {
+              "name": "email_providers",
+              "target": {
+                "id": "0caa4e7a-7c52-5cff-aee4-920ede8a569c",
+                "name": "cfg::EmailProviderConfig"
+              }
+            },
+            {
+              "name": "extensions",
+              "target": {"id": "89fb9b8b-d3b2-5075-9d1a-f5b116a0f188", "name": "cfg::ExtensionConfig"}
+            }
+          ]
+        }
+      ]
+    }
+  ]

@@ -1,6 +1,8 @@
 pub mod current;
+mod current2;
 pub mod parser;
 pub mod schema;
+pub mod schema2;
 pub mod types;
 pub mod validation;
 
@@ -227,4 +229,15 @@ fn quote_string(s: &str) -> String {
     }
     buf.push('"');
     buf
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_primitive_type() {
+        let pt = PrimitiveType::String;
+        assert_eq!(pt.as_str(), "str");
+    }
 }
