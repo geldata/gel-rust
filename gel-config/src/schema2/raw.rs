@@ -46,12 +46,19 @@ select {
                 default,
                 readonly,
                 required,
-                target: { name, enum_values }, constraints: { id, name, params: { name, value := @value } filter .name != '__subject__' },
-                annotations: { name, value := @value } },
+                protected,
+                target: { name, enum_values },
+                constraints: { id, name, params: { name, value := @value } filter .name != '__subject__' },
+                annotations: { name, value := @value }
+            },
             links: {
                 name,
                 multi := true if .cardinality = schema::Cardinality.Many else false,
-                target: { id, name }
+                readonly,
+                required,
+                target: { id, name },
+                constraints: { id, name, params: { name, value := @value } filter .name != '__subject__' },
+                annotations: { name, value := @value }
             }
         }
     )
@@ -205,6 +212,14 @@ pub struct ConfigSchemaLink {
     pub multi: bool,
     /// Target type information
     pub target: ConfigSchemaTypeReference,
+    /// Whether the property is required
+    pub required: bool,
+    /// Whether the property is readonly
+    pub readonly: bool,
+    /// Constraints for the link
+    pub constraints: ConfigSchemaConstraints,
+    /// Annotations for the link
+    pub annotations: Vec<ConfigSchemaAnnotation>,
 }
 
 /// Represents type information for properties and links
