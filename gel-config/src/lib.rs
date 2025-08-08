@@ -126,13 +126,15 @@ impl FromStr for ConfigSchemaPrimitiveType {
 }
 
 #[cfg(test)]
+#[cfg(feature = "precomputed")]
 mod tests {
     use crate::{
         parser::parse_toml,
         raw::{
-            ConfigSchemaLinkBuilder, ConfigSchemaObjectBuilder, ConfigSchemaPropertyBuilder,
-            ConfigSchemaTypeReference,
+            ConfigSchema, ConfigSchemaLinkBuilder, ConfigSchemaObjectBuilder,
+            ConfigSchemaPropertyBuilder, ConfigSchemaTypeReference,
         },
+        structure::from_raw,
     };
     use pretty_assertions::assert_eq;
 
