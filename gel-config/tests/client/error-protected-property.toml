@@ -1,0 +1,2 @@
+[[branch.config."ext::auth::AppleOAuthProvider"]]
+name = "Apple"

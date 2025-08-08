@@ -1,0 +1,2 @@
+[branch.config."ext::auth::AuthConfig"]
+auth_signing_key                   = "\u0011✅\"'\\"
