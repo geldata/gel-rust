@@ -106,7 +106,7 @@ fn apply(
         let Some(table) = value.as_table() else {
             return Err(ParserError::ExpectedTableOrArray(path.clone()));
         };
-        ops = apply_config(schema, warnings, path, key, table)?;
+        ops = apply_config(schema, warnings, path, table)?;
     }
     Ok(ops)
 }
@@ -115,7 +115,6 @@ fn apply_config(
     schema: &super::structure::ConfigDomain,
     warnings: &mut Vec<ParserWarning>,
     path: String,
-    key: &String,
     value: &toml::Table,
 ) -> Result<SchemaOps, ParserError> {
     let mut ops = SchemaOps::default();

@@ -1,11 +1,6 @@
-use std::{io::Read, str::FromStr};
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
-
-use crate::{
-    raw::ConfigSchema,
-    structure::{ConfigDomains, from_raw},
-};
 
 pub mod ops;
 pub mod parser;
@@ -83,38 +78,26 @@ pub enum ConfigSchemaPrimitiveType {
 
 impl ConfigSchemaPrimitiveType {
     pub fn is_literal(&self) -> bool {
-        match self {
-            Self::Str | Self::Bool | Self::Int16 | Self::Int32 | Self::Int64 => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Self::Str | Self::Bool | Self::Int16 | Self::Int32 | Self::Int64
+        )
     }
 
     pub fn is_str(&self) -> bool {
-        match self {
-            Self::Str => true,
-            _ => false,
-        }
+        matches!(self, Self::Str)
     }
 
     pub fn is_int(&self) -> bool {
-        match self {
-            Self::Int16 | Self::Int32 | Self::Int64 => true,
-            _ => false,
-        }
+        matches!(self, Self::Int16 | Self::Int32 | Self::Int64)
     }
 
     pub fn is_float(&self) -> bool {
-        match self {
-            Self::Float32 | Self::Float64 => true,
-            _ => false,
-        }
+        matches!(self, Self::Float32 | Self::Float64)
     }
 
     pub fn is_bool(&self) -> bool {
-        match self {
-            Self::Bool => true,
-            _ => false,
-        }
+        matches!(self, Self::Bool)
     }
 }
 
