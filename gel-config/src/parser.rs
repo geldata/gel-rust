@@ -11,6 +11,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, derive_more::Display, Eq, PartialEq)]
+/// Errors that can occur when parsing TOML configuration files into database operations.
 pub enum ParserError {
     /// The schema must provide domains if those are used in the toml file.
     #[display("Domain {_0} not found in schema")]
@@ -42,6 +43,7 @@ pub enum ParserError {
 impl std::error::Error for ParserError {}
 
 #[derive(Debug, Clone, derive_more::Display, Eq, PartialEq, Ord, PartialOrd)]
+/// Non-fatal warnings that can occur during TOML configuration parsing.
 pub enum ParserWarning {
     #[display("Coercing value for {_0} to {_1}")]
     CoercingValue(String, String),

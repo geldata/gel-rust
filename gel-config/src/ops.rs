@@ -5,6 +5,7 @@ use indexmap::IndexMap;
 use crate::structure::ConfigDomainName;
 
 #[derive(Default, Debug)]
+/// Collection of database configuration operations organized by domain (instance, database, session).
 pub struct AllSchemaOps {
     pub by_domain: BTreeMap<ConfigDomainName, SchemaOps>,
 }
@@ -73,6 +74,7 @@ impl SchemaOps {
 }
 
 #[derive(Debug, Clone)]
+/// A named configuration value with its type information for database operations.
 pub struct SchemaNamedValue {
     pub name: String,
     pub property_type: String,
@@ -80,6 +82,7 @@ pub struct SchemaNamedValue {
 }
 
 #[derive(Debug, Clone)]
+/// Represents a configuration value that can be a primitive, array, or complex object.
 pub enum SchemaValue {
     Unitary(SchemaPrimitive),
     Array(Vec<SchemaPrimitive>),
@@ -87,6 +90,7 @@ pub enum SchemaValue {
 }
 
 #[derive(Debug, Clone)]
+/// Basic data types that can be stored in configuration properties.
 pub enum SchemaPrimitive {
     String(String),
     Bool(bool),
@@ -148,6 +152,7 @@ impl SchemaValue {
 }
 
 #[derive(Debug, Clone)]
+/// Represents an insert operation for a configuration object with its properties.
 pub struct SchemaInsert {
     pub type_name: String,
     pub properties: IndexMap<String, SchemaNamedValue>,

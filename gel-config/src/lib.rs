@@ -10,27 +10,28 @@ pub mod structure;
 /// Retrieve the hard-coded current configuration schema without consulting the
 /// database.
 #[cfg(feature = "precomputed")]
-pub fn current_schema() -> ConfigSchema {
+pub fn current_schema() -> crate::raw::ConfigSchema {
+    use std::io::Read;
     const SCHEMA: &[u8] = include_bytes!("schema.json.gz");
 
     let mut decoder = flate2::read::GzDecoder::new(SCHEMA);
     let mut data = Vec::new();
     decoder.read_to_end(&mut data).unwrap();
-    let schema: ConfigSchema = serde_json::from_slice(&data).unwrap();
-    schema
+    serde_json::from_slice(&data).unwrap()
 }
 
 /// Retrieve the hard-coded current configuration.
 #[cfg(feature = "precomputed")]
-pub fn current_config() -> ConfigDomains {
+pub fn current_config() -> crate::structure::ConfigDomains {
     let schema = current_schema();
 
-    from_raw(schema).unwrap()
+    fromcrate::structure::from_raw_raw(schema).unwrap()
 }
 
 #[derive(
     Clone, Serialize, Deserialize, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug,
 )]
+/// Represents the primitive data types supported in Gel configuration schemas.
 pub enum ConfigSchemaPrimitiveType {
     #[display("std::str")]
     #[debug("std::str")]

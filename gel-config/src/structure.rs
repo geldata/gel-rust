@@ -6,6 +6,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, derive_more::Error, derive_more::Display)]
+/// Errors that can occur when processing raw configuration schema into structured domains.
 pub enum StructureError {
     #[display("Invalid primitive type: {_0} ({_1})")]
     InvalidPrimitiveType(String, String),
@@ -16,11 +17,13 @@ pub enum StructureError {
 }
 
 #[derive(Debug, Clone, Default)]
+/// Collection of configuration domains (instance, database, session) with their associated tables.
 pub struct ConfigDomains {
     pub domains: BTreeMap<ConfigDomainName, ConfigDomain>,
 }
 
 #[derive(Debug, Clone)]
+/// A configuration domain containing tables for a specific scope (instance, database, or session).
 pub struct ConfigDomain {
     pub name: ConfigDomainName,
     pub tables: BTreeMap<String, ConfigTable>,
@@ -150,6 +153,7 @@ impl std::fmt::Debug for ConfigTable {
 }
 
 #[derive(Debug, Clone)]
+/// A configuration property with its type, requirements, and metadata.
 pub struct ConfigProperty {
     pub name: String,
     pub property_type: ConfigPropertyType,
@@ -160,15 +164,25 @@ pub struct ConfigProperty {
 }
 
 #[derive(Debug, Clone, derive_more::Display, PartialEq, Eq)]
+/// Defines the requirement level of a configuration property (ie, a requirement
+/// computed from its required, readonly and protected flags).
 pub enum ConfigRequirement {
     #[display("required")]
+    /// A required property must be set at insertion time.
     Required,
+    /// A required readonly property must be set at insertion time, but cannot
+    /// be changed after.
     #[display("required readonly")]
     RequiredReadOnly,
+    /// An optional property is one that is not required to be set.
     #[display("optional")]
     Optional,
+    /// A readonly property is one that is not writable by the user after it is
+    /// created. It can be set at insertion time, but not after.
     #[display("readonly")]
     ReadOnly,
+    /// A protected property is one that is not writable by the user, but is
+    /// set to its default value.
     #[display("protected")]
     Protected,
 }
@@ -223,6 +237,7 @@ impl ConfigPropertyType {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Identifies the scope of a configuration domain (instance-wide, database-specific, or session-specific).
 pub enum ConfigDomainName {
     Instance,
     DatabaseBranch,

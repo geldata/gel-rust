@@ -1,70 +1,4 @@
 //! Raw schema representation.
-//!
-//! ```
-/*
-with
-# This is a list of all the config objects in the schema.
-cfg_introspection := (
-    with cfgs := {
-        (select schema::ObjectType { name, children := .<ancestors[is schema::ObjectType] }
-            filter .name = 'cfg::AbstractConfig').children.id,
-        (select schema::ObjectType { id }
-            filter .name = 'cfg::AbstractConfig').id
-    },
-
-    cfg_objects := (select schema::ObjectType {
-        children := .<ancestors[is schema::ObjectType]
-    } filter (
-        .name = 'cfg::AbstractConfig' OR .name = 'cfg::ExtensionConfig' OR .name = 'cfg::ConfigObject'))
-    .children,
-
-    cfg_links := (select cfg_objects.links.id),
-
-    O := schema::ObjectType,
-
-    select cfg_objects {
-        id, name,
-        properties: {target: {[is schema::ScalarType].enum_values} }
-            filter .name != 'id',
-        links
-        filter .target.id not in cfgs and .name != '__type__',
-    } filter .abstract = false
-),
-
-# This is a list of the config roots
-cfg_roots := (select cfg_introspection filter 'cfg::AbstractConfig' in .ancestors.name),
-select {
-    roots := cfg_roots { id, name },
-    types := (
-        select cfg_introspection {
-            id,
-            name,
-            ancestors: { id, name },
-            properties: {
-                name,
-                multi := true if .cardinality = schema::Cardinality.Many else false,
-                default,
-                readonly,
-                required,
-                protected,
-                target: { name, enum_values },
-                constraints: { id, name, params: { name, value := @value } filter .name != '__subject__' },
-                annotations: { name, value := @value }
-            },
-            links: {
-                name,
-                multi := true if .cardinality = schema::Cardinality.Many else false,
-                readonly,
-                required,
-                target: { id, name },
-                constraints: { id, name, params: { name, value := @value } filter .name != '__subject__' },
-                annotations: { name, value := @value }
-            }
-        }
-    )
-};
-*/
-//! ```
 
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -72,20 +6,6 @@ use std::ops::Bound;
 use typesafe_builder::*;
 
 use crate::ConfigSchemaPrimitiveType;
-
-#[derive(Debug, Clone)]
-pub enum ConfigSchemaRequired {
-    /// The property is required (required, !readonly)
-    Required,
-    /// The property is optional (!required, !readonly)
-    Optional,
-    /// The property is protected (inserted with default value only, !required, !readonly)
-    Protected,
-    /// The property is required but readonly (!required, readonly)
-    RequiredReadOnly,
-    /// The property is readonly (!required, readonly)
-    ReadOnly,
-}
 
 /// Represents a configuration schema object (type definition)
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
@@ -138,6 +58,7 @@ pub struct ConfigSchemaProperty {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
+/// Represents metadata annotations attached to configuration schema properties or links.
 pub struct ConfigSchemaAnnotation {
     /// Name of the annotation
     #[builder(required)]
@@ -148,6 +69,7 @@ pub struct ConfigSchemaAnnotation {
 }
 
 #[derive(Debug, Clone, Builder)]
+/// Represents validation constraints for configuration properties (ranges, exclusivity).
 pub struct ConfigSchemaConstraints {
     /// Whether the property value is exclusive
     #[builder(default = false)]
