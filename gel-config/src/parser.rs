@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use indexmap::IndexMap;
 
-use crate::schema2::{
+use crate::{
     ConfigSchemaPrimitiveType,
     ops::{self, AllSchemaOps, SchemaOps, SchemaValue},
     structure::{

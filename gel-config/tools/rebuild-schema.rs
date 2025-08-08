@@ -1,9 +1,9 @@
 use std::{
-    io::{BufWriter, Read, Write},
+    io::{BufWriter, Write},
     path::PathBuf,
 };
 
-use gel_config::schema2::raw::ConfigSchema;
+use gel_config::raw::ConfigSchema;
 
 fn main() {
     let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());

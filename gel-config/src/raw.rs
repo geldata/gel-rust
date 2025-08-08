@@ -71,7 +71,7 @@ use serde_json;
 use std::ops::Bound;
 use typesafe_builder::*;
 
-use crate::schema2::ConfigSchemaPrimitiveType;
+use crate::ConfigSchemaPrimitiveType;
 
 #[derive(Debug, Clone)]
 pub enum ConfigSchemaRequired {
@@ -355,9 +355,7 @@ impl Default for ConfigSchema {
 
 #[cfg(test)]
 mod tests {
-    use crate::schema2::current_schema;
-
-    use super::*;
+    use crate::current_schema;
 
     #[test]
     #[cfg(feature = "precomputed")]

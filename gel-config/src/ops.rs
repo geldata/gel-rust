@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use indexmap::IndexMap;
 
-use crate::schema2::structure::ConfigDomainName;
+use crate::structure::ConfigDomainName;
 
 #[derive(Default, Debug)]
 pub struct AllSchemaOps {
@@ -37,7 +37,7 @@ impl SchemaOps {
                 "configure {} set {} := {};\n",
                 domain,
                 value.name,
-                value.value.to_ddl_with_type(&value.property_type, None)
+                value.value.to_ddl_with_type(&value.property_type)
             ));
         }
 
@@ -60,7 +60,7 @@ impl SchemaOps {
                     result.push_str(&format!(
                         "    {} := {}",
                         name,
-                        value.value.to_ddl_with_type(&value.property_type, None)
+                        value.value.to_ddl_with_type(&value.property_type)
                     ));
                     first = false;
                 }
@@ -105,10 +105,10 @@ impl SchemaPrimitive {
 
 impl SchemaValue {
     pub fn to_ddl(&self, property_type: &str) -> String {
-        self.to_ddl_with_type(property_type, None)
+        self.to_ddl_with_type(property_type)
     }
 
-    pub fn to_ddl_with_type(&self, property_type: &str, object_type: Option<&str>) -> String {
+    pub fn to_ddl_with_type(&self, property_type: &str) -> String {
         match self {
             SchemaValue::Unitary(val) => val.to_ddl(property_type),
             SchemaValue::Array(vals) => {
@@ -132,9 +132,7 @@ impl SchemaValue {
                     result.push_str(&format!(
                         "        {} := {}",
                         name,
-                        value
-                            .value
-                            .to_ddl_with_type(&value.property_type, Some(type_name))
+                        value.value.to_ddl_with_type(&value.property_type)
                     ));
 
                     // Add comma if this is not the last property
@@ -187,8 +185,6 @@ fn quote_string(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::schema2::raw::{ConfigSchema, ConfigSchemaObject, ConfigSchemaObjectBuilder};
-
     use super::*;
 
     #[test]

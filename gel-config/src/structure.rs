@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr, vec};
 
-use crate::schema2::{
+use crate::{
     ConfigSchemaPrimitiveType,
     raw::{ConfigSchema, ConfigSchemaObject},
 };
@@ -547,8 +547,7 @@ fn walk_object(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::schema2::{current_config, raw::*};
+    use crate::current_config;
 
     #[test]
     #[cfg(feature = "precomputed")]

@@ -1,4 +1,4 @@
-use gel_config::schema2::{
+use gel_config::{
     current_config,
     parser::{ParserError, parse_toml},
 };
