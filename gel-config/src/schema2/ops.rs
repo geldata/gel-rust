@@ -98,9 +98,9 @@ impl SchemaValue {
 
     pub fn to_ddl_with_type(&self, property_type: &str, object_type: Option<&str>) -> String {
         match self {
-            SchemaValue::Unitary(val) => {
-                format!("<{}>'{}'\n", property_type, val).trim().to_string()
-            }
+            SchemaValue::Unitary(val) => format!("<{}>{}\n", property_type, quote_string(val))
+                .trim()
+                .to_string(),
             SchemaValue::Array(vals) => {
                 let mut result = String::from("{");
                 for (i, v) in vals.iter().enumerate() {
@@ -144,6 +144,36 @@ impl SchemaValue {
 pub struct SchemaInsert {
     pub type_name: String,
     pub properties: IndexMap<String, SchemaNamedValue>,
+}
+
+fn quote_string(s: &str) -> String {
+    use std::fmt::Write;
+
+    let mut buf = String::with_capacity(s.len() + 2);
+    buf.push('\'');
+    for c in s.chars() {
+        match c {
+            '\'' => {
+                buf.push('\\');
+                buf.push('\'');
+            }
+            '\\' => {
+                buf.push('\\');
+                buf.push('\\');
+            }
+            '\x00'..='\x08'
+            | '\x0B'
+            | '\x0C'
+            | '\x0E'..='\x1F'
+            | '\u{007F}'
+            | '\u{0080}'..='\u{009F}' => {
+                write!(buf, "\\x{:02x}", c as u32).unwrap();
+            }
+            c => buf.push(c),
+        }
+    }
+    buf.push('\'');
+    buf
 }
 
 #[cfg(test)]
