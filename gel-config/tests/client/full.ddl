@@ -1,7 +1,7 @@
-configure instance set http_max_connections := <std::int64>'100';
+configure instance set http_max_connections := <std::int64>100;
 configure current database set allow_bare_ddl := <cfg::AllowBareDDL>'NeverAllow';
-configure current database set allow_user_specified_id := <std::bool>'false';
-configure current database set auto_rebuild_query_cache := <std::bool>'false';
+configure current database set allow_user_specified_id := <std::bool>false;
+configure current database set auto_rebuild_query_cache := <std::bool>false;
 configure current database set auto_rebuild_query_cache_timeout := <std::duration>'30 seconds';
 configure current database set cors_allow_origins := {<std::str>'http://localhost:8000', <std::str>'http://127.0.0.1:8000'};
 configure current database set current_email_provider_name := <std::str>'mailtrap_sandbox';
@@ -15,16 +15,16 @@ configure current database set ext::auth::AuthConfig::logo_url := <std::str>'htt
 configure current database set ext::auth::AuthConfig::token_time_to_live := <std::duration>'1 hour';
 configure current database set query_execution_timeout := <std::duration>'1 minute';
 configure current database set session_idle_transaction_timeout := <std::duration>'30 seconds';
-configure current database set warn_old_scoping := <std::bool>'false';
+configure current database set warn_old_scoping := <std::bool>false;
 configure current database reset email_providers;
 configure current database insert cfg::SMTPProviderConfig {
     name := <std::str>'mailtrap_sandbox',
     sender := <std::str>'hello@example.com',
     host := <std::str>'sandbox.smtp.mailtrap.io',
-    port := <std::int32>'2525',
+    port := <std::int32>2525,
     username := <std::str>'YOUR_USERNAME',
     password := <std::str>'YOUR_PASSWORD',
-    validate_certs := <std::bool>'false',
+    validate_certs := <std::bool>false,
     timeout_per_email := <std::duration>'5 minutes',
     timeout_per_attempt := <std::duration>'1 minute'
 };
@@ -73,7 +73,7 @@ configure current database insert ext::auth::DiscordOAuthProvider {
     secret := <std::str>'YOUR_DISCORD_SECRET'
 };
 configure current database insert ext::auth::EmailPasswordProviderConfig {
-    require_verification := <std::bool>'false'
+    require_verification := <std::bool>false
 };
 configure current database insert ext::auth::GitHubOAuthProvider {
     additional_scope := <std::str>'read:user user:email',
@@ -95,7 +95,7 @@ configure current database insert ext::auth::SlackOAuthProvider {
 };
 configure current database insert ext::auth::WebAuthnProviderConfig {
     relying_party_origin := <std::str>'https://example.com',
-    require_verification := <std::bool>'true'
+    require_verification := <std::bool>true
 };
 configure current database reset ext::auth::AuthConfig::ui;
 configure current database insert ext::auth::UIConfig {

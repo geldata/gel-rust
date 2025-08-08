@@ -68,6 +68,15 @@ pub enum ConfigSchemaPrimitiveType {
     Memory,
 }
 
+impl ConfigSchemaPrimitiveType {
+    pub fn is_literal(&self) -> bool {
+        match self {
+            Self::Str | Self::Bool | Self::Int16 | Self::Int32 | Self::Int64 => true,
+            _ => false,
+        }
+    }
+}
+
 impl FromStr for ConfigSchemaPrimitiveType {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {

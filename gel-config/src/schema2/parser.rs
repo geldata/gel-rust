@@ -96,6 +96,17 @@ fn apply_config(
     for (key, value) in value.as_table().ok_or_else(|| {
         ParserError::InvalidValueType(key.clone(), ConfigPropertyType::Object(Default::default()))
     })? {
+        if key == "cfg::Config" {
+            let table = schema.get_root_table();
+            let Some(toml_table) = value.as_table() else {
+                return Err(ParserError::ExpectedTableOrArray(key.clone()));
+            };
+            let properties = parse_properties(toml_table, table)?;
+            for (_, property) in properties {
+                ops.set.push(property);
+            }
+            continue;
+        }
         let tables = schema.get_tables_by_path_or_name(key);
         if (value.is_array() || value.is_table()) && !tables.is_empty() {
             if value.is_array() && !tables[0].multi {
@@ -242,26 +253,30 @@ pub fn parse_property(
     let (property_type, value, object_type) = match (value, &property.property_type) {
         (toml::Value::String(value), ConfigPropertyType::Primitive(primitive_type)) => (
             primitive_type.to_schema_type().name,
-            SchemaValue::Unitary(value.clone()),
+            SchemaValue::Unitary(ops::SchemaPrimitive::String(value.clone())),
             None,
         ),
         (toml::Value::String(value), ConfigPropertyType::Enum(name, _)) => {
             // TODO: check enum values
-            (name.clone(), SchemaValue::Unitary(value.clone()), None)
+            (
+                name.clone(),
+                SchemaValue::Unitary(ops::SchemaPrimitive::String(value.clone())),
+                None,
+            )
         }
         (toml::Value::Integer(value), ConfigPropertyType::Primitive(primitive_type)) => (
             primitive_type.to_schema_type().name,
-            SchemaValue::Unitary(value.to_string()),
+            SchemaValue::Unitary(ops::SchemaPrimitive::Integer(*value as isize)),
             None,
         ),
         (toml::Value::Float(value), ConfigPropertyType::Primitive(primitive_type)) => (
             primitive_type.to_schema_type().name,
-            SchemaValue::Unitary(value.to_string()),
+            SchemaValue::Unitary(ops::SchemaPrimitive::String(value.to_string())),
             None,
         ),
         (toml::Value::Boolean(value), ConfigPropertyType::Primitive(primitive_type)) => (
             primitive_type.to_schema_type().name,
-            SchemaValue::Unitary(value.to_string()),
+            SchemaValue::Unitary(ops::SchemaPrimitive::Bool(*value)),
             None,
         ),
         (toml::Value::Array(value), ConfigPropertyType::Array(array_type)) => (
@@ -274,7 +289,7 @@ pub fn parse_property(
                             .ok_or_else(|| {
                                 ParserError::InvalidValueType(key.to_string(), *array_type.clone())
                             })
-                            .map(|s| s.to_owned())
+                            .map(|s| ops::SchemaPrimitive::String(s.to_owned()))
                     })
                     .collect::<Result<Vec<_>, _>>()?,
             ),
