@@ -67,6 +67,7 @@ select {
 //! ```
 
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::ops::Bound;
 use typesafe_builder::*;
 
@@ -199,7 +200,33 @@ impl serde::Serialize for ConfigSchemaConstraints {
     where
         S: serde::Serializer,
     {
-        unimplemented!()
+        let mut constraints = Vec::new();
+
+        // Add min_value constraint if range start is bounded
+        if let Bound::Included(value) = &self.range.0 {
+            constraints.push(serde_json::json!({
+                "name": "std::min_value",
+                "params": [{"name": "value", "value": value}]
+            }));
+        }
+
+        // Add max_value constraint if range end is bounded
+        if let Bound::Included(value) = &self.range.1 {
+            constraints.push(serde_json::json!({
+                "name": "std::max_value",
+                "params": [{"name": "value", "value": value}]
+            }));
+        }
+
+        // Add exclusive constraint if set
+        if self.exclusive {
+            constraints.push(serde_json::json!({
+                "name": "std::exclusive",
+                "params": []
+            }));
+        }
+
+        constraints.serialize(serializer)
     }
 }
 
@@ -296,13 +323,19 @@ impl Default for ConfigSchema {
 
 #[cfg(test)]
 mod tests {
+    use crate::schema2::current_schema;
+
     use super::*;
 
     #[test]
+    #[cfg(feature = "precomputed")]
     fn test_config_schema() {
-        let schema = ConfigSchema::new();
-        let json = include_str!("schema-6.json");
-        let schema: ConfigSchema = serde_json::from_str(json).unwrap();
-        println!("{:#?}", schema);
+        let schema = current_schema();
+        for typ in schema.types {
+            println!("{}", typ.name);
+            for property in typ.properties {
+                println!("  {}: {}", property.name, property.target.name);
+            }
+        }
     }
 }

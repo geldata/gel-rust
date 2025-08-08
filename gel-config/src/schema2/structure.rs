@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, str::FromStr, vec};
 use indexmap::IndexMap;
 
 use crate::schema2::{
-    raw::{ConfigSchema, ConfigSchemaObject},
     ConfigSchemaPrimitiveType,
+    raw::{ConfigSchema, ConfigSchemaObject},
 };
 
 #[derive(Debug, Clone, derive_more::Error, derive_more::Display)]
@@ -337,6 +337,9 @@ fn create_table(
         'links: for link in &object.links {
             let target_types = schema.find_types_by_subclass(&link.target.name);
             if target_types.is_empty() {
+                if link.target.name == "cfg::ExtensionConfig" {
+                    continue 'links;
+                }
                 return Err(StructureError::NoLinkedTypesFound(
                     object.name.clone(),
                     link.name.clone(),
@@ -498,13 +501,12 @@ fn walk_object(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema2::raw::*;
+    use crate::schema2::{current_config, raw::*};
 
     #[test]
+    #[cfg(feature = "precomputed")]
     fn test_config_schema() {
-        let schema = include_str!("schema-6.json");
-        let schema: ConfigSchema = serde_json::from_str(schema).unwrap();
-        let domains = from_raw(schema);
-        println!("{:#?}", domains);
+        let config = current_config();
+        println!("{:#?}", config);
     }
 }

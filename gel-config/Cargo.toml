@@ -19,8 +19,18 @@ toml = { version = "0.9.5", features = ["serde"] }
 indexmap = "2"
 uuid = { version = "1.0", features = ["v4", "serde"] }
 typesafe_builder = "1.4.0"
+flate2 = { version = "1.1", optional = true, no-default-features = true, features = ["rust_backend"] }
+
+[features]
+default = []
+precomputed = ["dep:flate2"]
 
 [dev-dependencies]
 pretty_assertions = "1.2.0"
 
 [lib]
+
+[[example]]
+name = "rebuild-schema"
+path = "tools/rebuild-schema.rs"
+required-features = ["precomputed"]

@@ -1,10 +1,10 @@
-use std::str::FromStr;
+use std::{io::Read, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
 use crate::schema2::{
     raw::ConfigSchema,
-    structure::{from_raw, ConfigDomains},
+    structure::{ConfigDomains, from_raw},
 };
 
 pub mod ops;
@@ -12,10 +12,23 @@ pub mod parser;
 pub mod raw;
 pub mod structure;
 
-/// Retrieve the hard-coded current scheme without consulting the database.
-pub fn current_schema() -> ConfigDomains {
-    let schema = include_str!("schema-6.json");
-    let schema: ConfigSchema = serde_json::from_str(schema).unwrap();
+/// Retrieve the hard-coded current configuration schema without consulting the
+/// database.
+#[cfg(feature = "precomputed")]
+pub fn current_schema() -> ConfigSchema {
+    const SCHEMA: &[u8] = include_bytes!("schema.json.gz");
+
+    let mut decoder = flate2::read::GzDecoder::new(SCHEMA);
+    let mut data = Vec::new();
+    decoder.read_to_end(&mut data).unwrap();
+    let schema: ConfigSchema = serde_json::from_slice(&data).unwrap();
+    schema
+}
+
+/// Retrieve the hard-coded current configuration.
+#[cfg(feature = "precomputed")]
+pub fn current_config() -> ConfigDomains {
+    let schema = current_schema();
     let domains = from_raw(schema).unwrap();
     domains
 }
