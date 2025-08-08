@@ -25,7 +25,7 @@ pub fn current_schema() -> crate::raw::ConfigSchema {
 pub fn current_config() -> crate::structure::ConfigDomains {
     let schema = current_schema();
 
-    fromcrate::structure::from_raw_raw(schema).unwrap()
+    crate::structure::from_raw(schema).unwrap()
 }
 
 #[derive(
