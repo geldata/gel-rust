@@ -29,7 +29,7 @@ pub struct ConfigureSet {
 impl Debug for ConfigureSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(extension_name) = &self.extension_name {
-            write!(f, "configure {}", extension_name)?;
+            write!(f, "configure {extension_name}")?;
         } else {
             write!(f, "configure")?;
         }
@@ -56,22 +56,22 @@ pub struct Commands {
 impl Debug for Commands {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for set in &self.set {
-            write!(f, "{:?};\n", set)?;
+            writeln!(f, "{set:?};")?;
         }
         for (object_name, insert) in &self.insert {
             for value in &insert.values {
                 if let Some(extension_name) = &insert.extension_name {
-                    write!(f, "insert {}", extension_name)?;
+                    write!(f, "insert {extension_name}")?;
                 } else {
                     write!(f, "insert")?;
                 }
-                write!(f, " {object_name} {{\n")?;
+                writeln!(f, " {object_name} {{")?;
                 for (key, value) in value {
                     let mut value = format!("{value:?}");
                     value = value.replace("\n", "\n  ");
-                    write!(f, "  {key}: {value},\n", key = key, value = value)?;
+                    writeln!(f, "  {key}: {value},")?;
                 }
-                write!(f, "}};\n")?;
+                writeln!(f, "}};")?;
             }
         }
         Ok(())

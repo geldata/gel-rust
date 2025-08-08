@@ -9,10 +9,10 @@ fn test_complex() {
     let toml = toml::Table::deserialize(toml).unwrap();
     let branch = toml.get("branch").unwrap().get("config").unwrap();
     let commands = validate(branch.clone(), &schema).unwrap();
-    println!("branch:\n{:?}", commands);
+    println!("branch:\n{commands:?}");
     let instance = toml.get("instance").unwrap().get("config").unwrap();
     let commands = validate(instance.clone(), &schema).unwrap();
-    println!("instance:\n{:?}", commands);
+    println!("instance:\n{commands:?}");
 }
 
 #[test]
@@ -23,10 +23,10 @@ fn test_full() {
     let toml = toml::Table::deserialize(toml).unwrap();
     let branch = toml.get("branch").unwrap().get("config").unwrap();
     let commands = validate(branch.clone(), &schema).unwrap();
-    println!("branch:\n{:?}", commands);
+    println!("branch:\n{commands:?}");
     let instance = toml.get("instance").unwrap().get("config").unwrap();
     let commands = validate(instance.clone(), &schema).unwrap();
-    println!("instance:\n{:?}", commands);
+    println!("instance:\n{commands:?}");
 }
 
 #[test]
@@ -37,5 +37,5 @@ fn test_object() {
     let toml = toml::Table::deserialize(toml).unwrap();
     let branch = toml.get("branch").unwrap().get("config").unwrap();
     let commands = validate(branch.clone(), &schema).unwrap();
-    println!("{:?}", commands);
+    println!("{commands:?}");
 }

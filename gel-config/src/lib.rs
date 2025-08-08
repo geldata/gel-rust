@@ -6,7 +6,7 @@ pub mod validation;
 
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
-use std::{borrow::Cow, fmt::Debug};
+use std::{borrow::Cow, fmt::Debug, str::FromStr};
 use toml::Value as TomlValue;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -34,18 +34,21 @@ impl PrimitiveType {
             PrimitiveType::Duration => "duration",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for PrimitiveType {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "str" => Some(PrimitiveType::String),
-            "int64" => Some(PrimitiveType::Int64),
-            "int32" => Some(PrimitiveType::Int32),
-            "int16" => Some(PrimitiveType::Int16),
-            "float64" => Some(PrimitiveType::Float64),
-            "float32" => Some(PrimitiveType::Float32),
-            "bool" => Some(PrimitiveType::Boolean),
-            "duration" => Some(PrimitiveType::Duration),
-            _ => None,
+            "str" => Ok(PrimitiveType::String),
+            "int64" => Ok(PrimitiveType::Int64),
+            "int32" => Ok(PrimitiveType::Int32),
+            "int16" => Ok(PrimitiveType::Int16),
+            "float64" => Ok(PrimitiveType::Float64),
+            "float32" => Ok(PrimitiveType::Float32),
+            "bool" => Ok(PrimitiveType::Boolean),
+            "duration" => Ok(PrimitiveType::Duration),
+            _ => Err(()),
         }
     }
 }
@@ -70,11 +73,11 @@ pub enum Value {
 impl Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Injected(s) => write!(f, "{}", s),
+            Value::Injected(s) => write!(f, "{s}"),
             Value::Set(values) => {
                 write!(f, "[")?;
                 for (i, value) in values.iter().enumerate() {
-                    write!(f, "{:?}", value)?;
+                    write!(f, "{value:?}")?;
                     if i < values.len() - 1 {
                         write!(f, ", ")?;
                     }
@@ -84,7 +87,7 @@ impl Debug for Value {
             Value::Array(values) => {
                 write!(f, "[")?;
                 for (i, value) in values.iter().enumerate() {
-                    write!(f, "{:?}", value)?;
+                    write!(f, "{value:?}")?;
                     if i < values.len() - 1 {
                         write!(f, ", ")?;
                     }
@@ -92,9 +95,9 @@ impl Debug for Value {
                 write!(f, "]")
             }
             Value::Insert { typ, values } => {
-                write!(f, "insert {} = {{\n", typ)?;
+                writeln!(f, "insert {typ} = {{")?;
                 for (key, value) in values {
-                    write!(f, "  {}: {:?},\n", key, value)?;
+                    writeln!(f, "  {key}: {value:?},")?;
                 }
                 write!(f, "}}")
             }
