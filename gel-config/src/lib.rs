@@ -29,8 +29,8 @@ pub fn current_schema() -> ConfigSchema {
 #[cfg(feature = "precomputed")]
 pub fn current_config() -> ConfigDomains {
     let schema = current_schema();
-    let domains = from_raw(schema).unwrap();
-    domains
+
+    from_raw(schema).unwrap()
 }
 
 #[derive(
@@ -147,9 +147,8 @@ mod tests {
         parser::parse_toml,
         raw::{
             ConfigSchemaLinkBuilder, ConfigSchemaObjectBuilder, ConfigSchemaPropertyBuilder,
-            ConfigSchemaType, ConfigSchemaTypeReference,
+            ConfigSchemaTypeReference,
         },
-        structure::{ConfigDomain, ConfigDomainName},
     };
     use pretty_assertions::assert_eq;
 
@@ -227,12 +226,12 @@ test_property = { _tname = "TestType", int = 1 }
     fn test_fully() {
         let schema = test_schema();
         let domains = from_raw(schema).unwrap();
-        eprintln!("{:#?}", domains);
+        eprintln!("{domains:#?}");
         let toml = test_toml();
-        eprintln!("{:#?}", toml);
+        eprintln!("{toml:#?}");
         let (ops, warnings) = parse_toml(&domains, &toml).unwrap();
         eprintln!("{}", ops.to_ddl());
-        eprintln!("{:#?}", warnings);
+        eprintln!("{warnings:#?}");
         assert_eq!(
             ops.to_ddl().trim(),
             r#"

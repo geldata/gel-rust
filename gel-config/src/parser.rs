@@ -97,7 +97,7 @@ fn apply(
 ) -> Result<SchemaOps, ParserError> {
     let mut ops = SchemaOps::default();
     for (key, value) in table {
-        let path = format!("{}.{}", path, key);
+        let path = format!("{path}.{key}");
         if key != "config" {
             warnings.push(ParserWarning::UnexpectedKey(path));
             continue;
@@ -126,7 +126,7 @@ fn apply_config(
     let mut by_path = BTreeMap::<String, Vec<(String, String, &toml::Table)>>::new();
 
     for (key, value) in value {
-        let path = format!("{}.{}", path, key);
+        let path = format!("{path}.{key}");
 
         if key == "cfg::Config" {
             let table = schema.get_root_table();
@@ -205,8 +205,8 @@ fn apply_config(
                         if key != "_tname" {
                             if let Some((mut property, _)) = parse_property(
                                 warnings,
-                                &tables[0],
-                                format!("{}.{}", path, key),
+                                tables[0],
+                                format!("{path}.{key}"),
                                 key,
                                 value,
                             )? {
@@ -260,7 +260,7 @@ fn parse_properties(
     for (key, value) in toml_table {
         if key != "_tname" {
             if let Some((property, index)) =
-                parse_property(warnings, table, format!("{}.{}", path, key), key, value)?
+                parse_property(warnings, table, format!("{path}.{key}"), key, value)?
             {
                 properties_with_index.push((key.to_string(), property, index));
             }
@@ -310,7 +310,7 @@ pub fn parse_property(
             )
         }
         (toml::Value::String(value), ConfigPropertyType::Enum(name, values)) => {
-            if !values.contains(&value) {
+            if !values.contains(value) {
                 return Err(ParserError::InvalidEnumValue(
                     path.clone(),
                     value.clone(),

@@ -44,7 +44,7 @@ impl SchemaOps {
         // Handle insert operations
         for (path, inserts) in &self.insert {
             // First reset the path
-            result.push_str(&format!("configure {} reset {};\n", domain, path));
+            result.push_str(&format!("configure {domain} reset {path};\n"));
 
             // Then do all the inserts
             for insert in inserts {
@@ -97,8 +97,8 @@ impl SchemaPrimitive {
     pub fn to_ddl(&self, property_type: &str) -> String {
         match self {
             SchemaPrimitive::String(s) => format!("<{property_type}>{}", quote_string(s)),
-            SchemaPrimitive::Bool(b) => format!("<{property_type}>{}", b),
-            SchemaPrimitive::Integer(i) => format!("<{property_type}>{}", i),
+            SchemaPrimitive::Bool(b) => format!("<{property_type}>{b}"),
+            SchemaPrimitive::Integer(i) => format!("<{property_type}>{i}"),
         }
     }
 }
@@ -119,11 +119,11 @@ impl SchemaValue {
                     }
                     result.push_str(&v.to_ddl(property_type));
                 }
-                result.push_str("}");
+                result.push('}');
                 result
             }
             SchemaValue::Object(type_name, props) => {
-                let mut result = format!("(insert {} {{\n", type_name);
+                let mut result = format!("(insert {type_name} {{\n");
 
                 for (i, (name, value)) in props.iter().enumerate() {
                     if i > 0 {
@@ -137,7 +137,7 @@ impl SchemaValue {
 
                     // Add comma if this is not the last property
                     if i < props.len() - 1 {
-                        result.push_str(",");
+                        result.push(',');
                     }
                 }
                 result.push_str("\n    })");

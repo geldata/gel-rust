@@ -29,9 +29,9 @@ fn main() {
     let stdout = String::from_utf8(process.stdout).unwrap();
     let stderr = String::from_utf8(process.stderr).unwrap();
     if !stderr.is_empty() {
-        eprintln!("{}", stderr);
+        eprintln!("{stderr}");
     }
-    eprintln!("{}", stdout);
+    eprintln!("{stdout}");
 
     println!("Extracting schema...");
     let process = std::process::Command::new("gel")
@@ -45,7 +45,7 @@ fn main() {
     let stdout = String::from_utf8(process.stdout).unwrap();
     let stderr = String::from_utf8(process.stderr).unwrap();
     if !stderr.is_empty() {
-        eprintln!("{}", stderr);
+        eprintln!("{stderr}");
     }
 
     println!();

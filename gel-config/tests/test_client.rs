@@ -7,34 +7,34 @@ use serde::Deserialize;
 
 fn run_test_case(test_name: &str) {
     let domains = current_config();
-    let toml = std::fs::read_to_string(&format!("tests/client/{}.toml", test_name)).unwrap();
+    let toml = std::fs::read_to_string(format!("tests/client/{test_name}.toml")).unwrap();
     let toml = toml::de::Deserializer::parse(&toml).unwrap();
     let toml = toml::Table::deserialize(toml).unwrap();
 
     let (ops, warnings) = parse_toml(&domains, &toml).unwrap();
     let mut ddl = String::new();
     for warning in warnings {
-        ddl.push_str(&format!("# {}\n", warning));
+        ddl.push_str(&format!("# {warning}\n"));
     }
     ddl.push_str(&ops.to_ddl());
-    eprintln!("{}", ddl);
+    eprintln!("{ddl}");
     if std::env::var("UPDATE_EXPECTED").is_ok() {
-        std::fs::write(&format!("tests/client/{}.ddl", test_name), ops.to_ddl()).unwrap();
+        std::fs::write(format!("tests/client/{test_name}.ddl"), ops.to_ddl()).unwrap();
     }
     assert_eq!(
-        std::fs::read_to_string(&format!("tests/client/{}.ddl", test_name)).unwrap(),
+        std::fs::read_to_string(format!("tests/client/{test_name}.ddl")).unwrap(),
         ddl,
     );
 }
 
 fn run_error_test_case(test_name: &str, expected_error: ParserError) {
     let domains = current_config();
-    let toml = std::fs::read_to_string(&format!("tests/client/{}.toml", test_name)).unwrap();
+    let toml = std::fs::read_to_string(format!("tests/client/{test_name}.toml")).unwrap();
     let toml = toml::de::Deserializer::parse(&toml).unwrap();
     let toml = toml::Table::deserialize(toml).unwrap();
 
     let err = parse_toml(&domains, &toml).unwrap_err();
-    eprintln!("{}", err);
+    eprintln!("{err}");
     assert_eq!(err, expected_error);
 }
 

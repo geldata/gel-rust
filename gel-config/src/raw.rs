@@ -288,7 +288,7 @@ impl ConfigSchemaPrimitiveType {
     /// Convert to ConfigSchemaType
     pub fn to_schema_type(&self) -> ConfigSchemaType {
         ConfigSchemaType {
-            name: format!("{}", self),
+            name: format!("{self}"),
             enum_values: None,
         }
     }

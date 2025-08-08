@@ -88,11 +88,11 @@ impl std::fmt::Debug for ConfigTable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
             if let Some(path) = &self.path {
-                write!(f, "# path={}, multi={}\n", path, self.multi)?;
+                writeln!(f, "# path={}, multi={}", path, self.multi)?;
             } else if self.multi {
-                write!(f, "# multi\n")?;
+                writeln!(f, "# multi")?;
             }
-            write!(f, "{{\n")?;
+            writeln!(f, "{{")?;
         } else {
             write!(
                 f,
@@ -134,7 +134,7 @@ impl std::fmt::Debug for ConfigTable {
             }
             if i < self.properties.len() - 1 {
                 if f.alternate() {
-                    write!(f, "\n")?;
+                    writeln!(f)?;
                 } else {
                     write!(f, ", ")?;
                 }
@@ -347,12 +347,10 @@ fn create_table(
             } else {
                 ConfigRequirement::ReadOnly
             }
+        } else if property.required {
+            ConfigRequirement::Required
         } else {
-            if property.required {
-                ConfigRequirement::Required
-            } else {
-                ConfigRequirement::Optional
-            }
+            ConfigRequirement::Optional
         };
         if requirement == ConfigRequirement::Protected && default.is_none() {
             return Err(StructureError::ProtectedTypeMissingDefault(
@@ -406,12 +404,10 @@ fn create_table(
                 } else {
                     ConfigRequirement::ReadOnly
                 }
+            } else if link.required {
+                ConfigRequirement::Required
             } else {
-                if link.required {
-                    ConfigRequirement::Required
-                } else {
-                    ConfigRequirement::Optional
-                }
+                ConfigRequirement::Optional
             };
 
             if link.multi {
@@ -553,6 +549,6 @@ mod tests {
     #[cfg(feature = "precomputed")]
     fn test_config_schema() {
         let config = current_config();
-        println!("{:#?}", config);
+        println!("{config:#?}");
     }
 }
