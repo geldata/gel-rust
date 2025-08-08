@@ -21,6 +21,23 @@ fn test_complex() {
 }
 
 #[test]
+fn test_escaping() {
+    let schema = current_schema();
+    let toml = std::fs::read_to_string("tests/client/escaping.toml").unwrap();
+    let toml = toml::de::Deserializer::parse(&toml).unwrap();
+    let toml = toml::Table::deserialize(toml).unwrap();
+    let ops = parse_toml(&schema, &toml).unwrap();
+    eprintln!("{}", ops.to_ddl());
+    if std::env::var("UPDATE_EXPECTED").is_ok() {
+        std::fs::write("tests/client/escaping.ddl", ops.to_ddl()).unwrap();
+    }
+    assert_eq!(
+        std::fs::read_to_string("tests/client/escaping.ddl").unwrap(),
+        ops.to_ddl(),
+    );
+}
+
+#[test]
 fn test_full() {
     let schema = current_schema();
     let toml = std::fs::read_to_string("tests/client/full.toml").unwrap();
