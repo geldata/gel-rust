@@ -21,6 +21,7 @@ pub struct SchemaNamedValue {
 pub enum SchemaValue {
     Unitary(String),
     Array(Vec<String>),
+    Object(IndexMap<String, SchemaNamedValue>),
 }
 
 #[derive(Debug, Clone)]

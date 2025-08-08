@@ -1,6 +1,5 @@
 use gel_config::{
     schema2::{current_schema, parser::parse_toml},
-    validation::validate,
 };
 use serde::Deserialize;
 
@@ -11,7 +10,7 @@ fn test_complex() {
     let toml = toml::de::Deserializer::parse(&toml).unwrap();
     let toml = toml::Table::deserialize(toml).unwrap();
 
-    let ops = parse_toml(&schema, &toml);
+    let ops = parse_toml(&schema, &toml).unwrap();
     eprintln!("{:#?}", ops);
 }
 
@@ -21,7 +20,7 @@ fn test_full() {
     let toml = std::fs::read_to_string("tests/client/full.toml").unwrap();
     let toml = toml::de::Deserializer::parse(&toml).unwrap();
     let toml = toml::Table::deserialize(toml).unwrap();
-    let ops = parse_toml(&schema, &toml);
+    let ops = parse_toml(&schema, &toml).unwrap();
     eprintln!("{:#?}", ops);
 }
 
@@ -31,6 +30,6 @@ fn test_object() {
     let toml = std::fs::read_to_string("tests/client/object.toml").unwrap();
     let toml = toml::de::Deserializer::parse(&toml).unwrap();
     let toml = toml::Table::deserialize(toml).unwrap();
-    let ops = parse_toml(&schema, &toml);
+    let ops = parse_toml(&schema, &toml).unwrap();
     eprintln!("{:#?}", ops);
 }
