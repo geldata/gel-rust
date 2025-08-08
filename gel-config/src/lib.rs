@@ -28,6 +28,11 @@ pub fn current_config() -> crate::structure::ConfigDomains {
     crate::structure::from_raw(schema).unwrap()
 }
 
+/// The query to retrieve the current configuration schema.
+pub fn schema_query() -> &'static str {
+    include_str!("schema.edgeql")
+}
+
 #[derive(
     Clone, Serialize, Deserialize, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug,
 )]
