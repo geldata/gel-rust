@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, str::FromStr};
+use std::{collections::BTreeMap, str::FromStr, vec};
 
 use crate::schema2::{
     raw::{ConfigSchema, ConfigSchemaObject},
@@ -23,23 +23,66 @@ pub struct ConfigDomains {
 #[derive(Debug, Clone)]
 pub struct ConfigDomain {
     pub name: ConfigDomainName,
-    /// Single-instance tables
     pub tables: BTreeMap<String, ConfigTable>,
-    pub array_tables: BTreeMap<String, ConfigTable>,
+}
+
+impl ConfigDomain {
+    pub fn get_root_table(&self) -> &ConfigTable {
+        self.tables.get("cfg::Config").unwrap()
+    }
+
+    pub fn get_table(&self, name: &str) -> Option<&ConfigTable> {
+        self.tables.get(name)
+    }
+
+    /// Multiple tables can have the same path.
+    pub fn get_tables_by_path_or_name(&self, name: &str) -> Vec<&ConfigTable> {
+        if let Some(table) = self.tables.get(name) {
+            return vec![table];
+        }
+
+        let mut tables = vec![];
+        for table in self.tables.values() {
+            if table.path.as_deref() == Some(name) {
+                tables.push(table);
+            }
+        }
+        tables
+    }
 }
 
 #[derive(Clone)]
 pub struct ConfigTable {
+    /// The fully-qualified schema name of the table
     pub name: String,
+    /// The path to the table in the global namespace. This can be used to reset
+    /// the table, though not all tables are resettable even if they have a path.
+    pub path: Option<String>,
+    /// The properties of the table
     pub properties: Vec<ConfigProperty>,
+    /// Whether the table is multi-instance
+    pub multi: bool,
+}
+
+impl ConfigTable {
+    pub fn get_property(&self, key: &str) -> Option<&ConfigProperty> {
+        self.properties.iter().find(|p| p.name == key)
+    }
 }
 
 impl std::fmt::Debug for ConfigTable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
+            if let Some(path) = &self.path {
+                write!(f, "# path: {}\n", path)?;
+            }
             write!(f, "{{\n")?;
         } else {
-            write!(f, "ConfigTable {{ name: {}, properties: [", self.name)?;
+            write!(
+                f,
+                "ConfigTable {{ name: {}, path: {:?}, properties: [",
+                self.name, self.path
+            )?;
         }
         for (i, property) in self.properties.iter().enumerate() {
             let property_str = if f.alternate() {
@@ -128,6 +171,19 @@ pub enum ConfigPropertyType {
     Object(BTreeMap<String, ConfigTable>),
 }
 
+impl ConfigPropertyType {
+    pub fn name(&self) -> Option<String> {
+        match self {
+            ConfigPropertyType::Primitive(primitive_type) => {
+                Some(primitive_type.to_schema_type().name)
+            }
+            ConfigPropertyType::Enum(name, _) => Some(name.clone()),
+            ConfigPropertyType::Array(array_type) => None,
+            ConfigPropertyType::Object(object_type) => None,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ConfigDomainName {
     Instance,
@@ -157,11 +213,16 @@ pub fn from_raw(schema: ConfigSchema) -> Result<ConfigDomains, StructureError> {
         let mut domain = ConfigDomain {
             name: domain_name,
             tables: BTreeMap::new(),
-            array_tables: BTreeMap::new(),
         };
 
         // Walk through all linked objects
-        walk_object(&mut domain, &schema, root, Locatable::Root)?;
+        walk_object(
+            &mut domain,
+            &schema,
+            root,
+            Locatable::Root,
+            Some("cfg::Config".into()),
+        )?;
 
         domains.insert(domain_name, domain);
     }
@@ -323,7 +384,9 @@ fn create_table(
 
     Ok(ConfigTable {
         name: object.name.clone(),
+        path: None,
         properties,
+        multi: false,
     })
 }
 
@@ -332,6 +395,7 @@ fn walk_object(
     schema: &ConfigSchema,
     object: &ConfigSchemaObject,
     mut locatable: Locatable,
+    path: Option<String>,
 ) -> Result<(), StructureError> {
     // Check if this object is an ExtensionConfig
     let is_extension_config = object
@@ -339,10 +403,10 @@ fn walk_object(
         .iter()
         .any(|ancestor| ancestor.name == "cfg::ExtensionConfig");
 
-    // Extensions are only available on database branches
+    // Extensions are only available on database/session branches
     if is_extension_config {
         locatable = Locatable::Single;
-        if domain.name != ConfigDomainName::DatabaseBranch {
+        if domain.name == ConfigDomainName::Instance {
             return Ok(());
         }
     }
@@ -358,14 +422,16 @@ fn walk_object(
 
     // Create table for the target object
     let mut table = create_table(domain, schema, object, locatable == Locatable::Multi)?;
+    table.path = path;
     if locatable == Locatable::Root {
         table.name = "cfg::Config".to_string();
     }
 
     if locatable == Locatable::Multi {
-        domain.array_tables.insert(object.name.clone(), table);
+        table.multi = true;
+        domain.tables.insert(table.name.clone(), table);
     } else {
-        domain.tables.insert(object.name.clone(), table);
+        domain.tables.insert(table.name.clone(), table);
 
         // Process all links from this object
         for link in &object.links {
@@ -381,6 +447,17 @@ fn walk_object(
 
             if locatable != Locatable::No {
                 for target_type in target_types {
+                    // TODO: this logic might break if we have more nested singletons
+                    let path = if locatable == Locatable::Single {
+                        Some(format!("{}::{}", object.name, link.name))
+                    } else if locatable == Locatable::Root
+                        && link.target.name != "cfg::ExtensionConfig"
+                    {
+                        Some(link.name.clone())
+                    } else {
+                        Some(target_type.name.clone())
+                    };
+
                     // Recursively walk the target object to find nested configurations
                     walk_object(
                         domain,
@@ -391,6 +468,7 @@ fn walk_object(
                         } else {
                             Locatable::Single
                         },
+                        path,
                     )?;
                 }
             }

@@ -17,7 +17,7 @@ query_execution_timeout              = "1 minute"
 current_email_provider_name       = "mailtrap_sandbox"
 
 ## DDL & policy flags
-allow_dml_in_functions             = false
+#allow_dml_in_functions             = false
 allow_bare_ddl                     = "NeverAllow"        # "AlwaysAllow" | "NeverAllow"
 allow_user_specified_id            = false
 warn_old_scoping                   = false

@@ -2,8 +2,23 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+use crate::schema2::{
+    raw::ConfigSchema,
+    structure::{from_raw, ConfigDomains},
+};
+
+pub mod ops;
+pub mod parser;
 pub mod raw;
 pub mod structure;
+
+/// Retrieve the hard-coded current scheme without consulting the database.
+pub fn current_schema() -> ConfigDomains {
+    let schema = include_str!("schema-6.json");
+    let schema: ConfigSchema = serde_json::from_str(schema).unwrap();
+    let domains = from_raw(schema).unwrap();
+    domains
+}
 
 #[derive(
     Clone, Serialize, Deserialize, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug,
