@@ -37,9 +37,7 @@ impl SchemaOps {
                 "configure {} set {} := {};\n",
                 domain,
                 value.name,
-                value
-                    .value
-                    .to_ddl_with_type(&value.property_type, value.object_type.as_deref())
+                value.value.to_ddl_with_type(&value.property_type, None)
             ));
         }
 
@@ -62,9 +60,7 @@ impl SchemaOps {
                     result.push_str(&format!(
                         "    {} := {}",
                         name,
-                        value
-                            .value
-                            .to_ddl_with_type(&value.property_type, value.object_type.as_deref())
+                        value.value.to_ddl_with_type(&value.property_type, None)
                     ));
                     first = false;
                 }
@@ -81,14 +77,13 @@ pub struct SchemaNamedValue {
     pub name: String,
     pub property_type: String,
     pub value: SchemaValue,
-    pub object_type: Option<String>, // For nested objects, the actual type name
 }
 
 #[derive(Debug, Clone)]
 pub enum SchemaValue {
     Unitary(SchemaPrimitive),
     Array(Vec<SchemaPrimitive>),
-    Object(IndexMap<String, SchemaNamedValue>),
+    Object(String, IndexMap<String, SchemaNamedValue>),
 }
 
 #[derive(Debug, Clone)]
@@ -127,8 +122,7 @@ impl SchemaValue {
                 result.push_str("}");
                 result
             }
-            SchemaValue::Object(props) => {
-                let type_name = object_type.unwrap_or("cfg::Object");
+            SchemaValue::Object(type_name, props) => {
                 let mut result = format!("(insert {} {{\n", type_name);
 
                 for (i, (name, value)) in props.iter().enumerate() {
@@ -140,7 +134,7 @@ impl SchemaValue {
                         name,
                         value
                             .value
-                            .to_ddl_with_type(&value.property_type, value.object_type.as_deref())
+                            .to_ddl_with_type(&value.property_type, Some(type_name))
                     ));
 
                     // Add comma if this is not the last property
@@ -193,6 +187,8 @@ fn quote_string(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::schema2::raw::{ConfigSchema, ConfigSchemaObject, ConfigSchemaObjectBuilder};
+
     use super::*;
 
     #[test]
@@ -205,7 +201,6 @@ mod tests {
                     name: "test_property".to_string(),
                     property_type: "settype".to_string(),
                     value: SchemaValue::Unitary(SchemaPrimitive::String("string".to_string())),
-                    object_type: None,
                 }],
                 insert: IndexMap::from_iter([(
                     "test".to_string(),
@@ -220,7 +215,6 @@ mod tests {
                                     value: SchemaValue::Unitary(SchemaPrimitive::String(
                                         "test".to_string(),
                                     )),
-                                    object_type: None,
                                 },
                             ),
                             (
@@ -231,7 +225,6 @@ mod tests {
                                     value: SchemaValue::Unitary(SchemaPrimitive::String(
                                         "test2".to_string(),
                                     )),
-                                    object_type: None,
                                 },
                             ),
                         ]),

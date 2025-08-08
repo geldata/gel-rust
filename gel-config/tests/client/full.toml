@@ -21,6 +21,7 @@ current_email_provider_name       = "mailtrap_sandbox"
 allow_bare_ddl                     = "NeverAllow"        # "AlwaysAllow" | "NeverAllow"
 allow_user_specified_id            = false
 warn_old_scoping                   = false
+allow_dml_in_functions             = false
 
 ## CORS & cache
 cors_allow_origins                  = ["http://localhost:8000", "http://127.0.0.1:8000"]

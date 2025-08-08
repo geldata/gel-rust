@@ -88,15 +88,19 @@ pub enum ConfigSchemaRequired {
 }
 
 /// Represents a configuration schema object (type definition)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct ConfigSchemaObject {
     /// Name of the type (e.g., "cfg::Config", "cfg::Auth")
+    #[builder(required, into)]
     pub name: String,
     /// List of ancestor type IDs
+    #[builder(default = Vec::new())]
     pub ancestors: Vec<ConfigSchemaTypeReference>,
     /// Properties of this type
+    #[builder(default = Vec::new())]
     pub properties: Vec<ConfigSchemaProperty>,
     /// Links (relationships) to other types
+    #[builder(default = Vec::new())]
     pub links: Vec<ConfigSchemaLink>,
 }
 
@@ -104,13 +108,13 @@ pub struct ConfigSchemaObject {
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct ConfigSchemaProperty {
     /// Name of the property
-    #[builder(required)]
+    #[builder(required, into)]
     pub name: String,
     /// Default value (can be null)
     #[builder(optional)]
     pub default: Option<String>,
     /// Target type information
-    #[builder(required)]
+    #[builder(required, into)]
     pub target: ConfigSchemaType,
     /// Whether the property is required
     #[builder(default = false)]
@@ -231,21 +235,28 @@ impl serde::Serialize for ConfigSchemaConstraints {
 }
 
 /// Represents a link/relationship to another type
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct ConfigSchemaLink {
     /// Name of the link
+    #[builder(required, into)]
     pub name: String,
     /// Whether the link is multi-valued
+    #[builder(default = false)]
     pub multi: bool,
     /// Target type information
+    #[builder(required, into)]
     pub target: ConfigSchemaTypeReference,
     /// Whether the property is required
+    #[builder(default = false)]
     pub required: bool,
     /// Whether the property is readonly
+    #[builder(default = false)]
     pub readonly: bool,
     /// Constraints for the link
+    #[builder(default = ConfigSchemaConstraints::default())]
     pub constraints: ConfigSchemaConstraints,
     /// Annotations for the link
+    #[builder(default = Vec::new())]
     pub annotations: Vec<ConfigSchemaAnnotation>,
 }
 
@@ -256,6 +267,21 @@ pub struct ConfigSchemaType {
     pub name: String,
     /// Enum values if this is an enum type
     pub enum_values: Option<Vec<String>>,
+}
+
+impl ConfigSchemaType {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            enum_values: None,
+        }
+    }
+}
+
+impl From<ConfigSchemaPrimitiveType> for ConfigSchemaType {
+    fn from(primitive: ConfigSchemaPrimitiveType) -> Self {
+        primitive.to_schema_type()
+    }
 }
 
 impl ConfigSchemaPrimitiveType {
@@ -273,6 +299,12 @@ impl ConfigSchemaPrimitiveType {
 pub struct ConfigSchemaTypeReference {
     /// Name of the referenced type
     pub name: String,
+}
+
+impl ConfigSchemaTypeReference {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self { name: name.into() }
+    }
 }
 
 /// Represents the complete configuration schema

@@ -88,6 +88,34 @@ impl ConfigSchemaPrimitiveType {
             _ => false,
         }
     }
+
+    pub fn is_str(&self) -> bool {
+        match self {
+            Self::Str => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_int(&self) -> bool {
+        match self {
+            Self::Int16 | Self::Int32 | Self::Int64 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_float(&self) -> bool {
+        match self {
+            Self::Float32 | Self::Float64 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_bool(&self) -> bool {
+        match self {
+            Self::Bool => true,
+            _ => false,
+        }
+    }
 }
 
 impl FromStr for ConfigSchemaPrimitiveType {
@@ -110,5 +138,112 @@ impl FromStr for ConfigSchemaPrimitiveType {
             "cfg::memory" => Ok(Self::Memory),
             _ => Err(()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::schema2::{
+        parser::parse_toml,
+        raw::{
+            ConfigSchemaLinkBuilder, ConfigSchemaObjectBuilder, ConfigSchemaPropertyBuilder,
+            ConfigSchemaType, ConfigSchemaTypeReference,
+        },
+        structure::{ConfigDomain, ConfigDomainName},
+    };
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    pub fn test_schema() -> ConfigSchema {
+        let mut schema = ConfigSchema::new();
+        schema.types.push(
+            ConfigSchemaObjectBuilder::new()
+                .with_name("TestType".to_string())
+                .with_properties(vec![
+                    ConfigSchemaPropertyBuilder::new()
+                        .with_name("int".to_string())
+                        .with_target(ConfigSchemaPrimitiveType::Int32)
+                        .build(),
+                ])
+                .build(),
+        );
+
+        schema.types.push(
+            ConfigSchemaObjectBuilder::new()
+                .with_name("cfg::DatabaseConfig".to_string())
+                .with_properties(vec![
+                    ConfigSchemaPropertyBuilder::new()
+                        .with_name("test_property_root".to_string())
+                        .with_target(ConfigSchemaPrimitiveType::Str)
+                        .build(),
+                ])
+                .with_links(vec![
+                    ConfigSchemaLinkBuilder::new()
+                        .with_name("root_link".to_string())
+                        .with_target(ConfigSchemaTypeReference::new("MyRootType"))
+                        .with_multi(true)
+                        .build(),
+                ])
+                .build(),
+        );
+
+        schema.types.push(
+            ConfigSchemaObjectBuilder::new()
+                .with_name("MyRootType")
+                .with_links(vec![
+                    ConfigSchemaLinkBuilder::new()
+                        .with_name("test_property".to_string())
+                        .with_target(ConfigSchemaTypeReference::new("TestType"))
+                        .build(),
+                ])
+                .build(),
+        );
+
+        schema
+            .types
+            .push(ConfigSchemaObjectBuilder::new().with_name("type1").build());
+
+        schema.roots.push(ConfigSchemaTypeReference {
+            name: "cfg::DatabaseConfig".to_string(),
+        });
+
+        schema
+    }
+
+    pub fn test_toml() -> toml::Table {
+        r#"
+[branch.config]
+test_property_root = 'hello'
+
+[[branch.config.MyRootType]]
+test_property = { _tname = "TestType", int = 1 }
+        "#
+        .parse()
+        .unwrap()
+    }
+
+    #[test]
+    fn test_fully() {
+        let schema = test_schema();
+        let domains = from_raw(schema).unwrap();
+        eprintln!("{:#?}", domains);
+        let toml = test_toml();
+        eprintln!("{:#?}", toml);
+        let (ops, warnings) = parse_toml(&domains, &toml).unwrap();
+        eprintln!("{}", ops.to_ddl());
+        eprintln!("{:#?}", warnings);
+        assert_eq!(
+            ops.to_ddl().trim(),
+            r#"
+configure current database set test_property_root := <std::str>'hello';
+configure current database reset root_link;
+configure current database insert MyRootType {
+    test_property := (insert TestType {
+        int := <std::int32>1
+    })
+};"#
+            .trim()
+        );
     }
 }

@@ -1,7 +1,5 @@
 use std::{collections::BTreeMap, str::FromStr, vec};
 
-use indexmap::IndexMap;
-
 use crate::schema2::{
     ConfigSchemaPrimitiveType,
     raw::{ConfigSchema, ConfigSchemaObject},
@@ -17,7 +15,7 @@ pub enum StructureError {
     ProtectedTypeMissingDefault(String, String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ConfigDomains {
     pub domains: BTreeMap<ConfigDomainName, ConfigDomain>,
 }
@@ -29,6 +27,16 @@ pub struct ConfigDomain {
 }
 
 impl ConfigDomain {
+    pub fn new(name: ConfigDomainName, tables: impl IntoIterator<Item = ConfigTable>) -> Self {
+        Self {
+            name,
+            tables: tables
+                .into_iter()
+                .map(|table| (table.name.clone(), table))
+                .collect(),
+        }
+    }
+
     pub fn get_root_table(&self) -> &ConfigTable {
         self.tables.get("cfg::Config").unwrap()
     }
@@ -60,11 +68,13 @@ pub struct ConfigTable {
     /// The path to the table in the global namespace. This can be used to reset
     /// the table, though not all tables are resettable even if they have a path.
     pub path: Option<String>,
+    /// Whether the path requires a _tname to be set
+    pub path_requires_tname: bool,
     /// The properties of the table
     pub properties: Vec<ConfigProperty>,
     /// Whether the table is multi-instance
     pub multi: bool,
-    /// Whether the table is a singleton
+    /// Whether the table is a singleton and allows set operations
     pub singleton: bool,
 }
 
@@ -78,14 +88,16 @@ impl std::fmt::Debug for ConfigTable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
             if let Some(path) = &self.path {
-                write!(f, "# path: {}\n", path)?;
+                write!(f, "# path={}, multi={}\n", path, self.multi)?;
+            } else if self.multi {
+                write!(f, "# multi\n")?;
             }
             write!(f, "{{\n")?;
         } else {
             write!(
                 f,
-                "ConfigTable {{ name: {}, path: {:?}, properties: [",
-                self.name, self.path
+                "ConfigTable {{ name: {}, path: {:?}, multi={}, properties: [",
+                self.name, self.path, self.multi
             )?;
         }
         for (i, property) in self.properties.iter().enumerate() {
@@ -144,6 +156,7 @@ pub struct ConfigProperty {
     pub requirement: ConfigRequirement,
     pub default: Option<String>,
     pub description: Option<String>,
+    pub is_internal: bool,
 }
 
 #[derive(Debug, Clone, derive_more::Display, PartialEq, Eq)]
@@ -172,6 +185,7 @@ pub enum ConfigPropertyType {
     #[debug("array<{_0:?}>")]
     Array(Box<ConfigPropertyType>),
     /// A set of possible object structures
+    #[debug("<{_0:#?}>")]
     Object(BTreeMap<String, ConfigTable>),
 }
 
@@ -184,6 +198,26 @@ impl ConfigPropertyType {
             ConfigPropertyType::Enum(name, _) => Some(name.clone()),
             ConfigPropertyType::Array(_) => None,
             ConfigPropertyType::Object(_) => None,
+        }
+    }
+
+    pub fn describe(&self) -> String {
+        match self {
+            ConfigPropertyType::Primitive(primitive_type) => primitive_type.to_schema_type().name,
+            ConfigPropertyType::Enum(name, _) => name.clone(),
+            ConfigPropertyType::Array(inner) => format!("array<{}>", inner.describe()),
+            ConfigPropertyType::Object(map) => {
+                let mut names = map.keys().collect::<Vec<_>>();
+                names.sort();
+                format!(
+                    "choice<{}>",
+                    names
+                        .iter()
+                        .map(|n| n.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
         }
     }
 }
@@ -235,6 +269,7 @@ pub fn from_raw(schema: ConfigSchema) -> Result<ConfigDomains, StructureError> {
             &schema,
             root,
             Locatable::Root,
+            false,
             Some("cfg::Config".into()),
         )?;
 
@@ -278,10 +313,11 @@ fn create_table(
 
         let default = property.default.clone();
         let mut description = None;
+        let mut is_internal = false;
 
         for annotation in &property.annotations {
             if annotation.name == "cfg::internal" {
-                continue 'properties;
+                is_internal = true;
             }
             if annotation.name == "std::description" {
                 description = Some(annotation.value.clone());
@@ -330,6 +366,7 @@ fn create_table(
             default,
             requirement,
             description,
+            is_internal,
         });
     }
 
@@ -386,6 +423,7 @@ fn create_table(
                     requirement,
                     default: None,
                     description,
+                    is_internal: false,
                 });
             } else {
                 properties.push(ConfigProperty {
@@ -394,6 +432,7 @@ fn create_table(
                     requirement,
                     default: None,
                     description,
+                    is_internal: false,
                 });
             }
         }
@@ -402,6 +441,7 @@ fn create_table(
     Ok(ConfigTable {
         name: object.name.clone(),
         path: None,
+        path_requires_tname: false,
         properties,
         multi: false,
         singleton: false,
@@ -413,6 +453,7 @@ fn walk_object(
     schema: &ConfigSchema,
     object: &ConfigSchemaObject,
     mut locatable: Locatable,
+    mut polymorphic: bool,
     path: Option<String>,
 ) -> Result<(), StructureError> {
     // Check if this object is an ExtensionConfig
@@ -424,6 +465,7 @@ fn walk_object(
     // Extensions are only available on database/session branches
     if is_extension_config {
         locatable = Locatable::Single;
+        polymorphic = false;
         if domain.name == ConfigDomainName::Instance {
             return Ok(());
         }
@@ -441,6 +483,7 @@ fn walk_object(
     // Create table for the target object
     let mut table = create_table(domain, schema, object, locatable == Locatable::Multi)?;
     table.path = path;
+    table.path_requires_tname = polymorphic;
     if locatable == Locatable::Root {
         table.name = "cfg::Config".to_string();
     }
@@ -465,6 +508,9 @@ fn walk_object(
                 ));
             }
 
+            let polymorphic =
+                !(target_types.len() == 1 && target_types[0].name == link.target.name);
+
             if locatable != Locatable::No {
                 for target_type in target_types {
                     // TODO: this logic might break if we have more nested singletons
@@ -488,6 +534,7 @@ fn walk_object(
                         } else {
                             Locatable::Single
                         },
+                        polymorphic,
                         path,
                     )?;
                 }

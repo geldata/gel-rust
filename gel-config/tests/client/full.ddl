@@ -1,3 +1,4 @@
+# Ignoring internal property branch.config.allow_dml_in_functions
 configure instance set http_max_connections := <std::int64>100;
 configure current database set allow_bare_ddl := <cfg::AllowBareDDL>'NeverAllow';
 configure current database set allow_user_specified_id := <std::bool>false;

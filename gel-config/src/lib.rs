@@ -1,7 +1,6 @@
 pub mod schema2;
 
 use derive_more::{Display, Error};
-use indexmap::IndexMap;
 use std::{borrow::Cow, fmt::Debug};
 use toml::Value as TomlValue;
 
