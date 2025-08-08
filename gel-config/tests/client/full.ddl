@@ -18,43 +18,43 @@ configure current database set session_idle_transaction_timeout := <std::duratio
 configure current database set warn_old_scoping := <std::bool>'false';
 configure current database reset email_providers;
 configure current database insert cfg::SMTPProviderConfig {
-    host := <std::str>'sandbox.smtp.mailtrap.io',
     name := <std::str>'mailtrap_sandbox',
-    password := <std::str>'YOUR_PASSWORD',
-    port := <std::int32>'2525',
     sender := <std::str>'hello@example.com',
-    timeout_per_attempt := <std::duration>'1 minute',
-    timeout_per_email := <std::duration>'5 minutes',
+    host := <std::str>'sandbox.smtp.mailtrap.io',
+    port := <std::int32>'2525',
     username := <std::str>'YOUR_USERNAME',
-    validate_certs := <std::bool>'false'
+    password := <std::str>'YOUR_PASSWORD',
+    validate_certs := <std::bool>'false',
+    timeout_per_email := <std::duration>'5 minutes',
+    timeout_per_attempt := <std::duration>'1 minute'
 };
 configure current database reset ext::ai::Config::providers;
 configure current database insert ext::ai::AnthropicProviderConfig {
-    api_url := <std::str>'https://api.anthropic.com/v1',
+    secret := <std::str>'YOUR_API_KEY',
     client_id := <std::str>'optional_client_id',
-    secret := <std::str>'YOUR_API_KEY'
+    api_url := <std::str>'https://api.anthropic.com/v1'
 };
 configure current database insert ext::ai::CustomProviderConfig {
-    api_style := <ext::ai::ProviderAPIStyle>'OpenAI',
-    api_url := <std::str>'https://generativelanguage.googleapis.com/v1beta/openai',
+    secret := <std::str>'YOUR_GEMINI_API_KEY',
     client_id := <std::str>'YOUR_GEMINI_CLIENT_ID',
-    display_name := <std::str>'Google Gemini',
+    api_url := <std::str>'https://generativelanguage.googleapis.com/v1beta/openai',
     name := <std::str>'google_gemini',
-    secret := <std::str>'YOUR_GEMINI_API_KEY'
+    display_name := <std::str>'Google Gemini',
+    api_style := <ext::ai::ProviderAPIStyle>'OpenAI'
 };
 configure current database insert ext::ai::MistralProviderConfig {
-    api_url := <std::str>'https://api.mistral.ai/v1',
+    secret := <std::str>'YOUR_API_KEY',
     client_id := <std::str>'optional_client_id',
-    secret := <std::str>'YOUR_API_KEY'
+    api_url := <std::str>'https://api.mistral.ai/v1'
 };
 configure current database insert ext::ai::OllamaProviderConfig {
-    api_url := <std::str>'http://localhost:11434/api',
-    client_id := <std::str>'optional_client_id'
+    client_id := <std::str>'optional_client_id',
+    api_url := <std::str>'http://localhost:11434/api'
 };
 configure current database insert ext::ai::OpenAIProviderConfig {
-    api_url := <std::str>'https://api.openai.com/v1',
+    secret := <std::str>'YOUR_API_KEY',
     client_id := <std::str>'optional_client_id',
-    secret := <std::str>'YOUR_API_KEY'
+    api_url := <std::str>'https://api.openai.com/v1'
 };
 configure current database reset ext::auth::AuthConfig::providers;
 configure current database insert ext::auth::AppleOAuthProvider {
@@ -104,7 +104,7 @@ configure current database insert ext::auth::UIConfig {
 };
 configure current database reset ext::auth::AuthConfig::webhooks;
 configure current database insert ext::auth::WebhookConfig {
+    url := <std::str>'https://example.com/webhook',
     events := {<ext::auth::WebhookEvent>'IdentityCreated', <ext::auth::WebhookEvent>'EmailVerified'},
-    signing_secret_key := <std::str>'YOUR_WEBHOOK_SECRET',
-    url := <std::str>'https://example.com/webhook'
+    signing_secret_key := <std::str>'YOUR_WEBHOOK_SECRET'
 };

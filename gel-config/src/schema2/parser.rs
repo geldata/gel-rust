@@ -162,7 +162,7 @@ fn apply_config(
                 if tables[0].singleton {
                     for (key, value) in toml_table {
                         if key != "_tname" {
-                            let mut property = parse_property(&tables[0], key, value)?;
+                            let (mut property, _) = parse_property(&tables[0], key, value)?;
                             property.name = format!("{}::{}", tables[0].name, property.name);
                             ops.set.push(property);
                         }
@@ -176,23 +176,19 @@ fn apply_config(
             }
         } else {
             let table = schema.get_root_table();
-            ops.set.push(parse_property(table, key, value)?);
+            let (property, _) = parse_property(table, key, value)?;
+            ops.set.push(property);
         }
     }
 
     for (path, tables) in by_path {
         let mut entries = vec![];
         for (type_name, toml_table) in tables {
-            let mut properties = IndexMap::new();
             let table = schema
                 .get_table(&type_name)
                 .expect("Table should exist in schema");
 
-            for (key, value) in toml_table {
-                if key != "_tname" {
-                    properties.insert(key.to_string(), parse_property(table, key, value)?);
-                }
-            }
+            let properties = parse_properties(toml_table, table)?;
             entries.push(ops::SchemaInsert {
                 type_name,
                 properties,
@@ -204,35 +200,69 @@ fn apply_config(
     Ok(ops)
 }
 
+fn parse_properties(
+    toml_table: &toml::map::Map<String, toml::Value>,
+    table: &ConfigTable,
+) -> Result<IndexMap<String, ops::SchemaNamedValue>, ParserError> {
+    let mut properties_with_index = Vec::new();
+    for (key, value) in toml_table {
+        if key != "_tname" {
+            let (property, index) = parse_property(table, key, value)?;
+            properties_with_index.push((key.to_string(), property, index));
+        }
+    }
+
+    // Sort by the property index from the ConfigTable
+    properties_with_index.sort_by_key(|(_, _, index)| *index);
+
+    // Convert back to IndexMap
+    let mut properties = IndexMap::new();
+    for (key, property, _) in properties_with_index {
+        properties.insert(key, property);
+    }
+    Ok(properties)
+}
+
 pub fn parse_property(
     table: &ConfigTable,
     key: &str,
     value: &toml::Value,
-) -> Result<ops::SchemaNamedValue, ParserError> {
+) -> Result<(ops::SchemaNamedValue, usize), ParserError> {
     let property = table
         .get_property(key)
         .ok_or_else(|| ParserError::PropertyNotFound(key.to_string()))?;
 
-    let (property_type, value) = match (value, &property.property_type) {
+    // Find the index of this property in the table's properties list
+    let property_index = table
+        .properties
+        .iter()
+        .position(|p| p.name == key)
+        .unwrap_or(usize::MAX);
+
+    let (property_type, value, object_type) = match (value, &property.property_type) {
         (toml::Value::String(value), ConfigPropertyType::Primitive(primitive_type)) => (
             primitive_type.to_schema_type().name,
             SchemaValue::Unitary(value.clone()),
+            None,
         ),
         (toml::Value::String(value), ConfigPropertyType::Enum(name, _)) => {
             // TODO: check enum values
-            (name.clone(), SchemaValue::Unitary(value.clone()))
+            (name.clone(), SchemaValue::Unitary(value.clone()), None)
         }
         (toml::Value::Integer(value), ConfigPropertyType::Primitive(primitive_type)) => (
             primitive_type.to_schema_type().name,
             SchemaValue::Unitary(value.to_string()),
+            None,
         ),
         (toml::Value::Float(value), ConfigPropertyType::Primitive(primitive_type)) => (
             primitive_type.to_schema_type().name,
             SchemaValue::Unitary(value.to_string()),
+            None,
         ),
         (toml::Value::Boolean(value), ConfigPropertyType::Primitive(primitive_type)) => (
             primitive_type.to_schema_type().name,
             SchemaValue::Unitary(value.to_string()),
+            None,
         ),
         (toml::Value::Array(value), ConfigPropertyType::Array(array_type)) => (
             array_type.name().unwrap(),
@@ -248,6 +278,7 @@ pub fn parse_property(
                     })
                     .collect::<Result<Vec<_>, _>>()?,
             ),
+            None,
         ),
         (toml::Value::Table(value), ConfigPropertyType::Object(object_type)) => {
             let tname = value.get("_tname");
@@ -262,13 +293,12 @@ pub fn parse_property(
             let actual_type = object_type
                 .get(type_name)
                 .ok_or_else(|| ParserError::InvalidTname(key.to_string()))?;
-            let mut properties = IndexMap::new();
-            for (key, value) in value {
-                if key != "_tname" {
-                    properties.insert(key.to_string(), parse_property(actual_type, key, value)?);
-                }
-            }
-            (type_name.to_string(), SchemaValue::Object(properties))
+            let properties = parse_properties(value, actual_type)?;
+            (
+                type_name.to_string(),
+                SchemaValue::Object(properties),
+                Some(type_name.to_string()),
+            )
         }
         _ => {
             return Err(ParserError::InvalidValueType(
@@ -278,9 +308,13 @@ pub fn parse_property(
         }
     };
 
-    Ok(ops::SchemaNamedValue {
-        name: key.to_string(),
-        property_type,
-        value,
-    })
+    Ok((
+        ops::SchemaNamedValue {
+            name: key.to_string(),
+            property_type,
+            value,
+            object_type,
+        },
+        property_index,
+    ))
 }

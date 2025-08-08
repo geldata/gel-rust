@@ -37,7 +37,9 @@ impl SchemaOps {
                 "configure {} set {} := {};\n",
                 domain,
                 value.name,
-                value.value.to_ddl(&value.property_type)
+                value
+                    .value
+                    .to_ddl_with_type(&value.property_type, value.object_type.as_deref())
             ));
         }
 
@@ -60,7 +62,9 @@ impl SchemaOps {
                     result.push_str(&format!(
                         "    {} := {}",
                         name,
-                        value.value.to_ddl(&value.property_type)
+                        value
+                            .value
+                            .to_ddl_with_type(&value.property_type, value.object_type.as_deref())
                     ));
                     first = false;
                 }
@@ -77,6 +81,7 @@ pub struct SchemaNamedValue {
     pub name: String,
     pub property_type: String,
     pub value: SchemaValue,
+    pub object_type: Option<String>, // For nested objects, the actual type name
 }
 
 #[derive(Debug, Clone)]
@@ -88,6 +93,10 @@ pub enum SchemaValue {
 
 impl SchemaValue {
     pub fn to_ddl(&self, property_type: &str) -> String {
+        self.to_ddl_with_type(property_type, None)
+    }
+
+    pub fn to_ddl_with_type(&self, property_type: &str, object_type: Option<&str>) -> String {
         match self {
             SchemaValue::Unitary(val) => {
                 format!("<{}>'{}'\n", property_type, val).trim().to_string()
@@ -100,24 +109,31 @@ impl SchemaValue {
                     }
                     result.push_str(&format!("<{}>'{}'\n", property_type, v).trim());
                 }
-                result.push('}');
+                result.push_str("}");
                 result
             }
             SchemaValue::Object(props) => {
-                let mut result = String::from("{\n");
-                let mut first = true;
-                for (name, value) in props {
-                    if !first {
+                let type_name = object_type.unwrap_or("cfg::Object");
+                let mut result = format!("(insert {} {{\n", type_name);
+
+                for (i, (name, value)) in props.iter().enumerate() {
+                    if i > 0 {
                         result.push_str(",\n");
                     }
                     result.push_str(&format!(
-                        "    {} := {}",
+                        "        {} := {}",
                         name,
-                        value.value.to_ddl(&value.property_type)
+                        value
+                            .value
+                            .to_ddl_with_type(&value.property_type, value.object_type.as_deref())
                     ));
-                    first = false;
+
+                    // Add comma if this is not the last property
+                    if i < props.len() - 1 {
+                        result.push_str(",");
+                    }
                 }
-                result.push('}');
+                result.push_str("\n    })");
                 result
             }
         }
@@ -144,6 +160,7 @@ mod tests {
                     name: "test_property".to_string(),
                     property_type: "settype".to_string(),
                     value: SchemaValue::Unitary("string".to_string()),
+                    object_type: None,
                 }],
                 insert: IndexMap::from_iter([(
                     "test".to_string(),
@@ -156,6 +173,7 @@ mod tests {
                                     name: "test1".to_string(),
                                     property_type: "type1".to_string(),
                                     value: SchemaValue::Unitary("test".to_string()),
+                                    object_type: None,
                                 },
                             ),
                             (
@@ -164,6 +182,7 @@ mod tests {
                                     name: "test2".to_string(),
                                     property_type: "type2".to_string(),
                                     value: SchemaValue::Unitary("test2".to_string()),
+                                    object_type: None,
                                 },
                             ),
                         ]),

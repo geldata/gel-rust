@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, str::FromStr, vec};
 
+use indexmap::IndexMap;
+
 use crate::schema2::{
     raw::{ConfigSchema, ConfigSchemaObject},
     ConfigSchemaPrimitiveType,
@@ -180,8 +182,8 @@ impl ConfigPropertyType {
                 Some(primitive_type.to_schema_type().name)
             }
             ConfigPropertyType::Enum(name, _) => Some(name.clone()),
-            ConfigPropertyType::Array(array_type) => None,
-            ConfigPropertyType::Object(object_type) => None,
+            ConfigPropertyType::Array(_) => None,
+            ConfigPropertyType::Object(_) => None,
         }
     }
 }

@@ -12,8 +12,8 @@ fn test_complex() {
     let ops = parse_toml(&schema, &toml).unwrap();
     eprintln!("{}", ops.to_ddl());
     assert_eq!(
+        std::fs::read_to_string("tests/client/complex.ddl").unwrap(),
         ops.to_ddl(),
-        std::fs::read_to_string("tests/client/complex.ddl").unwrap()
     );
 }
 
@@ -26,8 +26,8 @@ fn test_full() {
     let ops = parse_toml(&schema, &toml).unwrap();
     eprintln!("{}", ops.to_ddl());
     assert_eq!(
+        std::fs::read_to_string("tests/client/full.ddl").unwrap(),
         ops.to_ddl(),
-        std::fs::read_to_string("tests/client/full.ddl").unwrap()
     );
 }
 
@@ -40,7 +40,7 @@ fn test_object() {
     let ops = parse_toml(&schema, &toml).unwrap();
     eprintln!("{}", ops.to_ddl());
     assert_eq!(
+        std::fs::read_to_string("tests/client/object.ddl").unwrap(),
         ops.to_ddl(),
-        std::fs::read_to_string("tests/client/object.ddl").unwrap()
     );
 }
