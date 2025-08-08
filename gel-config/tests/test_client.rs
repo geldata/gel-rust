@@ -1,6 +1,5 @@
-use gel_config::{
-    schema2::{current_schema, parser::parse_toml},
-};
+use gel_config::schema2::{current_schema, parser::parse_toml};
+use pretty_assertions::assert_eq;
 use serde::Deserialize;
 
 #[test]
@@ -11,7 +10,11 @@ fn test_complex() {
     let toml = toml::Table::deserialize(toml).unwrap();
 
     let ops = parse_toml(&schema, &toml).unwrap();
-    eprintln!("{:#?}", ops);
+    eprintln!("{}", ops.to_ddl());
+    assert_eq!(
+        ops.to_ddl(),
+        std::fs::read_to_string("tests/client/complex.ddl").unwrap()
+    );
 }
 
 #[test]
@@ -21,7 +24,11 @@ fn test_full() {
     let toml = toml::de::Deserializer::parse(&toml).unwrap();
     let toml = toml::Table::deserialize(toml).unwrap();
     let ops = parse_toml(&schema, &toml).unwrap();
-    eprintln!("{:#?}", ops);
+    eprintln!("{}", ops.to_ddl());
+    assert_eq!(
+        ops.to_ddl(),
+        std::fs::read_to_string("tests/client/full.ddl").unwrap()
+    );
 }
 
 #[test]
@@ -31,5 +38,9 @@ fn test_object() {
     let toml = toml::de::Deserializer::parse(&toml).unwrap();
     let toml = toml::Table::deserialize(toml).unwrap();
     let ops = parse_toml(&schema, &toml).unwrap();
-    eprintln!("{:#?}", ops);
+    eprintln!("{}", ops.to_ddl());
+    assert_eq!(
+        ops.to_ddl(),
+        std::fs::read_to_string("tests/client/object.ddl").unwrap()
+    );
 }

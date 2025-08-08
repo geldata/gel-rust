@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use indexmap::IndexMap;
 
 use crate::schema2::{
-    ops::{self, SchemaOps, SchemaValue},
+    ops::{self, AllSchemaOps, SchemaOps, SchemaValue},
     structure::{ConfigDomainName, ConfigDomains, ConfigPropertyType, ConfigTable},
 };
 
@@ -29,6 +29,8 @@ pub enum ParserError {
     InvalidValueType(String, ConfigPropertyType),
     #[display("Invalid _tname for key {_0}")]
     InvalidTname(String),
+    #[display("Protected property {_0} cannot be set")]
+    ProtectedProperty(String),
 }
 
 impl std::error::Error for ParserError {}
@@ -36,8 +38,8 @@ impl std::error::Error for ParserError {}
 pub fn parse_toml(
     domains: &ConfigDomains,
     toml: &toml::Table,
-) -> Result<BTreeMap<ConfigDomainName, ops::SchemaOps>, ParserError> {
-    let mut ops = BTreeMap::new();
+) -> Result<AllSchemaOps, ParserError> {
+    let mut by_domain = BTreeMap::new();
 
     for (key, value) in toml {
         let config_domain = match key.as_str() {
@@ -58,10 +60,10 @@ pub fn parse_toml(
             )
         })?;
 
-        ops.insert(config_domain, apply(table, schema)?);
+        by_domain.insert(config_domain, apply(table, schema)?);
     }
 
-    Ok(ops)
+    Ok(AllSchemaOps { by_domain })
 }
 
 fn apply(
@@ -79,7 +81,11 @@ fn apply(
     Ok(ops)
 }
 
-fn apply_config(schema: &super::structure::ConfigDomain, key: &String, value: &toml::Value) -> Result<SchemaOps, ParserError> {
+fn apply_config(
+    schema: &super::structure::ConfigDomain,
+    key: &String,
+    value: &toml::Value,
+) -> Result<SchemaOps, ParserError> {
     let mut ops = SchemaOps::default();
 
     // First, apply all the set operations and queue the insert operations by
@@ -88,10 +94,7 @@ fn apply_config(schema: &super::structure::ConfigDomain, key: &String, value: &t
     let mut by_path = BTreeMap::<String, Vec<(String, &toml::Table)>>::new();
 
     for (key, value) in value.as_table().ok_or_else(|| {
-        ParserError::InvalidValueType(
-            key.clone(),
-            ConfigPropertyType::Object(Default::default()),
-        )
+        ParserError::InvalidValueType(key.clone(), ConfigPropertyType::Object(Default::default()))
     })? {
         let tables = schema.get_tables_by_path_or_name(key);
         if (value.is_array() || value.is_table()) && !tables.is_empty() {
@@ -156,7 +159,20 @@ fn apply_config(schema: &super::structure::ConfigDomain, key: &String, value: &t
                     tables[0].name.clone()
                 };
 
-                by_path.entry(tables[0].path.clone().expect("Table path should exist")).or_default().push((type_name.clone(), toml_table));
+                if tables[0].singleton {
+                    for (key, value) in toml_table {
+                        if key != "_tname" {
+                            let mut property = parse_property(&tables[0], key, value)?;
+                            property.name = format!("{}::{}", tables[0].name, property.name);
+                            ops.set.push(property);
+                        }
+                    }
+                } else {
+                    by_path
+                        .entry(tables[0].path.clone().expect("Table path should exist"))
+                        .or_default()
+                        .push((type_name.clone(), toml_table));
+                }
             }
         } else {
             let table = schema.get_root_table();
@@ -168,7 +184,10 @@ fn apply_config(schema: &super::structure::ConfigDomain, key: &String, value: &t
         let mut entries = vec![];
         for (type_name, toml_table) in tables {
             let mut properties = IndexMap::new();
-            let table = schema.get_table(&type_name).expect("Table should exist in schema");
+            let table = schema
+                .get_table(&type_name)
+                .expect("Table should exist in schema");
+
             for (key, value) in toml_table {
                 if key != "_tname" {
                     properties.insert(key.to_string(), parse_property(table, key, value)?);
@@ -233,12 +252,16 @@ pub fn parse_property(
         (toml::Value::Table(value), ConfigPropertyType::Object(object_type)) => {
             let tname = value.get("_tname");
             let type_name = if let Some(tname) = tname {
-                tname.as_str().ok_or_else(|| ParserError::InvalidTname(key.to_string()))?
+                tname
+                    .as_str()
+                    .ok_or_else(|| ParserError::InvalidTname(key.to_string()))?
             } else {
                 return Err(ParserError::InvalidTname(key.to_string()));
             };
 
-            let actual_type = object_type.get(type_name).ok_or_else(|| ParserError::InvalidTname(key.to_string()))?;
+            let actual_type = object_type
+                .get(type_name)
+                .ok_or_else(|| ParserError::InvalidTname(key.to_string()))?;
             let mut properties = IndexMap::new();
             for (key, value) in value {
                 if key != "_tname" {

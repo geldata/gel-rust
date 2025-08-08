@@ -62,6 +62,8 @@ pub struct ConfigTable {
     pub properties: Vec<ConfigProperty>,
     /// Whether the table is multi-instance
     pub multi: bool,
+    /// Whether the table is a singleton
+    pub singleton: bool,
 }
 
 impl ConfigTable {
@@ -189,6 +191,16 @@ pub enum ConfigDomainName {
     Instance,
     DatabaseBranch,
     Session,
+}
+
+impl std::fmt::Display for ConfigDomainName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConfigDomainName::Instance => write!(f, "instance"),
+            ConfigDomainName::DatabaseBranch => write!(f, "current database"),
+            ConfigDomainName::Session => write!(f, "session"),
+        }
+    }
 }
 
 pub fn from_raw(schema: ConfigSchema) -> Result<ConfigDomains, StructureError> {
@@ -387,6 +399,7 @@ fn create_table(
         path: None,
         properties,
         multi: false,
+        singleton: false,
     })
 }
 
@@ -426,6 +439,8 @@ fn walk_object(
     if locatable == Locatable::Root {
         table.name = "cfg::Config".to_string();
     }
+
+    table.singleton = locatable == Locatable::Root || is_extension_config;
 
     if locatable == Locatable::Multi {
         table.multi = true;
