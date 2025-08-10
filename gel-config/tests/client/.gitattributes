@@ -1,0 +1,2 @@
+# Prevent Windows from changing line endings in this test directory
+*.ddl -text

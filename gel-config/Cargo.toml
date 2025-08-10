@@ -3,7 +3,7 @@ name = "gel-config"
 license = "MIT/Apache-2.0"
 version = "0.1.0"
 authors = ["MagicStack Inc. <hello@magic.io>"]
-edition = "2021"
+edition = "2024"
 description = "Configuration file parser for Gel."
 readme = "README.md"
 rust-version.workspace = true
@@ -12,12 +12,26 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-derive_more = { version = "2", features = ["error", "debug", "display"] }
+derive_more = { version = "2", features = ["error", "debug", "display", "default"] }
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 toml = { version = "0.9.5", features = ["serde"] }
 indexmap = "2"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+typesafe_builder = "1.5.0"
+flate2 = { version = "1.1", optional = true, no-default-features = true, features = ["rust_backend"] }
+
+[features]
+default = []
+precomputed = ["dep:flate2"]
 
 [dev-dependencies]
 pretty_assertions = "1.2.0"
+gel-config = { path = ".", features = ["precomputed"] }
 
 [lib]
+
+[[example]]
+name = "rebuild-schema"
+path = "tools/rebuild-schema.rs"
+required-features = ["precomputed"]
