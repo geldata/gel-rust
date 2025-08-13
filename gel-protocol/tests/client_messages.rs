@@ -55,9 +55,9 @@ fn client_handshake() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn parse() -> Result<(), Box<dyn Error>> {
+fn parse2() -> Result<(), Box<dyn Error>> {
     encoding_eq_ver!(
-        1,
+        2,
         0,
         ClientMessage::Parse(Parse {
             annotations: None,
@@ -105,9 +105,9 @@ fn parse3() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn execute1() -> Result<(), Box<dyn Error>> {
+fn execute2() -> Result<(), Box<dyn Error>> {
     encoding_eq_ver!(
-        1,
+        2,
         0,
         ClientMessage::Execute1(Execute1 {
             annotations: None,
