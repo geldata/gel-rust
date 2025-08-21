@@ -144,9 +144,12 @@ impl futures::Stream for TokioListenerStream {
 }
 
 /// Represents a connected Tokio stream, either TCP or Unix
-#[derive(derive_io::AsyncRead, derive_io::AsyncWrite, derive_io::AsSocketDescriptor)]
+#[derive(
+    derive_io::AsyncRead, derive_io::AsyncWrite, derive_io::AsSocketDescriptor, derive_more::Debug,
+)]
 pub enum TokioStream {
     /// TCP stream
+    #[debug("{_0:?}")]
     Tcp(
         #[read]
         #[write]
@@ -155,6 +158,7 @@ pub enum TokioStream {
     ),
     /// Unix stream (only available on Unix systems)
     #[cfg(unix)]
+    #[debug("{_0:?}")]
     Unix(
         #[read]
         #[write]

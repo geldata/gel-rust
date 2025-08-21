@@ -9,7 +9,7 @@ use rustls_pki_types::{
     CertificateDer, CertificateRevocationListDer, DnsName, ServerName, UnixTime,
 };
 use rustls_platform_verifier::Verifier;
-use rustls_tokio_stream::TlsStream;
+use rustls_tokio_stream::{TlsStream, UnderlyingStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadBuf};
 
 use super::tokio_stream::TokioStream;
@@ -23,12 +23,13 @@ use std::borrow::Cow;
 use std::mem::MaybeUninit;
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 #[derive(Default)]
 pub struct RustlsDriver;
 
 impl TlsDriver for RustlsDriver {
-    type Stream = TlsStream;
+    type Stream = TlsStream<TokioStream>;
     type ClientParams = ClientConnection;
     type ServerParams = Arc<ServerConfig>;
     const DRIVER_NAME: &'static str = "rustls";
@@ -134,9 +135,6 @@ impl TlsDriver for RustlsDriver {
         let stream = stream
             .downcast::<TokioStream>()
             .map_err(|_| crate::SslError::SslUnsupported)?;
-        let TokioStream::Tcp(stream) = stream else {
-            return Err(crate::SslError::SslUnsupported);
-        };
 
         let mut stream = TlsStream::new_client_side(stream, params, None);
         match stream.handshake().await {
@@ -180,7 +178,7 @@ impl TlsDriver for RustlsDriver {
         params: TlsServerParameterProvider,
         stream: S,
     ) -> Result<(Self::Stream, TlsHandshake), SslError> {
-        let (stream, mut acceptor) = match stream.downcast::<RewindStream<TokioStream>>() {
+        let (mut stream, mut acceptor) = match stream.downcast::<RewindStream<TokioStream>>() {
             Ok(stream) => {
                 let (stream, buffer) = stream.into_inner();
                 let mut acceptor = Acceptor::default();
@@ -193,10 +191,6 @@ impl TlsDriver for RustlsDriver {
                 };
                 (stream, Acceptor::default())
             }
-        };
-
-        let TokioStream::Tcp(mut stream) = stream else {
-            return Err(crate::SslError::SslUnsupported);
         };
 
         let mut buf = [MaybeUninit::uninit(); 1024];
@@ -638,19 +632,29 @@ impl ServerCertVerifier for ErrorFilteringVerifier {
     }
 }
 
-impl LocalAddress for TlsStream {
+impl LocalAddress for TlsStream<TokioStream> {
     fn local_address(&self) -> std::io::Result<ResolvedTarget> {
-        self.local_addr().map(ResolvedTarget::from)
+        self.underlying_stream()
+            .ok_or(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "No underlying stream",
+            ))?
+            .local_address()
     }
 }
 
-impl RemoteAddress for TlsStream {
+impl RemoteAddress for TlsStream<TokioStream> {
     fn remote_address(&self) -> std::io::Result<ResolvedTarget> {
-        self.peer_addr().map(ResolvedTarget::from)
+        self.underlying_stream()
+            .ok_or(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "No underlying stream",
+            ))?
+            .remote_address()
     }
 }
 
-impl PeerCred for TlsStream {
+impl PeerCred for TlsStream<TokioStream> {
     #[cfg(all(unix, feature = "tokio"))]
     fn peer_cred(&self) -> std::io::Result<tokio::net::unix::UCred> {
         Err(std::io::Error::new(
@@ -660,20 +664,78 @@ impl PeerCred for TlsStream {
     }
 }
 
-impl StreamMetadata for TlsStream {
+impl StreamMetadata for TlsStream<TokioStream> {
     fn transport(&self) -> Transport {
         Transport::Tcp
     }
 }
 
-impl AsHandle for TlsStream {
+impl AsHandle for TlsStream<TokioStream> {
     #[cfg(windows)]
     fn as_handle(&self) -> std::os::windows::io::BorrowedSocket {
-        std::os::windows::io::AsSocket::as_socket(self.tcp_stream().unwrap())
+        std::os::windows::io::AsSocket::as_socket(self.underlying_stream().unwrap())
     }
 
     #[cfg(unix)]
     fn as_fd(&self) -> std::os::fd::BorrowedFd {
-        std::os::fd::AsFd::as_fd(self.tcp_stream().unwrap())
+        std::os::fd::AsFd::as_fd(self.underlying_stream().unwrap())
+    }
+}
+
+impl UnderlyingStream for TokioStream {
+    type StdType = ();
+
+    async fn readable(&self) -> std::io::Result<()> {
+        match self {
+            TokioStream::Tcp(stream) => stream.readable().await,
+            TokioStream::Unix(stream) => stream.readable().await,
+        }
+    }
+    async fn writable(&self) -> std::io::Result<()> {
+        match self {
+            TokioStream::Tcp(stream) => stream.writable().await,
+            TokioStream::Unix(stream) => stream.writable().await,
+        }
+    }
+    fn poll_read_ready(&self, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match self {
+            TokioStream::Tcp(stream) => stream.poll_read_ready(cx),
+            TokioStream::Unix(stream) => stream.poll_read_ready(cx),
+        }
+    }
+    fn poll_write_ready(&self, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match self {
+            TokioStream::Tcp(stream) => stream.poll_write_ready(cx),
+            TokioStream::Unix(stream) => stream.poll_write_ready(cx),
+        }
+    }
+    fn try_read(&self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            TokioStream::Tcp(stream) => stream.try_read(buf),
+            TokioStream::Unix(stream) => stream.try_read(buf),
+        }
+    }
+    fn try_write(&self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            TokioStream::Tcp(stream) => stream.try_write(buf),
+            TokioStream::Unix(stream) => stream.try_write(buf),
+        }
+    }
+    fn shutdown(&self, how: std::net::Shutdown) -> std::io::Result<()> {
+        match self {
+            TokioStream::Tcp(stream) => stream.shutdown(how),
+            TokioStream::Unix(stream) => stream.shutdown(how),
+        }
+    }
+
+    fn into_std(self) -> Option<std::io::Result<Self::StdType>> {
+        unimplemented!()
+    }
+
+    fn downcast<S: UnderlyingStream>(self) -> Result<S, Self> {
+        match self {
+            TokioStream::Tcp(stream) => UnderlyingStream::downcast(stream).map_err(Self::Tcp),
+            TokioStream::Unix(stream) => UnderlyingStream::downcast(stream).map_err(Self::Unix),
+        }
     }
 }
