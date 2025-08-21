@@ -27,12 +27,12 @@ timeout_per_attempt   = "1 minute"
 validate_certs        = false
 
 
-[[branch.config.auth]]
+[[instance.config.auth]]
 priority = 100
 user = ["gel"]
 method = { _tname = "cfg::JWT", transports = ["HTTP"] }
 
-[[branch.config.auth]]
+[[instance.config.auth]]
 priority = 200
 user = ["admin", "gel"]
 method = { _tname = "cfg::SCRAM", transports = ["TCP", "HTTP"] }

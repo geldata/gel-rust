@@ -1,41 +1,104 @@
-pub mod current;
-pub mod parser;
-pub mod schema;
-pub mod types;
-pub mod validation;
+use std::str::FromStr;
 
+use serde::{Deserialize, Serialize};
+
+pub mod ops;
+pub mod parser;
+pub mod raw;
+pub mod structure;
+
+<<<<<<< HEAD
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use std::{borrow::Cow, fmt::Debug, str::FromStr};
 use toml::Value as TomlValue;
+=======
+/// Retrieve the hard-coded current configuration schema without consulting the
+/// database.
+#[cfg(feature = "precomputed")]
+pub fn current_schema() -> crate::raw::ConfigSchema {
+    use std::io::Read;
+    const SCHEMA: &[u8] = include_bytes!("schema.json.gz");
+>>>>>>> 3c11a7c (gel-config evolution)
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum PrimitiveType {
-    String,
-    Int64,
-    Int32,
-    Int16,
-    Float64,
-    Float32,
-    Boolean,
-    Duration,
+    let mut decoder = flate2::read::GzDecoder::new(SCHEMA);
+    let mut data = Vec::new();
+    decoder.read_to_end(&mut data).unwrap();
+    serde_json::from_slice(&data).unwrap()
 }
 
-impl PrimitiveType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            PrimitiveType::String => "str",
-            PrimitiveType::Int64 => "int64",
-            PrimitiveType::Int32 => "int32",
-            PrimitiveType::Int16 => "int16",
-            PrimitiveType::Float64 => "float64",
-            PrimitiveType::Float32 => "float32",
-            PrimitiveType::Boolean => "bool",
-            PrimitiveType::Duration => "duration",
-        }
+/// Retrieve the hard-coded current configuration.
+#[cfg(feature = "precomputed")]
+pub fn current_config() -> crate::structure::ConfigDomains {
+    let schema = current_schema();
+
+    crate::structure::from_raw(schema).unwrap()
+}
+
+/// The query to retrieve the current configuration schema.
+pub fn schema_query() -> &'static str {
+    include_str!("schema.edgeql")
+}
+
+#[derive(
+    Clone, Serialize, Deserialize, PartialEq, Eq, Hash, derive_more::Display, derive_more::Debug,
+)]
+/// Represents the primitive data types supported in Gel configuration schemas.
+pub enum ConfigSchemaPrimitiveType {
+    #[display("std::str")]
+    #[debug("std::str")]
+    Str,
+    #[display("std::bool")]
+    #[debug("std::bool")]
+    Bool,
+    #[display("std::int16")]
+    #[debug("std::int16")]
+    Int16,
+    #[display("std::int32")]
+    #[debug("std::int32")]
+    Int32,
+    #[display("std::int64")]
+    #[debug("std::int64")]
+    Int64,
+    #[display("std::float32")]
+    #[debug("std::float32")]
+    Float32,
+    #[display("std::float64")]
+    #[debug("std::float64")]
+    Float64,
+    #[display("std::bigint")]
+    #[debug("std::bigint")]
+    BigInt,
+    #[display("std::decimal")]
+    #[debug("std::decimal")]
+    Decimal,
+    #[display("std::uuid")]
+    #[debug("std::uuid")]
+    Uuid,
+    #[display("std::duration")]
+    #[debug("std::duration")]
+    Duration,
+    #[display("std::bytes")]
+    #[debug("std::bytes")]
+    Bytes,
+    #[display("std::sequence")]
+    #[debug("std::sequence")]
+    Sequence,
+    #[display("cfg::memory")]
+    #[debug("cfg::memory")]
+    Memory,
+}
+
+impl ConfigSchemaPrimitiveType {
+    pub fn is_literal(&self) -> bool {
+        matches!(
+            self,
+            Self::Str | Self::Bool | Self::Int16 | Self::Int32 | Self::Int64
+        )
     }
 }
 
+<<<<<<< HEAD
 impl FromStr for PrimitiveType {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -48,16 +111,156 @@ impl FromStr for PrimitiveType {
             "float32" => Ok(PrimitiveType::Float32),
             "bool" => Ok(PrimitiveType::Boolean),
             "duration" => Ok(PrimitiveType::Duration),
+=======
+    pub fn is_str(&self) -> bool {
+        matches!(self, Self::Str)
+    }
+
+    pub fn is_int(&self) -> bool {
+        matches!(self, Self::Int16 | Self::Int32 | Self::Int64)
+    }
+
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::Float32 | Self::Float64)
+    }
+
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
+    }
+}
+
+impl FromStr for ConfigSchemaPrimitiveType {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "std::str" => Ok(Self::Str),
+            "std::bool" => Ok(Self::Bool),
+            "std::int16" => Ok(Self::Int16),
+            "std::int32" => Ok(Self::Int32),
+            "std::int64" => Ok(Self::Int64),
+            "std::float32" => Ok(Self::Float32),
+            "std::float64" => Ok(Self::Float64),
+            "std::bigint" => Ok(Self::BigInt),
+            "std::decimal" => Ok(Self::Decimal),
+            "std::uuid" => Ok(Self::Uuid),
+            "std::duration" => Ok(Self::Duration),
+            "std::bytes" => Ok(Self::Bytes),
+            "std::sequence" => Ok(Self::Sequence),
+            "cfg::memory" => Ok(Self::Memory),
+>>>>>>> 3c11a7c (gel-config evolution)
             _ => Err(()),
         }
     }
 }
 
-impl std::fmt::Display for PrimitiveType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
+#[cfg(test)]
+#[cfg(feature = "precomputed")]
+mod tests {
+    use crate::{
+        parser::parse_toml,
+        raw::{
+            ConfigSchema, ConfigSchemaLinkBuilder, ConfigSchemaObjectBuilder,
+            ConfigSchemaPropertyBuilder, ConfigSchemaTypeReference,
+        },
+        structure::from_raw,
+    };
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    pub fn test_schema() -> ConfigSchema {
+        let mut schema = ConfigSchema::new();
+        schema.types.push(
+            ConfigSchemaObjectBuilder::new()
+                .with_name("TestType".to_string())
+                .with_properties(vec![
+                    ConfigSchemaPropertyBuilder::new()
+                        .with_name("int".to_string())
+                        .with_target(ConfigSchemaPrimitiveType::Int32)
+                        .build(),
+                ])
+                .build(),
+        );
+
+        schema.types.push(
+            ConfigSchemaObjectBuilder::new()
+                .with_name("cfg::DatabaseConfig".to_string())
+                .with_properties(vec![
+                    ConfigSchemaPropertyBuilder::new()
+                        .with_name("test_property_root".to_string())
+                        .with_target(ConfigSchemaPrimitiveType::Str)
+                        .build(),
+                ])
+                .with_links(vec![
+                    ConfigSchemaLinkBuilder::new()
+                        .with_name("root_link".to_string())
+                        .with_target(ConfigSchemaTypeReference::new("MyRootType"))
+                        .with_multi(true)
+                        .build(),
+                ])
+                .build(),
+        );
+
+        schema.types.push(
+            ConfigSchemaObjectBuilder::new()
+                .with_name("MyRootType")
+                .with_links(vec![
+                    ConfigSchemaLinkBuilder::new()
+                        .with_name("test_property".to_string())
+                        .with_target(ConfigSchemaTypeReference::new("TestType"))
+                        .build(),
+                ])
+                .build(),
+        );
+
+        schema
+            .types
+            .push(ConfigSchemaObjectBuilder::new().with_name("type1").build());
+
+        schema.roots.push(ConfigSchemaTypeReference {
+            name: "cfg::DatabaseConfig".to_string(),
+        });
+
+        schema
+    }
+
+    pub fn test_toml() -> toml::Table {
+        r#"
+[branch.config]
+test_property_root = 'hello'
+
+[[branch.config.MyRootType]]
+test_property = { _tname = "TestType", int = 1 }
+        "#
+        .parse()
+        .unwrap()
+    }
+
+    #[test]
+    fn test_fully() {
+        let schema = test_schema();
+        let domains = from_raw(schema).unwrap();
+        eprintln!("{domains:#?}");
+        let toml = test_toml();
+        eprintln!("{toml:#?}");
+        let (ops, warnings) = parse_toml(&domains, &toml).unwrap();
+        eprintln!("{}", ops.to_ddl());
+        eprintln!("{warnings:#?}");
+        assert_eq!(
+            ops.to_ddl().trim(),
+            r#"
+configure current database set test_property_root := <std::str>'hello';
+configure current database reset root_link;
+configure current database insert MyRootType {
+    test_property := (insert TestType {
+        int := <std::int32>1
+    })
+};"#
+            .trim()
+        );
     }
 }
+<<<<<<< HEAD
 
 #[derive(Clone)]
 pub enum Value {
@@ -231,3 +434,5 @@ fn quote_string(s: &str) -> String {
     buf.push('"');
     buf
 }
+=======
+>>>>>>> 3c11a7c (gel-config evolution)

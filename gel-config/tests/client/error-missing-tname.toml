@@ -1,0 +1,7 @@
+
+[[branch.config.email_providers]]
+name                  = "mailtrap-sandbox"
+port                  = 2525
+timeout_per_email     = "5 minutes"
+timeout_per_attempt   = "1 minute"
+validate_certs        = false
