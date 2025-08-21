@@ -1,0 +1,11 @@
+[unknown-key]
+with-unknown-value = 1
+
+[instance.config]
+http_max_connections                 = "100"
+current_email_provider_name       = 10
+
+[[branch.config."ext::auth::AppleOAuthProvider"]]
+client_id                         = "YOUR_APPLE_CLIENT_ID"
+secret                            = "YOUR_APPLE_SECRET"
+additional_scope                  = "email name"

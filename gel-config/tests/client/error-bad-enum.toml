@@ -1,0 +1,4 @@
+
+[branch.config]
+allow_bare_ddl                     = "nope"
+
