@@ -14,13 +14,13 @@ pub struct ConfigSchemaObject {
     #[builder(required, into)]
     pub name: String,
     /// List of ancestor type IDs
-    #[builder(default = Vec::new())]
+    #[builder(default)]
     pub ancestors: Vec<ConfigSchemaTypeReference>,
     /// Properties of this type
-    #[builder(default = Vec::new())]
+    #[builder(default)]
     pub properties: Vec<ConfigSchemaProperty>,
     /// Links (relationships) to other types
-    #[builder(default = Vec::new())]
+    #[builder(default)]
     pub links: Vec<ConfigSchemaLink>,
 }
 
@@ -37,23 +37,23 @@ pub struct ConfigSchemaProperty {
     #[builder(required, into)]
     pub target: ConfigSchemaType,
     /// Whether the property is required
-    #[builder(default = false)]
+    #[builder(default)]
     pub required: bool,
     /// Whether the property is readonly
-    #[builder(default = false)]
+    #[builder(default)]
     pub readonly: bool,
     /// Whether the property is protected
-    #[builder(default = false)]
+    #[builder(default)]
     #[serde(default)]
     pub protected: bool,
     /// Whether the property is multi-valued
-    #[builder(default = false)]
+    #[builder(default)]
     pub multi: bool,
     /// Constraints for the property
-    #[builder(default = ConfigSchemaConstraints::default())]
+    #[builder(default)]
     pub constraints: ConfigSchemaConstraints,
     /// Annotations for the property
-    #[builder(default = Vec::new())]
+    #[builder(default)]
     pub annotations: Vec<ConfigSchemaAnnotation>,
 }
 
@@ -72,10 +72,10 @@ pub struct ConfigSchemaAnnotation {
 /// Represents validation constraints for configuration properties (ranges, exclusivity).
 pub struct ConfigSchemaConstraints {
     /// Whether the property value is exclusive
-    #[builder(default = false)]
+    #[builder(default)]
     pub exclusive: bool,
     /// Range of values if this type has a valid range
-    #[builder(default = (Bound::Unbounded, Bound::Unbounded))]
+    #[builder(default = "(Bound::Unbounded, Bound::Unbounded)")]
     pub range: (Bound<String>, Bound<String>),
 }
 
@@ -163,22 +163,22 @@ pub struct ConfigSchemaLink {
     #[builder(required, into)]
     pub name: String,
     /// Whether the link is multi-valued
-    #[builder(default = false)]
+    #[builder(default)]
     pub multi: bool,
     /// Target type information
     #[builder(required, into)]
     pub target: ConfigSchemaTypeReference,
     /// Whether the property is required
-    #[builder(default = false)]
+    #[builder(default)]
     pub required: bool,
     /// Whether the property is readonly
-    #[builder(default = false)]
+    #[builder(default)]
     pub readonly: bool,
     /// Constraints for the link
-    #[builder(default = ConfigSchemaConstraints::default())]
+    #[builder(default)]
     pub constraints: ConfigSchemaConstraints,
     /// Annotations for the link
-    #[builder(default = Vec::new())]
+    #[builder(default)]
     pub annotations: Vec<ConfigSchemaAnnotation>,
 }
 
