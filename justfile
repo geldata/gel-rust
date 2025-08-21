@@ -32,11 +32,7 @@ test:
 
     cargo clippy --workspace --all-features --all-targets
 
-    cargo fmt --check
-
 test-fast:
-    cargo fmt
-
     cargo test --workspace --features=unstable
 
     cargo clippy --workspace --all-features --all-targets
@@ -57,7 +53,17 @@ check:
         cargo check --quiet --package $crate --no-default-features --all-targets
     done
 
+    cargo fmt --check
+
     echo "Checked all crates."
+
+check-fast:
+    cargo check --workspace --all-features --all-targets
+    cargo fmt --check
+
+fix:
+    cargo clippy --fix --allow-dirty --allow-staged --locked --release --all-features --all-targets -- -D clippy::all
+    cargo fmt
 
 publish:
     tools/publish.sh gel-tokio

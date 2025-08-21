@@ -55,7 +55,7 @@ impl BabelfishService for ExampleService {
                 StreamLanguage::Gel(_, _) => {
                     use gel_db_protocol::protocol::{
                         Annotation, CommandCompleteBuilder, CommandDataDescriptionBuilder,
-                        DataBuilder, DataElementBuilder, Execute, Execute2, Message, Parse, Parse2,
+                        DataBuilder, DataElementBuilder, Execute, Message, Parse,
                         ReadyForCommandBuilder, Sync, TransactionState,
                     };
                     let mut buffer = StructBuffer::<Message>::default();

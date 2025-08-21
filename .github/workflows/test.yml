@@ -25,7 +25,7 @@ jobs:
                 - rust_version: [default, beta]
                   task: [check, test-fast]
                 - rust_version: [stable]
-                  task: [check, test]
+                  task: [check-fast, check, test]
                 - rust_version: [default]
                   task: [build-minimal]
               macos:

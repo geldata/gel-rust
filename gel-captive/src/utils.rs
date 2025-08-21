@@ -12,6 +12,6 @@ pub(crate) fn execute_and_print_errors(cmd: &mut Command, program: &str, action:
         eprintln!("{}", String::from_utf8_lossy(&output.stdout));
         eprintln!("------ {program} (STDERR) -----");
         eprintln!("{}", String::from_utf8_lossy(&output.stderr));
-        panic!("{} failed", program);
+        panic!("{program} failed");
     }
 }

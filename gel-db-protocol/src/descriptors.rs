@@ -635,7 +635,7 @@ mod tests {
 
         let root = Uuid::parse_str("1d4d67e7-7bdd-5d39-9097-4f82fad8af37").unwrap();
         let desc = parse_descriptor(root, &buf).unwrap();
-        eprintln!("desc: {:#?}", desc);
+        eprintln!("desc: {desc:#?}");
     }
 
     #[test]
@@ -646,7 +646,7 @@ mod tests {
         ]);
         let root = Uuid::parse_str("00791848-6934-5a49-a089-bc68fc984124").unwrap();
         let desc = parse_descriptor(root, &buf).unwrap();
-        eprintln!("desc: {:#?}", desc);
+        eprintln!("desc: {desc:#?}");
     }
 
     #[test]
@@ -657,7 +657,7 @@ mod tests {
 
         let root = Uuid::parse_str("dd2f0335-630d-5292-8ee7-6106dc3f3c23").unwrap();
         let desc = parse_descriptor(root, &buf).unwrap();
-        eprintln!("desc: {:#?}", desc);
+        eprintln!("desc: {desc:#?}");
     }
 
     #[test]
@@ -668,7 +668,7 @@ mod tests {
 
         let root = Uuid::parse_str("00000000-0000-0000-0000-000000000101").unwrap();
         let desc = parse_descriptor(root, &buf).unwrap();
-        eprintln!("desc: {:#?}", desc);
+        eprintln!("desc: {desc:#?}");
     }
 
     #[test]
@@ -683,7 +683,7 @@ mod tests {
 
         let root = Uuid::parse_str("1783b028-46d0-5898-b70c-1c75cda51bef").unwrap();
         let desc = parse_descriptor(root, &buf).unwrap();
-        eprintln!("desc: {:#?}", desc);
+        eprintln!("desc: {desc:#?}");
     }
 
     #[test]
@@ -695,7 +695,7 @@ mod tests {
 
         let root = Uuid::parse_str("b5007f19-6d50-52cc-a100-ca4e2c42a47f").unwrap();
         let desc = parse_descriptor(root, &buf).unwrap();
-        eprintln!("desc: {:#?}", desc);
+        eprintln!("desc: {desc:#?}");
     }
 
     #[test]
@@ -707,7 +707,7 @@ mod tests {
 
         let root = Uuid::parse_str("8b4d3153-aee2-5cc4-aec1-f15e20339942").unwrap();
         let desc = parse_descriptor(root, &buf).unwrap();
-        eprintln!("desc: {:#?}", desc);
+        eprintln!("desc: {desc:#?}");
     }
 
     #[test]
@@ -721,7 +721,7 @@ mod tests {
 
         let root = Uuid::parse_str("672bd2bf-0523-572a-9f7a-38f6e43a07a6").unwrap();
         let desc = parse_descriptor(root, &buf).unwrap();
-        eprintln!("desc: {:#?}", desc);
+        eprintln!("desc: {desc:#?}");
     }
 
     #[test]
@@ -734,6 +734,6 @@ mod tests {
             b"\xba\x14>\xe0\xc2_$\xb7\x85\xa9\xd3\xa8Z*1\0\0\x03\0\x01\0\0\0\x01A\0\0\0\x02id\0\0\0\x03"]);
         let root = Uuid::parse_str("5fba143e-e0c2-5f24-b785-a9d3a85a2a31").unwrap();
         let desc = parse_descriptor(root, &buf).unwrap();
-        eprintln!("desc: {:#?}", desc);
+        eprintln!("desc: {desc:#?}");
     }
 }
