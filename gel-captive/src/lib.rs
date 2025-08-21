@@ -22,8 +22,9 @@ impl ServerBuilder {
 
     /// Sets filename of the server output log.
     /// Defaults to a random temp file.
-    pub fn log_file_path(&mut self, path: Option<path::PathBuf>) {
+    pub fn log_file_path(mut self, path: Option<path::PathBuf>) -> Self {
         self.log_file_path = path;
+        self
     }
 }
 
