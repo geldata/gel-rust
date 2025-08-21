@@ -65,5 +65,8 @@ fix:
     cargo clippy --fix --allow-dirty --allow-staged --locked --release --all-features --all-targets -- -D clippy::all
     cargo fmt
 
+submodule-update:
+    git submodule update --init --recursive --remote
+
 publish:
     tools/publish.sh gel-tokio
