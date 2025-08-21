@@ -1,9 +1,9 @@
-use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::process;
 use std::sync::Mutex;
+use std::{env, path};
 
 use crate::utils::execute_and_print_errors;
 
@@ -24,7 +24,7 @@ pub struct ServerInfo {
 }
 
 impl ServerProcess {
-    pub(crate) fn start() -> ServerProcess {
+    pub(crate) fn start(config: crate::ServerBuilder) -> ServerProcess {
         let bin_name = if let Ok(ver) = env::var("GEL_MAJOR_VERSION") {
             format!("gel-server-{ver}")
         } else {
@@ -93,7 +93,7 @@ impl ServerProcess {
 
         // write log file
         let stdout = process.stderr.take().unwrap();
-        std::thread::spawn(move || write_log_into_file(stdout));
+        std::thread::spawn(move || write_log_into_file(stdout, config.log_file_path));
 
         // wait for server to start
         let info = wait_for_server_status(get_status_file).unwrap();
@@ -251,19 +251,21 @@ fn wait_for_server_status(get_status_file: impl FnOnce() -> File) -> Result<Serv
 }
 
 /// Writes a stream to a log file in a temporary directory.
-fn write_log_into_file(stream: impl std::io::Read) {
-    let log_dir = env::temp_dir();
+fn write_log_into_file(stream: impl std::io::Read, log_path: Option<path::PathBuf>) {
+    let log_path = if let Some(f) = log_path {
+        f
+    } else {
+        let log_dir = env::temp_dir();
+        std::fs::create_dir_all(&log_dir).unwrap();
 
-    let id = unique_test_run_identifier();
+        let mut log_path = log_dir;
+        log_path.push(format!("gel-server-{}.log", unique_test_run_identifier()));
+        log_path
+    };
 
-    let mut log_file = log_dir.clone();
-    let file_name = format!("gel-server-{id}.log").to_string();
-    log_file.push(file_name);
+    eprintln!("Writing server logs into {:?}", &log_path);
 
-    eprintln!("Writing server logs into {:?}", &log_file);
-
-    std::fs::create_dir_all(&log_dir).unwrap();
-    let mut log_file = File::create(log_file).unwrap();
+    let mut log_file = File::create(log_path).unwrap();
 
     let mut reader = BufReader::new(stream);
     std::io::copy(&mut reader, &mut log_file).unwrap();
