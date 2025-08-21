@@ -6,7 +6,7 @@ use std::path;
 pub use server::{ServerInfo, ServerProcess};
 
 pub struct ServerBuilder {
-    log_file_path: Option<path::PathBuf>
+    log_file_path: Option<path::PathBuf>,
 }
 
 impl ServerBuilder {
