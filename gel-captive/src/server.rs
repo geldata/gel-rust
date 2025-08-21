@@ -26,7 +26,7 @@ pub struct ServerInfo {
 impl ServerProcess {
     pub(crate) fn start() -> ServerProcess {
         let bin_name = if let Ok(ver) = env::var("GEL_MAJOR_VERSION") {
-            format!("gel-server-{}", ver)
+            format!("gel-server-{ver}")
         } else {
             "gel-server".to_string()
         };
@@ -85,11 +85,11 @@ impl ServerProcess {
         // pipe stderr into a buffer that's printed only when there is an error
         cmd.stderr(process::Stdio::piped());
 
-        eprintln!("Starting {}...", bin_name);
+        eprintln!("Starting {bin_name}...");
 
         let mut process = cmd
             .spawn()
-            .unwrap_or_else(|_| panic!("Cannot run {}", bin_name));
+            .unwrap_or_else(|_| panic!("Cannot run {bin_name}"));
 
         // write log file
         let stdout = process.stderr.take().unwrap();
@@ -175,7 +175,7 @@ impl Drop for ServerProcess {
 
             let pid = Pid::from_raw(process.id() as i32);
             if let Err(e) = signal::kill(pid, Signal::SIGTERM) {
-                eprintln!("could not send SIGTERM to gel-server: {:?}", e);
+                eprintln!("could not send SIGTERM to gel-server: {e:?}");
             };
         }
 
@@ -213,7 +213,7 @@ fn get_server_version(bin_name: &str) -> u8 {
                 }
             }
             Err(e) => {
-                eprintln!("Error reading from server: {}", e);
+                eprintln!("Error reading from server: {e}");
                 break;
             }
         }
@@ -242,7 +242,7 @@ fn wait_for_server_status(get_status_file: impl FnOnce() -> File) -> Result<Serv
                 }
             }
             Err(e) => {
-                eprintln!("Error reading from server: {}", e);
+                eprintln!("Error reading from server: {e}");
                 return Err(e.to_string());
             }
         }
