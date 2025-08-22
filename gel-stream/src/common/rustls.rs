@@ -688,42 +688,49 @@ impl UnderlyingStream for TokioStream {
     async fn readable(&self) -> std::io::Result<()> {
         match self {
             TokioStream::Tcp(stream) => stream.readable().await,
+            #[cfg(unix)]
             TokioStream::Unix(stream) => stream.readable().await,
         }
     }
     async fn writable(&self) -> std::io::Result<()> {
         match self {
             TokioStream::Tcp(stream) => stream.writable().await,
+            #[cfg(unix)]
             TokioStream::Unix(stream) => stream.writable().await,
         }
     }
     fn poll_read_ready(&self, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self {
             TokioStream::Tcp(stream) => stream.poll_read_ready(cx),
+            #[cfg(unix)]
             TokioStream::Unix(stream) => stream.poll_read_ready(cx),
         }
     }
     fn poll_write_ready(&self, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self {
             TokioStream::Tcp(stream) => stream.poll_write_ready(cx),
+            #[cfg(unix)]
             TokioStream::Unix(stream) => stream.poll_write_ready(cx),
         }
     }
     fn try_read(&self, buf: &mut [u8]) -> std::io::Result<usize> {
         match self {
             TokioStream::Tcp(stream) => stream.try_read(buf),
+            #[cfg(unix)]
             TokioStream::Unix(stream) => stream.try_read(buf),
         }
     }
     fn try_write(&self, buf: &[u8]) -> std::io::Result<usize> {
         match self {
             TokioStream::Tcp(stream) => stream.try_write(buf),
+            #[cfg(unix)]
             TokioStream::Unix(stream) => stream.try_write(buf),
         }
     }
     fn shutdown(&self, how: std::net::Shutdown) -> std::io::Result<()> {
         match self {
             TokioStream::Tcp(stream) => stream.shutdown(how),
+            #[cfg(unix)]
             TokioStream::Unix(stream) => stream.shutdown(how),
         }
     }
@@ -735,6 +742,7 @@ impl UnderlyingStream for TokioStream {
     fn downcast<S: UnderlyingStream>(self) -> Result<S, Self> {
         match self {
             TokioStream::Tcp(stream) => UnderlyingStream::downcast(stream).map_err(Self::Tcp),
+            #[cfg(unix)]
             TokioStream::Unix(stream) => UnderlyingStream::downcast(stream).map_err(Self::Unix),
         }
     }
