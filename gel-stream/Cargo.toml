@@ -50,7 +50,7 @@ hickory-resolver = { version = "0.25.2", optional = true, default-features = fal
 # feature = "rustls"
 # We rely on certain aspects of these crates. Use caution when upgrading.
 rustls = { version = ">= 0.23.25", optional = true, default-features = false, features = ["ring", "logging", "std", "tls12"] }
-rustls-tokio-stream = { version = "0.6.0", optional = true }
+rustls-tokio-stream = { version = "0.8.0", optional = true }
 rustls-platform-verifier = { version = "0.5.1", optional = true }
 webpki = { version = "0.22", optional = true }
 webpki-roots = { version = "1", optional = true }

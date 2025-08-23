@@ -289,9 +289,6 @@ impl TlsDriver for OpensslDriver {
         let stream = stream
             .downcast::<TokioStream>()
             .map_err(|_| crate::SslError::SslUnsupported)?;
-        let TokioStream::Tcp(stream) = stream else {
-            return Err(crate::SslError::SslUnsupported);
-        };
 
         let mut stream =
             tokio_openssl::SslStream::new(params, Box::new(stream) as Box<dyn Stream + Send>)?;
