@@ -1,0 +1,12 @@
+[package]
+name = "gel-schema-parser"
+version = "0.1.0"
+rust-version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chumsky = "0.10.1"
+edgeql-parser = { git = "https://github.com/geldata/edgeql", version = "0.1.0" }
+
+[lints]
+workspace = true
