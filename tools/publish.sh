@@ -35,7 +35,7 @@ CRATE_ROOT=$(cd $(dirname $0)/.. && pwd)
 
 cd $CRATE_ROOT
 
-CRATE_ORDER=$(./tools/list.sh $CRATE)
+CRATE_ORDER=$(sh ./tools/list.sh $CRATE)
 
 # Check out a temporary worktree for this project from origin/master
 git fetch origin master >> $LOG_FILE 2>&1
@@ -111,14 +111,14 @@ else
         echo
         echo "To fix, run the following command and then re-run this script:"
         echo
-        echo "tools/bump.sh --patch ${NEEDS_BUMP[@]}"
+        echo "sh tools/bump.sh --patch ${NEEDS_BUMP[@]}"
         echo
         echo "Should I run this for you? (y/N)"
         read -n 1 -s
         if [ "$REPLY" = "y" ]; then
             echo "Yes"
             echo
-            exec ./tools/bump.sh --patch ${NEEDS_BUMP[@]}
+            exec sh ./tools/bump.sh --patch ${NEEDS_BUMP[@]}
         fi
         exit 1
     fi
