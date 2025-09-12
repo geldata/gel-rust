@@ -25,7 +25,7 @@ pub async fn handle_stream_postgres_ssl(
     bound_config: impl IsBoundConfig,
 ) -> Result<(), std::io::Error> {
     // Postgres checks to see if the socket is readable and fails here
-    let peek = [0; 1];
+    // let peek = [0; 1];
     // let len = socket.peek(&mut peek).await?;
     // if len != 0 {
     //     return Err(std::io::Error::new(
@@ -111,7 +111,7 @@ pub async fn handle_stream_postgres_initial(
         } else if auth_ready.swap(false, Ordering::SeqCst) {
             let built = match identity.clone().build() {
                 Ok(built) => built,
-                Err(e) => {
+                Err(_) => {
                     server_state.drive(ConnectionDrive::Fail(PgError::InvalidAuthorizationSpecification(PgErrorInvalidAuthorizationSpecification::InvalidAuthorizationSpecification), "Missing database or user"), &mut update).unwrap();
                     return Ok(());
                 }

@@ -13,7 +13,7 @@ lto = true
 [workspace.dependencies]
 tokio = { version = "1.45.1" }
 tracing = { version = "0.1" }
-pyo3 = { version = "0.23", features = ["extension-module", "serde", "macros"] }
+pyo3 = { version = "0.26", features = ["extension-module", "serde", "macros"] }
 
 [workspace.package]
 rust-version = "1.85" # keep in sync with flake.nix
