@@ -22,7 +22,7 @@ gel-tokio = { path = "../gel-tokio", features = ["unstable"] }
 gel-protocol = { path = "../gel-protocol", features = ["serde_json"] }
 gel-errors = { path = "../gel-errors" }
 gel-derive = { path = "../gel-derive" }
-test-utils = { git = "https://github.com/edgedb/test-utils.git" }
+gel-captive = { path = "../gel-captive" }
 
 [features]
 unstable = []
