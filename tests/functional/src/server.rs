@@ -1,13 +1,13 @@
 #![allow(dead_code)]
 use dtor::dtor;
+use gel_captive::ServerProcess;
 use gel_tokio::{Builder, Config};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 use std::{path::PathBuf, str::FromStr};
-use test_utils::server::ServerInstance;
 
 pub struct ServerGuard {
-    instance: ServerInstance,
+    instance: Mutex<Option<ServerProcess>>,
     pub config: Config,
 }
 
@@ -20,7 +20,9 @@ unsafe fn stop_server() {
         .compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst)
         .is_ok()
     {
-        SERVER.instance.stop()
+        let mut lock = SERVER.instance.lock().unwrap();
+        let instance = lock.take();
+        drop(instance); // this stops the server
     }
 }
 
@@ -36,7 +38,7 @@ fn start_server() -> ServerGuard {
         panic!("Server already started");
     }
 
-    let instance = ServerInstance::start();
+    let instance = gel_captive::ServerBuilder::new().start();
 
     let schema_dir = PathBuf::from_str(env!("CARGO_MANIFEST_DIR"))
         .unwrap()
@@ -54,5 +56,6 @@ fn start_server() -> ServerGuard {
         .without_system()
         .build()
         .unwrap();
+    let instance = Mutex::new(Some(instance));
     ServerGuard { instance, config }
 }
