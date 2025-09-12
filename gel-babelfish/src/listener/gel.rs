@@ -71,7 +71,7 @@ pub async fn handle_stream_gel_binary(
             eprintln!("auth ready");
             let built = match identity.clone().build() {
                 Ok(built) => built,
-                Err(e) => {
+                Err(_) => {
                     server_state
                         .drive(
                             ConnectionDrive::Fail(
