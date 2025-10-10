@@ -1,4 +1,4 @@
-use std::{fmt::Write, str::FromStr};
+use std::{fmt::Write, str::FromStr, sync::Arc};
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -9,27 +9,10 @@ use crate::{Class, Name};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Value {
     Object(Object),
-    ObjectDict {
-        keys: Vec<String>,
-        values: Vec<Uuid>,
-        value_ty: String,
-    },
-    ObjectList {
-        ty: ObjectListTy,
-        value_ty: Option<String>,
-        values: Vec<Uuid>,
-    },
-    ObjectSet {
-        value_ty: Option<String>,
-        values: Vec<Uuid>,
-    },
-    ObjectIndex {
-        ty: ObjectIndexTy,
-        // keys are derived from target object's name
-        keys: Option<Vec<Name>>,
-        values: Vec<Uuid>,
-        value_ty: String,
-    },
+    ObjectDict(Arc<ObjectDict>),
+    ObjectList(Arc<ObjectList>),
+    ObjectSet(Arc<ObjectSet>),
+    ObjectIndex(Arc<ObjectIndex>),
     Name(Name),
     Expression(Expression),
     ExpressionList(Vec<Expression>),
@@ -39,11 +22,7 @@ pub enum Value {
     Int(i64),
     Float(f64),
     Str(String),
-    Container {
-        ty: ContainerTy,
-        values: Vec<Value>,
-        value_ty: String,
-    },
+    Container(Arc<Container>),
     Enum(EnumTy, String),
     Version(Version),
     None,
@@ -71,6 +50,65 @@ pub struct Version {
     pub local: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObjectDict {
+    pub keys: Vec<String>,
+    pub values: Vec<Uuid>,
+    pub value_ty: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObjectList {
+    pub ty: ObjectListTy,
+    pub value_ty: Option<String>,
+    pub values: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, strum::EnumString, strum::AsRefStr, Serialize, Deserialize)]
+pub enum ObjectListTy {
+    ObjectList,
+    FuncParameterList,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObjectSet {
+    pub value_ty: Option<String>,
+    pub values: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObjectIndex {
+    pub ty: ObjectIndexTy,
+    // keys are (sometimes) derived from target object's name
+    pub keys: Option<Vec<Name>>,
+    pub values: Vec<Uuid>,
+    pub value_ty: String,
+}
+
+#[derive(Debug, Clone, strum::EnumString, strum::AsRefStr, Serialize, Deserialize)]
+pub enum ObjectIndexTy {
+    ObjectIndexByFullname,
+    ObjectIndexByShortname,
+    ObjectIndexByUnqualifiedName,
+    ObjectIndexByConstraintName,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Container {
+    pub ty: ContainerTy,
+    pub values: Vec<Value>,
+    pub value_ty: String,
+}
+
+#[derive(Debug, Clone, strum::EnumString, strum::AsRefStr, Serialize, Deserialize)]
+pub enum ContainerTy {
+    FrozenCheckedList,
+    FrozenCheckedSet,
+    ExpressionList,
+    CheckedList,
+    MultiPropSet,
+}
+
 #[derive(Debug, Clone, strum::EnumString, strum::AsRefStr, Serialize, Deserialize)]
 pub enum VersionStage {
     DEV,
@@ -85,10 +123,10 @@ impl Value {
         match self {
             Value::Object(object) => Box::new(Some(object.id).into_iter()),
 
-            Value::ObjectDict { values, .. }
-            | Value::ObjectList { values, .. }
-            | Value::ObjectSet { values, .. }
-            | Value::ObjectIndex { values, .. } => Box::new(values.iter().cloned()),
+            Value::ObjectDict(o) => Box::new(o.values.iter().cloned()),
+            Value::ObjectList(o) => Box::new(o.values.iter().cloned()),
+            Value::ObjectSet(o) => Box::new(o.values.iter().cloned()),
+            Value::ObjectIndex(o) => Box::new(o.values.iter().cloned()),
 
             Value::Expression(expression) => Box::new(expression.refs.iter().cloned()),
             Value::ExpressionList(exprs) => {
@@ -98,7 +136,7 @@ impl Value {
                 Box::new(exprs.values().flat_map(|e| e.refs.iter().cloned()))
             }
 
-            Value::Container { values, .. } => Box::new(values.iter().flat_map(|i| i.ref_ids())),
+            Value::Container(c) => Box::new(c.values.iter().flat_map(|i| i.ref_ids())),
 
             Value::Name(_)
             | Value::Uuid(_)
@@ -123,29 +161,6 @@ impl Value {
     pub fn get_object_index_ty_name(name: &str) -> ObjectIndexTy {
         ObjectIndexTy::from_str(name).unwrap_or_else(|_| panic!("unknown ObjectIndexTy: {name}"))
     }
-}
-
-#[derive(Debug, Clone, strum::EnumString, strum::AsRefStr, Serialize, Deserialize)]
-pub enum ObjectIndexTy {
-    ObjectIndexByFullname,
-    ObjectIndexByShortname,
-    ObjectIndexByUnqualifiedName,
-    ObjectIndexByConstraintName,
-}
-
-#[derive(Debug, Clone, strum::EnumString, strum::AsRefStr, Serialize, Deserialize)]
-pub enum ObjectListTy {
-    ObjectList,
-    FuncParameterList,
-}
-
-#[derive(Debug, Clone, strum::EnumString, strum::AsRefStr, Serialize, Deserialize)]
-pub enum ContainerTy {
-    FrozenCheckedList,
-    FrozenCheckedSet,
-    ExpressionList,
-    CheckedList,
-    MultiPropSet,
 }
 
 #[derive(Debug, Clone, strum::EnumString, strum::AsRefStr, Serialize, Deserialize)]

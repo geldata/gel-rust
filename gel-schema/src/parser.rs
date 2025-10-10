@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
 
 use indexmap::IndexMap;
@@ -5,8 +6,8 @@ use tinyjson::JsonValue;
 use uuid::Uuid;
 
 use crate::{
-    Class, ContainerTy, Expression, Name, Object, ObjectListTy, Schema, Value, Version,
-    VersionStage,
+    Class, Container, ContainerTy, Expression, Name, Object, ObjectDict, ObjectIndex, ObjectList,
+    ObjectListTy, ObjectSet, Schema, Value, Version, VersionStage,
 };
 use crate::{name, structure};
 
@@ -151,28 +152,28 @@ pub fn parse_reflection(
                             };
                             refids.push(Uuid::from_str(id).unwrap());
                         }
-                        Value::ObjectDict {
+                        Value::ObjectDict(Arc::new(ObjectDict {
                             keys: refkeys,
                             values: refids,
                             value_ty,
-                        }
+                        }))
                     } else {
                         let values = _parse_array_of_ids(v);
                         if f_type == "FuncParameterList" {
-                            Value::ObjectList {
+                            Value::ObjectList(Arc::new(ObjectList {
                                 ty: ObjectListTy::FuncParameterList,
                                 values,
                                 value_ty: None,
-                            }
+                            }))
                         } else if f_type == "ObjectList" {
-                            Value::ObjectList {
+                            Value::ObjectList(Arc::new(ObjectList {
                                 ty: ObjectListTy::ObjectList,
                                 values,
                                 value_ty: Some(f_ty_arg.unwrap().to_string()),
-                            }
+                            }))
                         } else if f_type == "ObjectSet" {
                             let value_ty = Some(f_ty_arg.unwrap().to_string());
-                            Value::ObjectSet { values, value_ty }
+                            Value::ObjectSet(Arc::new(ObjectSet { values, value_ty }))
                         } else {
                             panic!()
                         }
@@ -252,11 +253,11 @@ pub fn parse_reflection(
                             .iter()
                             .map(|v| _parse_value(v, &layout.r#type, &value_ty))
                             .collect();
-                        Value::Container {
+                        Value::Container(Arc::new(Container {
                             ty: ContainerTy::MultiPropSet,
                             value_ty,
                             values,
-                        }
+                        }))
                     } else {
                         _parse_value(v, &layout.r#type, f_type)
                     };
@@ -268,12 +269,12 @@ pub fn parse_reflection(
                 let (obj_index_base_ty, ty_arg) = unpack_generic_py_type(f_type);
                 let ty = Value::get_object_index_ty_name(obj_index_base_ty);
 
-                let val = Value::ObjectIndex {
+                let val = Value::ObjectIndex(Arc::new(ObjectIndex {
                     ty,
                     value_ty: ty_arg.unwrap().to_string(),
                     keys: None,
                     values: ref_ids.clone(),
-                };
+                }));
 
                 record_refs(&mut refs_to, obj, &layout.fieldname, &val);
                 obj_data[f_index] = Some(val);
@@ -479,11 +480,11 @@ fn _parse_value(val: &JsonValue, eql_ty: &str, py_ty: &str) -> Value {
             .map(|i| _parse_value(i, &eql_item, &value_ty))
             .collect();
 
-        return Value::Container {
+        return Value::Container(Arc::new(Container {
             ty,
             values,
             value_ty,
-        };
+        }));
     }
 
     if let Some(schema_object) = eql_ty.strip_prefix("schema::") {
