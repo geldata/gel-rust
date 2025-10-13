@@ -110,6 +110,7 @@ pub enum ContainerTy {
 }
 
 #[derive(Debug, Clone, strum::EnumString, strum::AsRefStr, Serialize, Deserialize)]
+#[strum(ascii_case_insensitive)]
 pub enum VersionStage {
     DEV,
     ALPHA,

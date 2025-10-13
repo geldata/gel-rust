@@ -79,6 +79,7 @@ pub enum Class {
     ExtensionPackageMigration,
     Extension,
     Role,
+    Branch,
 }
 
 impl Class {
@@ -188,6 +189,7 @@ impl Class {
             ExtensionPackageMigration => &[GlobalObject, AnnotationSubject],
             Extension => &[Object],
             Role => &[GlobalObject, InheritingObject, AnnotationSubject],
+            Branch => &[ExternalObject, AnnotationSubject],
         }
     }
 

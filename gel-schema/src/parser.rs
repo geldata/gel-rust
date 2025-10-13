@@ -210,7 +210,7 @@ pub fn parse_reflection(
                             }
                             Value::ExpressionDict(expr_dict)
                         } else if f_type.starts_with("Object") {
-                            todo!()
+                            todo!("object")
                             // val = val.id
                         } else if f_type.starts_with("Name") {
                             let JsonValue::String(v) = v else { panic!() };
@@ -224,13 +224,12 @@ pub fn parse_reflection(
                             _parse_value(v, &layout.r#type, f_type)
                         }
                     } else {
-                        todo!()
+                        todo!("no value")
                     };
                     obj_data[f_index] = Some(val);
                 } else {
                     let val = if f_type == "Version" {
-                        todo!()
-                        // objdata[findex] = Value::Version(_parse_version(v))
+                        Value::Version(_parse_version(v))
                     } else if f_type == "Name" {
                         let JsonValue::String(v) = v else { panic!() };
                         Value::Name(Name::new_from_string(v))
@@ -239,7 +238,7 @@ pub fn parse_reflection(
                     // && ftype.types
                     // && len(ftype.types) == 1
                     {
-                        todo!()
+                        todo!("ParametricContainer")
                         // Coerce the elements in a parametric container
                         // type.
                         // XXX: Or should we do it in the container?
@@ -297,8 +296,8 @@ pub fn parse_reflection(
                             JsonValue::Boolean(b) => Value::Bool(*b),
                             JsonValue::String(s) => Value::Str(s.clone()),
                             JsonValue::Null => Value::None,
-                            JsonValue::Array(_) => todo!(),
-                            JsonValue::Object(_) => todo!(),
+                            JsonValue::Array(_) => todo!("properties array"),
+                            JsonValue::Object(_) => todo!("properties object"),
                         };
                         property_updates.insert(p.clone(), pv);
                     }
@@ -434,7 +433,8 @@ fn _parse_version(val: &JsonValue) -> Version {
     let Some(JsonValue::String(stage)) = val.get("stage").cloned() else {
         panic!()
     };
-    let stage = VersionStage::from_str(&stage).unwrap();
+    let stage =
+        VersionStage::from_str(&stage).unwrap_or_else(|_| panic!("unknown version stage: {stage}"));
     let Some(JsonValue::Number(stage_no)) = val.get("stage_no").cloned() else {
         panic!()
     };
@@ -454,7 +454,7 @@ fn _parse_version(val: &JsonValue) -> Version {
         minor: minor as u8,
         stage,
         stage_no: stage_no as u16,
-        local: local,
+        local,
     }
 }
 
