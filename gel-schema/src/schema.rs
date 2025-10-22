@@ -64,7 +64,7 @@ impl Schema {
             .map(move |id| Object::new(cls, *id))
     }
 
-    pub fn get_obj_data_raw(&self, obj: &Object) -> Option<&[Value]> {
+    pub fn get_data(&self, obj: &Object) -> Option<&[Value]> {
         Some(self.id_to_data.get(&obj.id)?)
     }
 
@@ -73,7 +73,7 @@ impl Schema {
             .is_some()
     }
 
-    pub fn add_raw(&mut self, obj: &Object, data: Vec<Value>) -> Result<(), String> {
+    pub fn add(&mut self, obj: &Object, data: Vec<Value>) -> Result<(), String> {
         let structures = structure::get_structures();
         let cls_structure = structures.classes.get(obj.class.as_ref()).unwrap();
 
@@ -104,7 +104,7 @@ impl Schema {
             self.update_refs_to(obj, &cls_structure.fields, Default::default(), new_refs);
         }
 
-        self.update_obj_name(obj, None, Some(name))?;
+        self.update_name(obj, None, Some(name))?;
 
         if let Some(module) = &name.module
             && !self.has_module(module)
@@ -135,7 +135,7 @@ impl Schema {
             panic!()
         };
 
-        self.update_obj_name(obj, Some(&name), None)?;
+        self.update_name(obj, Some(&name), None)?;
 
         let data = self.id_to_data.get(&obj.id).unwrap();
 
@@ -149,12 +149,7 @@ impl Schema {
         Ok(())
     }
 
-    pub fn set_obj_field(
-        &mut self,
-        obj: Object,
-        fieldname: &str,
-        value: Value,
-    ) -> Result<(), String> {
+    pub fn set_field(&mut self, obj: Object, fieldname: &str, value: Value) -> Result<(), String> {
         let Some(data) = self.id_to_data.get(&obj.id) else {
             let obj_id = obj.id;
             return Err(format!(
@@ -174,7 +169,7 @@ impl Schema {
                 panic!()
             };
 
-            self.update_obj_name(&obj, Some(&old_name), Some(new_name))?;
+            self.update_name(&obj, Some(&old_name), Some(new_name))?;
         }
 
         let mut new_refs = HashMap::new();
@@ -193,7 +188,7 @@ impl Schema {
         Ok(())
     }
 
-    pub fn unset_obj_field(&mut self, obj: Object, fieldname: &str) -> Result<(), String> {
+    pub fn unset_field(&mut self, obj: Object, fieldname: &str) -> Result<(), String> {
         let Some(data) = self.id_to_data.get(&obj.id) else {
             return Ok(());
         };
@@ -218,7 +213,7 @@ impl Schema {
             let Value::Name(orig_value) = orig_value.clone() else {
                 panic!()
             };
-            self.update_obj_name(&obj, Some(&orig_value), None)?;
+            self.update_name(&obj, Some(&orig_value), None)?;
         }
 
         let data = self.id_to_data.get_mut(&obj.id).unwrap();
@@ -229,7 +224,7 @@ impl Schema {
         Ok(())
     }
 
-    pub fn update_obj(
+    pub fn set_fields(
         &mut self,
         obj: Object,
         updates: HashMap<String, Value>,
@@ -259,7 +254,7 @@ impl Schema {
                     panic!()
                 };
 
-                self.update_obj_name(&obj, Some(&old_name), Some(new_name))?;
+                self.update_name(&obj, Some(&old_name), Some(new_name))?;
             }
 
             data[field.index] = value;
@@ -271,7 +266,7 @@ impl Schema {
         Ok(())
     }
 
-    fn update_obj_name(
+    fn update_name(
         &mut self,
         obj: &Object,
         old_name: Option<&Name>,
