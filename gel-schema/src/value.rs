@@ -1,4 +1,6 @@
-use std::{fmt::Write, str::FromStr, sync::Arc};
+use std::fmt::Write;
+use std::rc::Rc;
+use std::str::FromStr;
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -9,10 +11,10 @@ use crate::{Class, Name};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Value {
     Object(Object),
-    ObjectDict(Arc<ObjectDict>),
-    ObjectList(Arc<ObjectList>),
-    ObjectSet(Arc<ObjectSet>),
-    ObjectIndex(Arc<ObjectIndex>),
+    ObjectDict(Rc<ObjectDict>),
+    ObjectList(Rc<ObjectList>),
+    ObjectSet(Rc<ObjectSet>),
+    ObjectIndex(Rc<ObjectIndex>),
     Name(Name),
     Expression(Expression),
     ExpressionList(Vec<Expression>),
@@ -22,7 +24,7 @@ pub enum Value {
     Int(i64),
     Float(f64),
     Str(String),
-    Container(Arc<Container>),
+    Container(Rc<Container>),
     Enum(EnumTy, String),
     Version(Version),
     None,

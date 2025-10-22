@@ -11,12 +11,12 @@ use crate::{Class, Name, Object, Value};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Schema {
-    pub(crate) id_to_data: im::OrdMap<Uuid, Vec<Value>>,
-    pub(crate) id_to_type: im::OrdMap<Uuid, Class>,
-    pub(crate) name_to_id: im::OrdMap<Name, Uuid>,
-    pub(crate) shortname_to_id: im::OrdMap<(Class, Name), im::OrdSet<Uuid>>,
-    pub(crate) globalname_to_id: im::OrdMap<(Class, Name), Uuid>,
-    pub(crate) refs_to: im::OrdMap<Uuid, im::OrdMap<(Class, String), im::OrdSet<Uuid>>>,
+    pub(crate) id_to_data: im::HashMap<Uuid, Vec<Value>>,
+    pub(crate) id_to_type: im::HashMap<Uuid, Class>,
+    pub(crate) name_to_id: im::HashMap<Name, Uuid>,
+    pub(crate) shortname_to_id: im::HashMap<(Class, Name), im::HashSet<Uuid>>,
+    pub(crate) globalname_to_id: im::HashMap<(Class, Name), Uuid>,
+    pub(crate) refs_to: im::HashMap<Uuid, im::HashMap<(Class, String), im::HashSet<Uuid>>>,
 
     generation: usize,
 }
