@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use im_rc as im;
 use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
@@ -452,14 +453,14 @@ fn collect_refs<'s>(
     cls_structure: &'s structure::ClassStructure,
     data: &[Value],
 ) -> HashMap<&'s str, HashSet<Uuid>> {
-    let mut orig_refs = HashMap::new();
+    let mut refs = HashMap::new();
     for (field_name, field) in &cls_structure.fields {
         if let Some(val) = data.get(field.index) {
             let ids: HashSet<_> = val.ref_ids().collect();
             if !ids.is_empty() {
-                orig_refs.insert(field_name.as_str(), ids);
+                refs.insert(field_name.as_str(), ids);
             }
         }
     }
-    orig_refs
+    refs
 }

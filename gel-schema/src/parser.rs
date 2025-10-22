@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
 
+use im_rc as im;
 use indexmap::IndexMap;
 use tinyjson::JsonValue;
 use uuid::Uuid;
