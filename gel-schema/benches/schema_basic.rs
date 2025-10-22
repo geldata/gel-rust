@@ -1,18 +1,34 @@
-use std::hint::black_box;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
+use gel_schema::{Name, Schema};
 
-fn schema_add() -> u64 {
+fn schema_add() -> Schema {
     let schema = gel_schema::Schema::default();
 
-    match n {
-        0 => 1,
-        1 => 1,
-        n => fibonacci(n-1) + fibonacci(n-2),
+    let uuid = uuid::Uuid::new_v4();
+
+    let obj = gel_schema::Object::new(gel_schema::Class::Module, uuid);
+
+    let mut data = Vec::with_capacity(13);
+    data.push(gel_schema::Value::Bool(false));
+    data.push(gel_schema::Value::None);
+    data.push(gel_schema::Value::Name(Name {
+        module: None,
+        object: "default".into(),
+    }));
+    for _ in 0..10 {
+        data.push(gel_schema::Value::None);
     }
+
+    for _ in 0..100 {
+        let mut schema = schema.clone();
+        schema.add(&obj, data.clone()).unwrap();
+    }
+
+    schema
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("schema add", |b| b.iter(|| fibonacci(black_box(20))));
+    c.bench_function("schema_add", |b| b.iter(|| schema_add()));
 }
 
 criterion_group!(benches, criterion_benchmark);

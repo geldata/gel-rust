@@ -29,6 +29,9 @@
             pkgs.openssl
             pkgs.pkg-config
 
+            pkgs.cargo-flamegraph
+            pkgs.linuxKernel.packages.linux_6_13.perf
+
             # needed for tests
             gel.packages.${system}.gel-server
             gel.packages.${system}.gel-cli

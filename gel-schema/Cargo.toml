@@ -17,3 +17,11 @@ uuid = {version = "1.18.1", features = ["serde"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+uuid = {version = "*", features = ["v4"] }
+
+[[bench]]
+name = "schema_basic"
+harness = false
