@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use criterion::{Criterion, criterion_group, criterion_main};
 use gel_schema::{Name, Schema};
 
@@ -11,10 +13,10 @@ fn schema_add() -> Schema {
     let mut data = Vec::with_capacity(13);
     data.push(gel_schema::Value::Bool(false));
     data.push(gel_schema::Value::None);
-    data.push(gel_schema::Value::Name(Name {
+    data.push(gel_schema::Value::Name(Rc::new(Name {
         module: None,
         object: "default".into(),
-    }));
+    })));
     for _ in 0..10 {
         data.push(gel_schema::Value::None);
     }
@@ -28,7 +30,7 @@ fn schema_add() -> Schema {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("schema_add", |b| b.iter(|| schema_add()));
+    c.bench_function("schema_add", |b| b.iter(schema_add));
 }
 
 criterion_group!(benches, criterion_benchmark);

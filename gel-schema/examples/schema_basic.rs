@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use gel_schema::{Class, Name, Object, Schema, Value};
 
 fn main() {
@@ -8,10 +10,10 @@ fn main() {
     let mut data = Vec::with_capacity(13);
     data.push(Value::Bool(false));
     data.push(Value::None);
-    data.push(Value::Name(Name {
+    data.push(Value::Name(Rc::new(Name {
         module: None,
         object: "default".into(),
-    }));
+    })));
     for _ in 0..10 {
         data.push(Value::None);
     }

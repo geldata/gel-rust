@@ -186,7 +186,7 @@ pub fn parse_reflection(
                     let v = entry.get(&format!("{k}__internal"));
                     let val = if let Some(v) = v {
                         if f_type == "Expression" {
-                            Value::Expression(_parse_expression(v, obj_id, k))
+                            Value::Expression(Rc::new(_parse_expression(v, obj_id, k)))
                         } else if f_type.starts_with("ExpressionList") {
                             let JsonValue::Array(v) = v else { panic!() };
 
@@ -194,7 +194,7 @@ pub fn parse_reflection(
                             for e_dict in v {
                                 exprs.push(_parse_expression(e_dict, obj_id, k))
                             }
-                            Value::ExpressionList(exprs)
+                            Value::ExpressionList(Rc::new(exprs))
                         } else if f_type.starts_with("ExpressionDict") {
                             let JsonValue::Array(v) = v else { panic!() };
 
@@ -210,18 +210,18 @@ pub fn parse_reflection(
                                 let e = _parse_expression(e_dict.get("expr").unwrap(), obj_id, k);
                                 expr_dict.insert(name.clone(), e);
                             }
-                            Value::ExpressionDict(expr_dict)
+                            Value::ExpressionDict(Rc::new(expr_dict))
                         } else if f_type.starts_with("Object") {
                             todo!("object")
                             // val = val.id
                         } else if f_type.starts_with("Name") {
                             let JsonValue::String(v) = v else { panic!() };
 
-                            Value::Name(if cls.is_qualified() {
+                            Value::Name(Rc::new(if cls.is_qualified() {
                                 Name::new_from_string(v)
                             } else {
                                 Name::new_unqualified(v.clone())
-                            })
+                            }))
                         } else {
                             _parse_value(v, &layout.r#type, f_type)
                         }
@@ -234,7 +234,7 @@ pub fn parse_reflection(
                         Value::Version(_parse_version(v))
                     } else if f_type == "Name" {
                         let JsonValue::String(v) = v else { panic!() };
-                        Value::Name(Name::new_from_string(v))
+                        Value::Name(Rc::new(Name::new_from_string(v)))
                     } else if f_type == "ParametricContainer"
                     // TODO:
                     // && ftype.types
@@ -296,7 +296,7 @@ pub fn parse_reflection(
                         let pv = match pv {
                             JsonValue::Number(n) => Value::Int(*n as i64),
                             JsonValue::Boolean(b) => Value::Bool(*b),
-                            JsonValue::String(s) => Value::Str(s.clone()),
+                            JsonValue::String(s) => Value::Str(Rc::new(s.clone())),
                             JsonValue::Null => Value::None,
                             JsonValue::Array(_) => todo!("properties array"),
                             JsonValue::Object(_) => todo!("properties object"),
@@ -311,7 +311,7 @@ pub fn parse_reflection(
             .into_iter()
             .map(|d| d.unwrap_or(Value::None))
             .collect();
-        schema.id_to_data.insert(obj_id, obj_data);
+        schema.id_to_data.insert(obj_id, Rc::new(obj_data));
     }
 
     for (obj_id, updates) in refdict_updates {
@@ -321,16 +321,18 @@ pub fn parse_reflection(
         };
         let cls_structure = layouts.classes.get(cls.as_ref()).unwrap();
 
-        let id_to_data = schema.id_to_data.get_mut(&obj_id).unwrap();
+        let data_ref = schema.id_to_data.get_mut(&obj_id).unwrap();
+        let mut data_cloned = data_ref.as_ref().clone();
         for (f_name, v) in updates {
             let field = cls_structure
                 .fields
                 .get(&f_name)
                 .unwrap_or_else(|| panic!("cannot get field {}.{f_name}", cls.as_ref()));
 
-            let data = id_to_data.get_mut(field.index).unwrap();
-            *data = v;
+            let value = data_cloned.get_mut(field.index).unwrap();
+            *value = v;
         }
+        *data_ref = Rc::new(data_cloned);
     }
 
     for (referred_id, ref_data) in refs_to {
@@ -463,7 +465,7 @@ fn _parse_version(val: &JsonValue) -> Version {
 fn _parse_value(val: &JsonValue, eql_ty: &str, py_ty: &str) -> Value {
     if ["Name", "QualName", "UnqualName"].contains(&py_ty) {
         let JsonValue::String(s) = val else { panic!() };
-        return Value::Name(Name::new_from_string(s));
+        return Value::Name(Rc::new(Name::new_from_string(s)));
     }
     if py_ty.starts_with("FrozenChecked") {
         let (ty, ty_arg) = unpack_generic_py_type(py_ty);
@@ -508,7 +510,7 @@ fn _parse_value(val: &JsonValue, eql_ty: &str, py_ty: &str) -> Value {
         }
         "std::str" => {
             let JsonValue::String(s) = val else { panic!() };
-            Value::Str(s.clone())
+            Value::Str(Rc::new(s.clone()))
         }
         "std::int16" | "std::int32" | "std::int64" => {
             let JsonValue::Number(n) = val else { panic!() };
