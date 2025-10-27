@@ -125,7 +125,6 @@ pub enum VersionStage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Span {
     pub filename: Option<String>,
-    pub buffer: String,
     pub start: u32,
     pub end: u32,
 }
