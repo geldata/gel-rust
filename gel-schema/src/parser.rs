@@ -72,11 +72,11 @@ pub fn parse_reflection(
         } else {
             schema
                 .globalname_to_id
-                .insert((cls, name.clone().into_unqualified()), obj_id);
+                .insert((cls, Name::new_unqualified(name_internal.clone())), obj_id);
         }
 
         if matches!(cls, Class::Function | Class::Operator) {
-            let shortname = name.as_shortname(cls);
+            let shortname = name.as_short_name(cls);
             let ids = schema.shortname_to_id.entry((cls, shortname)).or_default();
             ids.insert(obj_id);
         }
@@ -491,8 +491,11 @@ fn _parse_value(val: &JsonValue, eql_ty: &str, py_ty: &str) -> Value {
         }));
     }
 
-    if let Some(schema_object) = eql_ty.strip_prefix("schema::") {
-        if let JsonValue::String(val) = val {
+    if let JsonValue::String(val) = val {
+        if let Some(val) = Value::parse_enum(py_ty, val) {
+            return val;
+        }
+        if let Some(schema_object) = eql_ty.strip_prefix("schema::") {
             if let Some(val) = Value::parse_enum(schema_object, val) {
                 return val;
             }

@@ -204,4 +204,55 @@ impl Class {
     pub fn is_qualified(&self) -> bool {
         self.is_subclass(&Class::QualifiedObject)
     }
+
+    pub fn get_display_name(&self) -> &'static str {
+        match self {
+            Class::Module => "module",
+
+            Class::ObjectType => "object type",
+            Class::Property => "property",
+            Class::Link => "link",
+
+            Class::Index => "index",
+            Class::IndexMatch => "index match",
+
+            Class::Constraint => "constraint",
+            Class::Trigger => "trigger",
+            Class::Rewrite => "rewrite",
+            Class::AccessPolicy => "access policy",
+
+            Class::Type => "type",
+            Class::Collection | Class::Array | Class::Tuple | Class::Range | Class::MultiRange => {
+                "collection"
+            }
+            Class::CollectionExprAlias
+            | Class::ArrayExprAlias
+            | Class::TupleExprAlias
+            | Class::RangeExprAlias
+            | Class::MultiRangeExprAlias => "expression alias",
+            Class::ScalarType => "scalar type",
+
+            Class::Alias => "alias",
+            Class::Global => "global",
+
+            Class::Function => "function",
+            Class::Parameter => "parameter",
+            Class::Cast => "cast",
+            Class::Operator => "operator",
+
+            Class::Annotation | Class::AnnotationValue => "annotation",
+
+            Class::Branch => "branch",
+            Class::Migration => "migration",
+            Class::FutureBehavior => "future behavior",
+            Class::Extension => "extension",
+            Class::ExtensionPackage => "extension package",
+            Class::ExtensionPackageMigration => "extension package migration",
+
+            Class::Permission => "permission",
+            Class::Role => "role",
+
+            _ => unimplemented!("get_display_name for abstract schema classes"),
+        }
+    }
 }

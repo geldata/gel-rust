@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Class;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Name {
     pub module: Option<String>,
     pub object: String,
@@ -32,17 +32,12 @@ impl Name {
         }
     }
 
-    pub fn into_unqualified(mut self) -> Name {
-        self.module = None;
-        self
-    }
-
     /// Analogous to Object.get_shortname_static
-    pub fn as_shortname(&self, cls: Class) -> Name {
+    pub fn as_short_name(&self, cls: Class) -> Name {
         match cls {
             Class::Parameter => Name {
                 module: Some("__".into()),
-                object: self.clone().fullname_into_paramname(),
+                object: self.clone().fullname_into_param_name(),
             },
             Class::Index => self.clone().fullname_into_shortname(),
 
@@ -68,7 +63,7 @@ impl Name {
     }
 
     /// Analogous to paramname_from_fullname
-    fn fullname_into_paramname(self) -> String {
+    fn fullname_into_param_name(self) -> String {
         if let Some((first, _second)) = self.object.split_once('@') {
             unmangle_name(first)
         } else {
@@ -82,6 +77,51 @@ impl Name {
             Self::new_from_string(unmangle_name(first))
         } else {
             self
+        }
+    }
+
+    /// Analogous to Object.get_displayname_static
+    pub fn as_display_name(&self, cls: Class) -> String {
+        match cls {
+            _ if cls.is_subclass(&Class::Pointer)
+                || cls.is_subclass(&Class::NamedReferencedInheritingObject) =>
+            {
+                let sn = self.as_short_name(cls);
+                if sn.module.as_deref() == Some("__") {
+                    sn.object
+                } else {
+                    sn.to_string()
+                }
+            }
+            Class::Parameter | Class::ExtensionPackage | Class::ExtensionPackageMigration => {
+                let sn = self.as_short_name(cls);
+                sn.object
+            }
+            _ if cls.is_subclass(&Class::Collection) => {
+                let name = self.to_string();
+
+                if self.module.is_some() {
+                    // FIXME: Globals and alias names do mangling but *don't*
+                    // duplicate the module name, which most places do.
+                    name.split_once('@')
+                        .map(|(x, _)| x.to_string())
+                        .unwrap_or(name)
+                } else {
+                    recursively_unmangle_shortname(&name).into_owned()
+                }
+            }
+            _ => self.as_short_name(cls).to_string(),
+        }
+    }
+
+    /// Analogous to Object.get_verbosename_static
+    pub fn as_verbose_name(&self, cls: Class, parent: Option<&str>) -> String {
+        let cls_name = cls.get_display_name();
+        let dname = self.as_display_name(cls);
+        if let Some(parent) = parent {
+            format!("{cls_name} '{dname}' of {parent}")
+        } else {
+            format!("{cls_name} '{dname}'")
         }
     }
 }
@@ -103,7 +143,14 @@ pub fn unmangle_name(name: &str) -> String {
     name.replace("||", "|").replace("&&", "&")
 }
 
-impl std::fmt::Debug for Name {
+static UNMANGLE_RE_1: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\|+").unwrap());
+
+/// Any number of pipes becomes a single ::.
+pub fn recursively_unmangle_shortname(name: &str) -> Cow<str> {
+    UNMANGLE_RE_1.replace_all(name, "::")
+}
+
+impl std::fmt::Display for Name {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(module) = &self.module {
             f.write_str(module)?;

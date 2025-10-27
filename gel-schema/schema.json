@@ -4296,7 +4296,7 @@
                 "1ccaa0f4-61ee-54ff-8722-243e46313833"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -4352,7 +4352,7 @@
                 "00000000-0000-0000-0000-000000000107"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -4408,7 +4408,7 @@
                 "23aa63de-3994-5d9f-bb07-70fdce557c48"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -4464,7 +4464,7 @@
                 "00000000-0000-0000-0000-00000000010f"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -4520,7 +4520,7 @@
                 "00000000-0000-0000-0000-00000000010f"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -4579,7 +4579,7 @@
                 "00000000-0000-0000-0000-00000000010f"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -4632,7 +4632,7 @@
                 "23aa63de-3994-5d9f-bb07-70fdce557c48"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -4691,7 +4691,7 @@
                 "00000000-0000-0000-0000-00000000010f"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -4768,7 +4768,7 @@
                 "6b7dea6e-8805-5e0e-9070-44ed9226e50a"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -4837,7 +4837,7 @@
                 "23aa63de-3994-5d9f-bb07-70fdce557c48"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -4908,7 +4908,7 @@
                 "42da41b5-4b2c-58e7-94f6-eb408fed9f29"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -4965,7 +4965,7 @@
                 "23aa63de-3994-5d9f-bb07-70fdce557c48"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5024,7 +5024,7 @@
                 "23aa63de-3994-5d9f-bb07-70fdce557c48"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5095,7 +5095,7 @@
                 "23aa63de-3994-5d9f-bb07-70fdce557c48"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5147,7 +5147,7 @@
                 "00000000-0000-0000-0000-000000000105"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5199,7 +5199,7 @@
                 "00000000-0000-0000-0000-000000000101"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5255,7 +5255,7 @@
                 "1738cd90-5232-5cdd-a1b4-4421264b3a60"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5311,7 +5311,7 @@
                 "1738cd90-5232-5cdd-a1b4-4421264b3a60"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5364,7 +5364,7 @@
                 "bd616f9e-8e2f-11f0-95ee-4ff8b45a3697"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5424,7 +5424,7 @@
                 "a05800ce-d8fe-5924-9253-d12b52b8ad32"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5486,7 +5486,7 @@
                 "1ccaa0f4-61ee-54ff-8722-243e46313833"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5542,7 +5542,7 @@
                 "00000000-0000-0000-0000-00000000010f"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5595,7 +5595,7 @@
                 "23aa63de-3994-5d9f-bb07-70fdce557c48"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5664,7 +5664,7 @@
                 "624e67a2-b8bc-5000-9f0a-35bf4eab3402"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5720,7 +5720,7 @@
                 "1ccaa0f4-61ee-54ff-8722-243e46313833"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5776,7 +5776,7 @@
                 "23aa63de-3994-5d9f-bb07-70fdce557c48"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5833,7 +5833,7 @@
                 "4e1b29f8-0e8c-5300-8119-d1a5386a161f"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5887,7 +5887,7 @@
                 "42da41b5-4b2c-58e7-94f6-eb408fed9f29"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
@@ -5941,7 +5941,7 @@
                 "42da41b5-4b2c-58e7-94f6-eb408fed9f29"
             ]
         },
-        "language_real": "EDGEQL",
+        "language_real": "EdgeQL",
         "language": "EdgeQL",
         "from_function": null,
         "from_expr": null,
