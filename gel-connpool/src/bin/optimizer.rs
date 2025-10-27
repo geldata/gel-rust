@@ -1,4 +1,4 @@
-use conn_pool::{knobs::*, test::spec::run_specs_tests_in_runtime};
+use gel_connpool::{knobs::*, test::spec::run_specs_tests_in_runtime};
 use std::sync::{atomic::AtomicIsize, Mutex};
 
 use genetic_algorithm::strategy::evolve::prelude::*;
@@ -41,7 +41,7 @@ fn main() {
                 return Some(*res);
             }
 
-            for (i, knob) in conn_pool::knobs::ALL_KNOBS.iter().enumerate() {
+            for (i, knob) in gel_connpool::knobs::ALL_KNOBS.iter().enumerate() {
                 if knob.set(knobs[i]).is_err() {
                     return None;
                 };
@@ -58,7 +58,7 @@ fn main() {
             if qos_i > self.best.load(std::sync::atomic::Ordering::SeqCst) {
                 let _lock = LOG_LOCK.lock();
                 println!("{:?} New best: {score:.02} {knobs:?}", self.now.elapsed());
-                println!("{:?}", conn_pool::knobs::ALL_KNOBS);
+                println!("{:?}", gel_connpool::knobs::ALL_KNOBS);
                 for (weight, output) in weights.iter().zip(outputs) {
                     println!("{weight:?}: {:?}", output.ok()?);
                 }
@@ -75,7 +75,7 @@ fn main() {
 
     // The current state
     seeds.push(
-        conn_pool::knobs::ALL_KNOBS
+        gel_connpool::knobs::ALL_KNOBS
             .iter()
             .map(|k| k.get() as _)
             .collect(),
@@ -84,7 +84,7 @@ fn main() {
     // Some randomness
     for _ in 0..100 {
         seeds.push(
-            conn_pool::knobs::ALL_KNOBS
+            gel_connpool::knobs::ALL_KNOBS
                 .iter()
                 .map(|k| {
                     let proposed: isize =
@@ -97,7 +97,7 @@ fn main() {
 
     let mut final_seeds = vec![];
     for mut seed in seeds {
-        for (i, knob) in conn_pool::knobs::ALL_KNOBS.iter().enumerate() {
+        for (i, knob) in gel_connpool::knobs::ALL_KNOBS.iter().enumerate() {
             let mut value = seed[i] as _;
             if knob.set(value).is_err() {
                 knob.clamp(&mut value);
@@ -108,7 +108,7 @@ fn main() {
     }
 
     let genotype = RangeGenotype::builder()
-        .with_genes_size(conn_pool::knobs::ALL_KNOBS.len())
+        .with_genes_size(gel_connpool::knobs::ALL_KNOBS.len())
         .with_allele_range(-100_000..=100_000)
         .with_allele_mutation_range(-1000..=1000)
         .with_seed_genes_list(final_seeds)

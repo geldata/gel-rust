@@ -37,12 +37,12 @@ anyhow = { version = "1", optional = true }
 derive_more = { version = "2", features = ["full"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util"] }
+tokio = { workspace = true, features = ["rt", "macros", "test-util"] }
 
 pretty_assertions = "1.2.0"
-test-log = { version = "0", features = ["trace"] }
+test-log = { version = "0.2", features = ["trace"] }
 anyhow = "1"
-rstest = "0"
+rstest = "0.26"
 
 statrs = "0.17.1"
 rand = "0.8.5"
