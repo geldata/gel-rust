@@ -27,6 +27,7 @@ pub enum Value {
     Container(Rc<Container>),
     Enum(EnumTy, String),
     Version(Version),
+    Span(Rc<Span>),
     None,
 }
 
@@ -121,6 +122,14 @@ pub enum VersionStage {
     FINAL,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Span {
+    pub filename: Option<String>,
+    pub buffer: String,
+    pub start: u32,
+    pub end: u32,
+}
+
 impl Value {
     pub fn ref_ids<'a>(&'a self) -> Box<dyn Iterator<Item = Uuid> + 'a> {
         match self {
@@ -149,6 +158,7 @@ impl Value {
             | Value::Str(_)
             | Value::Enum(..)
             | Value::Version(_)
+            | Value::Span(_)
             | Value::None => Box::new(std::iter::empty()),
         }
     }
