@@ -8,6 +8,6 @@ mod value;
 pub use class::Class;
 pub use name::Name;
 pub use parser::parse_reflection;
-pub use schema::Schema;
+pub use schema::{Schema, SchemaError};
 pub use structure::{Structures, get_structures};
 pub use value::*;

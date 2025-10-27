@@ -79,51 +79,6 @@ impl Name {
             self
         }
     }
-
-    /// Analogous to Object.get_displayname_static
-    pub fn as_display_name(&self, cls: Class) -> String {
-        match cls {
-            _ if cls.is_subclass(&Class::Pointer)
-                || cls.is_subclass(&Class::NamedReferencedInheritingObject) =>
-            {
-                let sn = self.as_short_name(cls);
-                if sn.module.as_deref() == Some("__") {
-                    sn.object
-                } else {
-                    sn.to_string()
-                }
-            }
-            Class::Parameter | Class::ExtensionPackage | Class::ExtensionPackageMigration => {
-                let sn = self.as_short_name(cls);
-                sn.object
-            }
-            _ if cls.is_subclass(&Class::Collection) => {
-                let name = self.to_string();
-
-                if self.module.is_some() {
-                    // FIXME: Globals and alias names do mangling but *don't*
-                    // duplicate the module name, which most places do.
-                    name.split_once('@')
-                        .map(|(x, _)| x.to_string())
-                        .unwrap_or(name)
-                } else {
-                    recursively_unmangle_shortname(&name).into_owned()
-                }
-            }
-            _ => self.as_short_name(cls).to_string(),
-        }
-    }
-
-    /// Analogous to Object.get_verbosename_static
-    pub fn as_verbose_name(&self, cls: Class, parent: Option<&str>) -> String {
-        let cls_name = cls.get_display_name();
-        let dname = self.as_display_name(cls);
-        if let Some(parent) = parent {
-            format!("{cls_name} '{dname}' of {parent}")
-        } else {
-            format!("{cls_name} '{dname}'")
-        }
-    }
 }
 
 #[allow(dead_code)]
@@ -146,6 +101,7 @@ pub fn unmangle_name(name: &str) -> String {
 static UNMANGLE_RE_1: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\|+").unwrap());
 
 /// Any number of pipes becomes a single ::.
+#[allow(dead_code)]
 pub fn recursively_unmangle_shortname(name: &str) -> Cow<str> {
     UNMANGLE_RE_1.replace_all(name, "::")
 }

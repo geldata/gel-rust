@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Class, Name, schema, structure};
+use crate::{Class, Name};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Value {
@@ -310,35 +310,6 @@ impl Object {
 
     pub fn id(&self) -> &Uuid {
         &self.id
-    }
-
-    pub fn get_name(&self, schema: &crate::Schema) -> Rc<crate::Name> {
-        // TODO: this should all be const
-        let structures = structure::get_structures();
-        let cls_structure = structures.classes.get(self.class.as_ref()).unwrap();
-        let name_field = cls_structure.fields.get("name").unwrap();
-
-        let data = schema.get_data(self).unwrap();
-        let Value::Name(name) = &data[name_field.index] else {
-            panic!()
-        };
-        Rc::clone(name)
-    }
-
-    pub fn get_display_name(&self, schema: &crate::Schema) -> String {
-        match self.class {
-            _ => self.get_name(schema).as_display_name(self.class),
-        }
-    }
-
-    pub fn get_verbose_name(&self, schema: &crate::Schema, with_parent: bool) -> String {
-        match self.class {
-            _ => {
-                let cls_name = self.class.get_display_name();
-                let dname = self.get_display_name(schema);
-                format!("{cls_name} '{dname}'")
-            }
-        }
     }
 }
 

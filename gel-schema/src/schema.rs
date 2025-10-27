@@ -22,6 +22,21 @@ pub struct Schema {
     generation: usize,
 }
 
+#[derive(Debug)]
+pub enum SchemaError {
+    /// {Object.class} ({Object.id}) is already present in the schema {schema}
+    DuplicateId(Object),
+
+    /// {Object.name} already exists
+    DuplicateName(Object),
+
+    /// errors.UnknownModuleError: module {module} is not in this schema
+    MissingModule(String),
+
+    /// errors.InvalidReferenceError:
+    MissingObject,
+}
+
 const SPECIAL_MODULES: &[&str] = &["__derived__", "__ext_casts__", "__ext_index_matches__"];
 
 impl Schema {
@@ -74,7 +89,7 @@ impl Schema {
             .is_some()
     }
 
-    pub fn add(&mut self, obj: &Object, data: Vec<Value>) -> Result<(), String> {
+    pub fn add(&mut self, obj: &Object, data: Vec<Value>) -> Result<(), SchemaError> {
         let structures = structure::get_structures();
         let cls_structure = structures.classes.get(obj.class.as_ref()).unwrap();
 
@@ -85,18 +100,13 @@ impl Schema {
 
         // name must not exist
         if let Some(id) = self.name_to_id.get(name) {
-            let other_obj = self.get_by_id(*id);
-            // TODO: verbose name
-            // let vn = other_obj.get_verbosename(self, with_parent=True);
-            return Err(format!("{name:?} already exists: {other_obj:?}"));
+            let other_obj = self.get_by_id(*id).unwrap();
+            return Err(SchemaError::DuplicateName(other_obj));
         }
 
         // id must not exist
-        if let Some(id) = self.id_to_type.get(&obj.id) {
-            let cls = obj.class;
-            return Err(format!(
-                "{cls:?} ({id:?}) is already present in the schema {self:?}"
-            ));
+        if let Some(_) = self.id_to_type.get(&obj.id) {
+            return Err(SchemaError::DuplicateId(obj.clone()));
         }
 
         // update refs
@@ -111,7 +121,7 @@ impl Schema {
             && !self.has_module(module)
             && !SPECIAL_MODULES.contains(&module.as_str())
         {
-            return Err(format!("module {} is not in this schema", &module));
+            return Err(SchemaError::MissingModule(module.clone()));
         }
 
         self.id_to_type.insert(obj.id, obj.class);
@@ -123,9 +133,9 @@ impl Schema {
         self.name_to_id.remove(name);
     }
 
-    pub fn delete(&mut self, obj: &Object) -> Result<(), String> {
+    pub fn delete(&mut self, obj: &Object) -> Result<(), SchemaError> {
         let Some(data) = self.id_to_data.get(&obj.id) else {
-            return Err(format!("cannot delete {obj:?}: not in this schema"));
+            return Err(SchemaError::MissingObject);
         };
 
         let structures = structure::get_structures();
@@ -150,12 +160,14 @@ impl Schema {
         Ok(())
     }
 
-    pub fn set_field(&mut self, obj: Object, fieldname: &str, value: Value) -> Result<(), String> {
+    pub fn set_field(
+        &mut self,
+        obj: Object,
+        fieldname: &str,
+        value: Value,
+    ) -> Result<(), SchemaError> {
         let Some(data) = self.id_to_data.get(&obj.id) else {
-            let obj_id = obj.id;
-            return Err(format!(
-                "cannot set {fieldname} value: item {obj_id:?} is not present in the schema {self:?}"
-            ));
+            return Err(SchemaError::MissingObject);
         };
 
         let structures = structure::get_structures();
@@ -189,7 +201,7 @@ impl Schema {
         Ok(())
     }
 
-    pub fn unset_field(&mut self, obj: Object, fieldname: &str) -> Result<(), String> {
+    pub fn unset_field(&mut self, obj: Object, fieldname: &str) -> Result<(), SchemaError> {
         let Some(data) = self.id_to_data.get(&obj.id) else {
             return Ok(());
         };
@@ -231,7 +243,7 @@ impl Schema {
         &mut self,
         obj: Object,
         updates: HashMap<String, Value>,
-    ) -> Result<(), String> {
+    ) -> Result<(), SchemaError> {
         if updates.is_empty() {
             return Ok(());
         }
@@ -278,7 +290,7 @@ impl Schema {
         obj: &Object,
         old_name: Option<&Name>,
         new_name: Option<&Name>,
-    ) -> Result<(), String> {
+    ) -> Result<(), SchemaError> {
         let is_global_name = !obj.class.is_qualified();
 
         let has_sn_cache = matches!(obj.class, Class::Function | Class::Operator);
@@ -304,12 +316,7 @@ impl Schema {
                 let key = (obj.class, new_name.clone());
                 if let Some(other_id) = self.globalname_to_id.get(&key) {
                     let other_obj = self.get_by_id(*other_id).unwrap();
-                    // TODO: verbose name
-                    // vn = other_obj.get_verbosename(self, with_parent=True)
-                    let cls = obj.class;
-                    return Err(format!(
-                        "{cls:?} {new_name:?} already exists: {other_obj:?}"
-                    ));
+                    return Err(SchemaError::DuplicateName(other_obj));
                 }
 
                 self.globalname_to_id.insert(key, obj.id);
@@ -318,14 +325,12 @@ impl Schema {
                     && !self.has_module(module)
                     && !SPECIAL_MODULES.contains(&module.as_str())
                 {
-                    return Err(format!("module {module} is not in this schema"));
+                    return Err(SchemaError::MissingModule(module.clone()));
                 }
 
                 if let Some(other_id) = self.name_to_id.get(new_name) {
                     let other_obj = self.get_by_id(*other_id).unwrap();
-                    // TODO: verbose name
-                    // vn = other_obj.get_verbosename(self, with_parent=True)
-                    return Err(format!("{new_name:?} already exists: {other_obj:?}"));
+                    return Err(SchemaError::DuplicateName(other_obj));
                 }
                 self.name_to_id.insert(new_name.clone(), obj.id);
             }
