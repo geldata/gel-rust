@@ -22,9 +22,6 @@ This library is split into four major components:
  3. The pool itself. This drives the blocks and the connector interface, and
     polls the algorithm to plan next steps during acquisition, release and
     during the timer-based planning callback.
- 4. The Python integration code. This is behind an optional feature, and exposes
-    PyO3-based interface that allows a connection factory to be implemented in
-    Python.
 
 ## Details
 
