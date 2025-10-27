@@ -10,6 +10,7 @@ docs can currently be found on docs.rs:
 | [gel-babelfish](https://docs.rs/gel-babelfish) | [Source](./gel-babelfish) | Babelfish is a Gel socket frontend that speaks Gel, Postgres, HTTP and more. |
 | [gel-captive](https://docs.rs/gel-captive) | [Source](./gel-captive) | Run a captive Gel server for testing purposes. |
 | [gel-config](https://docs.rs/gel-config) | [Source](./gel-config) | Configuration file parser for Gel. |
+| [gel-connpool](https://docs.rs/gel-connpool) | [Source](./gel-connpool) | Load-balancing connection pool for Gel database with QoS optimization. |
 | [gel-derive](https://docs.rs/gel-derive) | [Source](./gel-derive) | Derive macros for Gel database client. |
 | [gel-db-protocol](https://docs.rs/gel-db-protocol) | [Source](./gel-db-protocol) | Low-level protocol implementation of the EdgeDB/Gel wire protocol. |
 | [gel-dsn](https://docs.rs/gel-dsn) | [Source](./gel-dsn) | Data-source name (DSN) parser for Gel and PostgreSQL databases. |
