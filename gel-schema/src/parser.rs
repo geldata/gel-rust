@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::str::FromStr;
 
-use im_rc as im;
+use im;
 use indexmap::IndexMap;
 use tinyjson::JsonValue;
 use uuid::Uuid;
@@ -154,7 +154,7 @@ pub fn parse_reflection(
                             };
                             refids.push(Uuid::from_str(id).unwrap());
                         }
-                        Value::ObjectDict(Rc::new(ObjectDict {
+                        Value::ObjectDict(Arc::new(ObjectDict {
                             keys: refkeys,
                             values: refids,
                             value_ty,
@@ -162,20 +162,20 @@ pub fn parse_reflection(
                     } else {
                         let values = _parse_array_of_ids(v);
                         if f_type == "FuncParameterList" {
-                            Value::ObjectList(Rc::new(ObjectList {
+                            Value::ObjectList(Arc::new(ObjectList {
                                 ty: ObjectListTy::FuncParameterList,
                                 values,
                                 value_ty: None,
                             }))
                         } else if f_type == "ObjectList" {
-                            Value::ObjectList(Rc::new(ObjectList {
+                            Value::ObjectList(Arc::new(ObjectList {
                                 ty: ObjectListTy::ObjectList,
                                 values,
                                 value_ty: Some(f_ty_arg.unwrap().to_string()),
                             }))
                         } else if f_type == "ObjectSet" {
                             let value_ty = Some(f_ty_arg.unwrap().to_string());
-                            Value::ObjectSet(Rc::new(ObjectSet { values, value_ty }))
+                            Value::ObjectSet(Arc::new(ObjectSet { values, value_ty }))
                         } else {
                             panic!()
                         }
@@ -186,7 +186,7 @@ pub fn parse_reflection(
                     let v = entry.get(&format!("{k}__internal"));
                     let val = if let Some(v) = v {
                         if f_type == "Expression" {
-                            Value::Expression(Rc::new(_parse_expression(v, obj_id, k)))
+                            Value::Expression(Arc::new(_parse_expression(v, obj_id, k)))
                         } else if f_type.starts_with("ExpressionList") {
                             let JsonValue::Array(v) = v else { panic!() };
 
@@ -194,7 +194,7 @@ pub fn parse_reflection(
                             for e_dict in v {
                                 exprs.push(_parse_expression(e_dict, obj_id, k))
                             }
-                            Value::ExpressionList(Rc::new(exprs))
+                            Value::ExpressionList(Arc::new(exprs))
                         } else if f_type.starts_with("ExpressionDict") {
                             let JsonValue::Array(v) = v else { panic!() };
 
@@ -210,14 +210,14 @@ pub fn parse_reflection(
                                 let e = _parse_expression(e_dict.get("expr").unwrap(), obj_id, k);
                                 expr_dict.insert(name.clone(), e);
                             }
-                            Value::ExpressionDict(Rc::new(expr_dict))
+                            Value::ExpressionDict(Arc::new(expr_dict))
                         } else if f_type.starts_with("Object") {
                             todo!("object")
                             // val = val.id
                         } else if f_type.starts_with("Name") {
                             let JsonValue::String(v) = v else { panic!() };
 
-                            Value::Name(Rc::new(if cls.is_qualified() {
+                            Value::Name(Arc::new(if cls.is_qualified() {
                                 Name::new_from_string(v)
                             } else {
                                 Name::new_unqualified(v.clone())
@@ -234,7 +234,7 @@ pub fn parse_reflection(
                         Value::Version(_parse_version(v))
                     } else if f_type == "Name" {
                         let JsonValue::String(v) = v else { panic!() };
-                        Value::Name(Rc::new(Name::new_from_string(v)))
+                        Value::Name(Arc::new(Name::new_from_string(v)))
                     } else if f_type == "ParametricContainer"
                     // TODO:
                     // && ftype.types
@@ -254,7 +254,7 @@ pub fn parse_reflection(
                             .iter()
                             .map(|v| _parse_value(v, &layout.r#type, &value_ty))
                             .collect();
-                        Value::Container(Rc::new(Container {
+                        Value::Container(Arc::new(Container {
                             ty: ContainerTy::MultiPropSet,
                             value_ty,
                             values,
@@ -270,7 +270,7 @@ pub fn parse_reflection(
                 let (obj_index_base_ty, ty_arg) = unpack_generic_py_type(f_type);
                 let ty = Value::get_object_index_ty_name(obj_index_base_ty);
 
-                let val = Value::ObjectIndex(Rc::new(ObjectIndex {
+                let val = Value::ObjectIndex(Arc::new(ObjectIndex {
                     ty,
                     value_ty: ty_arg.unwrap().to_string(),
                     keys: None,
@@ -296,7 +296,7 @@ pub fn parse_reflection(
                         let pv = match pv {
                             JsonValue::Number(n) => Value::Int(*n as i64),
                             JsonValue::Boolean(b) => Value::Bool(*b),
-                            JsonValue::String(s) => Value::Str(Rc::new(s.clone())),
+                            JsonValue::String(s) => Value::Str(Arc::new(s.clone())),
                             JsonValue::Null => Value::None,
                             JsonValue::Array(_) => todo!("properties array"),
                             JsonValue::Object(_) => todo!("properties object"),
@@ -311,7 +311,7 @@ pub fn parse_reflection(
             .into_iter()
             .map(|d| d.unwrap_or(Value::None))
             .collect();
-        schema.id_to_data.insert(obj_id, Rc::new(obj_data));
+        schema.id_to_data.insert(obj_id, Arc::new(obj_data));
     }
 
     for (obj_id, updates) in refdict_updates {
@@ -332,7 +332,7 @@ pub fn parse_reflection(
             let value = data_cloned.get_mut(field.index).unwrap();
             *value = v;
         }
-        *data_ref = Rc::new(data_cloned);
+        *data_ref = Arc::new(data_cloned);
     }
 
     for (referred_id, ref_data) in refs_to {
@@ -465,7 +465,7 @@ fn _parse_version(val: &JsonValue) -> Version {
 fn _parse_value(val: &JsonValue, eql_ty: &str, py_ty: &str) -> Value {
     if ["Name", "QualName", "UnqualName"].contains(&py_ty) {
         let JsonValue::String(s) = val else { panic!() };
-        return Value::Name(Rc::new(Name::new_from_string(s)));
+        return Value::Name(Arc::new(Name::new_from_string(s)));
     }
     if py_ty.starts_with("FrozenChecked") {
         let (ty, ty_arg) = unpack_generic_py_type(py_ty);
@@ -484,7 +484,7 @@ fn _parse_value(val: &JsonValue, eql_ty: &str, py_ty: &str) -> Value {
             .map(|i| _parse_value(i, &eql_item, &value_ty))
             .collect();
 
-        return Value::Container(Rc::new(Container {
+        return Value::Container(Arc::new(Container {
             ty,
             values,
             value_ty,
@@ -513,7 +513,7 @@ fn _parse_value(val: &JsonValue, eql_ty: &str, py_ty: &str) -> Value {
         }
         "std::str" => {
             let JsonValue::String(s) = val else { panic!() };
-            Value::Str(Rc::new(s.clone()))
+            Value::Str(Arc::new(s.clone()))
         }
         "std::int16" | "std::int32" | "std::int64" => {
             let JsonValue::Number(n) = val else { panic!() };

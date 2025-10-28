@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
-use im_rc as im;
+use im;
 use std::collections::{self, HashMap, HashSet};
-use std::rc::Rc;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -12,7 +12,7 @@ use crate::{Class, Name, Object, Value};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Schema {
-    pub(crate) id_to_data: im::HashMap<Uuid, Rc<Vec<Value>>>,
+    pub(crate) id_to_data: im::HashMap<Uuid, Arc<Vec<Value>>>,
     pub(crate) id_to_type: im::HashMap<Uuid, Class>,
     pub(crate) name_to_id: im::HashMap<Name, Uuid>,
     pub(crate) shortname_to_id: im::HashMap<(Class, Name), im::HashSet<Uuid>>,
@@ -125,7 +125,7 @@ impl Schema {
         }
 
         self.id_to_type.insert(obj.id, obj.class);
-        self.id_to_data.insert(obj.id, Rc::new(data));
+        self.id_to_data.insert(obj.id, Arc::new(data));
         Ok(())
     }
 
@@ -191,7 +191,7 @@ impl Schema {
         let data_ref = self.id_to_data.get_mut(&obj.id).unwrap();
         let mut data_new = data_ref.as_ref().clone();
         let old_value = std::mem::replace(&mut data_new[field.index], value);
-        *data_ref = Rc::new(data_new);
+        *data_ref = Arc::new(data_new);
 
         let mut orig_refs = HashMap::new();
         orig_refs.insert(fieldname, old_value.ref_ids().collect());
@@ -232,7 +232,7 @@ impl Schema {
         let data_ref = self.id_to_data.get_mut(&obj.id).unwrap();
         let mut data_cloned = data_ref.as_ref().clone();
         data_cloned[field.index] = Value::None;
-        *data_ref = Rc::new(data_cloned);
+        *data_ref = Arc::new(data_cloned);
 
         self.update_refs_to(&obj, &cls_structure.fields, orig_refs, Default::default());
 
@@ -279,7 +279,7 @@ impl Schema {
             data[field.index] = value;
         }
 
-        self.id_to_data.insert(obj.id, Rc::new(data));
+        self.id_to_data.insert(obj.id, Arc::new(data));
 
         self.update_refs_to(&obj, &cls_structure.fields, orig_refs, new_refs);
         Ok(())
