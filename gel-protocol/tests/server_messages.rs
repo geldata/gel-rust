@@ -128,9 +128,7 @@ fn parameter_status() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn command_complete1() -> Result<(), Box<dyn Error>> {
-    encoding_eq_ver!(
-        1,
-        0,
+    encoding_eq!(
         ServerMessage::CommandComplete1(CommandComplete1 {
             annotations: HashMap::new(),
             capabilities: Capabilities::MODIFICATIONS,
@@ -145,21 +143,21 @@ fn command_complete1() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn command_data_description1() -> Result<(), Box<dyn Error>> {
+fn command_data_description2() -> Result<(), Box<dyn Error>> {
     encoding_eq_ver!(
-        1,
+        2,
         0,
         ServerMessage::CommandDataDescription1(CommandDataDescription1 {
             annotations: HashMap::new(),
             capabilities: Capabilities::MODIFICATIONS,
             result_cardinality: Cardinality::AtMostOne,
             input: RawTypedesc {
-                proto: ProtocolVersion::new(1, 0),
+                proto: ProtocolVersion::new(2, 0),
                 id: Uuid::from_u128(0xFF),
                 data: Bytes::from_static(b"\x04\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xff\0\0"),
             },
             output: RawTypedesc {
-                proto: ProtocolVersion::new(1, 0),
+                proto: ProtocolVersion::new(2, 0),
                 id: Uuid::from_u128(0x105),
                 data: Bytes::from_static(b"\x02\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\x05"),
             },
@@ -173,19 +171,19 @@ fn command_data_description1() -> Result<(), Box<dyn Error>> {
                      b"\x02\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\x05")
     );
     encoding_eq_ver!(
-        1,
+        2,
         0,
         ServerMessage::CommandDataDescription1(CommandDataDescription1 {
             annotations: HashMap::new(),
             capabilities: Capabilities::MODIFICATIONS,
             result_cardinality: Cardinality::NoResult,
             input: RawTypedesc {
-                proto: ProtocolVersion::new(1, 0),
+                proto: ProtocolVersion::new(2, 0),
                 id: Uuid::from_u128(0xFF),
                 data: Bytes::from_static(b"\x04\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xff\0\0"),
             },
             output: RawTypedesc {
-                proto: ProtocolVersion::new(1, 0),
+                proto: ProtocolVersion::new(2, 0),
                 id: Uuid::from_u128(0),
                 data: Bytes::from_static(b""),
             },
