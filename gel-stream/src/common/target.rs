@@ -502,7 +502,7 @@ enum TargetInner {
     StartTls(MaybeResolvedTarget, Arc<TlsParameters>),
 }
 
-#[derive(Clone, Debug, derive_more::From, derive_more::TryFrom)]
+#[derive(Clone, Debug, derive_more::From)]
 /// The resolved target of a connection attempt.
 #[from(forward)]
 pub enum ResolvedTarget {
