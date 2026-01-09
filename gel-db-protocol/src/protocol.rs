@@ -310,16 +310,6 @@ struct AuthenticationSASLFinal<'a>: Message {
     sasl_data: Array<'a, u32, u8>,
 }
 
-/// The `Dump` struct represents a dump message from the client.
-struct Dump<'a>: Message {
-    /// Identifies the message as dump.
-    mtype: u8 = '>',
-    /// Length of message contents in bytes, including self.
-    mlen: len,
-    /// Message annotations.
-    annotations: Array<'a, i16, Annotation<'a>>,
-}
-
 /// The `Dump2` struct represents a dump message from the client.
 struct Dump2<'a>: Message {
     /// Identifies the message as dump.
